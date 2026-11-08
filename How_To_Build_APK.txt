@@ -76,10 +76,12 @@ C:\Users\It Hub\Documents\BashLock-Cloud\BashLock_APK
 3. Android Studio niche Gradle Sync karega (1-2 minutes).
    (Ensure karein ke internet chal raha ho taake Android dependencies sync ho saken).
 
-4. Agar tunnel URL update ho, to aap is file mein URL verify kar sakte hain:
-   BashLock_APK\app\src\main\java\com\bashlock\apk\MainActivity.java
-   Line 55: DEFAULT_PUBLIC_HTTPS_URL = "https://sperm-gem-balanced-choice.trycloudflare.com/lock-app";
-   Line 57: FALLBACK_LAN_HTTP_URL = "http://10.58.52.239:5000/lock-app";
+4. LIFETIME 1-TIME INSTALL (DYNAMIC GITHUB AUTO-CONFIG):
+   Aapko bar bar APK install karne ki bilkul zaroorat nahi hai!
+   App start hote hi GitHub se `live_url.txt` fetch kar leti hai.
+   Line 59: GITHUB_RAW_LIVE_URL = "https://raw.githubusercontent.com/bashirahmad00047-create/BashLock-cloud/main/live_url.txt";
+   Line 60: DEFAULT_PUBLIC_HTTPS_URL = "https://sperm-gem-balanced-choice.trycloudflare.com/lock-app";
+   Line 62: FALLBACK_LAN_HTTP_URL = "http://10.58.52.239:5000/lock-app";
 
 5. Ooper menu bar mein click karein:
    Build  ===>  Build Bundle(s) / APK(s)  ===>  Build APK(s)

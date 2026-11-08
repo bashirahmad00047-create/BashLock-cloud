@@ -36,7 +36,11 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.lang.reflect.Method;
+import java.net.HttpURLConnection;
+import java.net.URL;
 
 /**
  * MainActivity: Full-Screen Kiosk WebView Wrapper for BashLock.
@@ -51,7 +55,8 @@ import java.lang.reflect.Method;
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "BashLock_Main";
     
-    // Requirement 2: Public HTTPS link of /lock-app
+    // Dynamic GitHub Remote Config URL - Allows 1-time permanent APK install!
+    public static final String GITHUB_RAW_LIVE_URL = "https://raw.githubusercontent.com/bashirahmad00047-create/BashLock-cloud/main/live_url.txt";
     public static final String DEFAULT_PUBLIC_HTTPS_URL = "https://sperm-gem-balanced-choice.trycloudflare.com/lock-app";
     // Local LAN Wi-Fi Fallback IP in case Cloudflare tunnel is unreachable on local Wi-Fi
     public static final String FALLBACK_LAN_HTTP_URL = "http://10.58.52.239:5000/lock-app";
@@ -68,6 +73,7 @@ public class MainActivity extends AppCompatActivity {
     private Handler mMainHandler;
     private boolean mPageLoadedSuccessfully = false;
     private boolean mTriedFallback = false;
+    private boolean mIsResolvingUrl = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -209,6 +215,8 @@ public class MainActivity extends AppCompatActivity {
                 if (request.isForMainFrame()) {
                     mProgressBar.setVisibility(View.GONE);
                     mSwipeRefresh.setRefreshing(false);
+                    // Check if tunnel URL updated on GitHub
+                    fetchLiveUrlFromGitHub(true);
                     if (!mTriedFallback) {
                         loadFallbackUrl();
                     } else {
@@ -220,9 +228,10 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onReceivedHttpError(WebView view, WebResourceRequest request, android.webkit.WebResourceResponse errorResponse) {
                 if (request.isForMainFrame() && errorResponse.getStatusCode() >= 500) {
-                    Log.w(TAG, "Cloudflare Error " + errorResponse.getStatusCode() + " (e.g. Error 1033); engaging offline fallback");
+                    Log.w(TAG, "Cloudflare Error " + errorResponse.getStatusCode() + " (e.g. Error 1033); checking GitHub for updated link");
                     mProgressBar.setVisibility(View.GONE);
                     mSwipeRefresh.setRefreshing(false);
+                    fetchLiveUrlFromGitHub(true);
                     if (!mTriedFallback) {
                         loadFallbackUrl();
                     }
@@ -241,6 +250,7 @@ public class MainActivity extends AppCompatActivity {
     private void setupSwipeRefresh() {
         mSwipeRefresh.setOnRefreshListener(() -> {
             if (!mIsLocked) {
+                fetchLiveUrlFromGitHub(true);
                 mWebView.reload();
             } else {
                 mSwipeRefresh.setRefreshing(false);
@@ -248,9 +258,67 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    private String getActiveBaseUrl() {
+        return mPrefs.getString("cached_live_url", DEFAULT_PUBLIC_HTTPS_URL);
+    }
+
     private void loadLockAppUrl() {
         mTriedFallback = false;
-        loadUrlInternal(DEFAULT_PUBLIC_HTTPS_URL);
+        // 1. Immediately load currently saved / default URL (no blank screen lag)
+        loadUrlInternal(getActiveBaseUrl());
+        // 2. Concurrently fetch the latest live URL from GitHub raw
+        fetchLiveUrlFromGitHub(false);
+    }
+
+    private void fetchLiveUrlFromGitHub(boolean forceReloadOnSuccess) {
+        if (mIsResolvingUrl) return;
+        mIsResolvingUrl = true;
+
+        new Thread(() -> {
+            HttpURLConnection conn = null;
+            try {
+                // Add timestamp param to prevent local or intermediate proxy caching
+                URL url = new URL(GITHUB_RAW_LIVE_URL + "?t=" + System.currentTimeMillis());
+                conn = (HttpURLConnection) url.openConnection();
+                conn.setConnectTimeout(6000);
+                conn.setReadTimeout(6000);
+                conn.setRequestMethod("GET");
+                conn.setUseCaches(false);
+                conn.setRequestProperty("User-Agent", "BashLock-Android-Client");
+                conn.setRequestProperty("Cache-Control", "no-cache");
+
+                if (conn.getResponseCode() == HttpURLConnection.HTTP_OK) {
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                    String line = reader.readLine();
+                    reader.close();
+
+                    if (line != null) {
+                        String fetchedUrl = line.trim();
+                        if (fetchedUrl.startsWith("http")) {
+                            if (!fetchedUrl.endsWith("/lock-app")) {
+                                fetchedUrl = fetchedUrl + "/lock-app";
+                            }
+                            String currentUrl = getActiveBaseUrl();
+                            if (!fetchedUrl.equalsIgnoreCase(currentUrl) || forceReloadOnSuccess) {
+                                Log.i(TAG, "Auto-Resolved fresh live URL from GitHub: " + fetchedUrl);
+                                mPrefs.edit().putString("cached_live_url", fetchedUrl).apply();
+                                final String targetUrl = fetchedUrl;
+                                runOnUiThread(() -> {
+                                    loadUrlInternal(targetUrl);
+                                });
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "GitHub live_url.txt fetch warning: " + e.getMessage());
+            } finally {
+                mIsResolvingUrl = false;
+                if (conn != null) {
+                    conn.disconnect();
+                }
+            }
+        }).start();
     }
 
     private void loadFallbackUrl() {

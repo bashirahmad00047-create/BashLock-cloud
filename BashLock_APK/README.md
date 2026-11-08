@@ -5,7 +5,7 @@ Ready-to-build Android Studio project jo BashLock Cloud ke `/lock-app` ko custom
 ---
 
 ## 🌟 Key Features Implemented:
-1. **Full-Screen Accelerated WebView:** Loads `https://sperm-gem-balanced-choice.trycloudflare.com/lock-app` (with automatic fallback to Wi-Fi `http://10.58.52.239:5000/lock-app` and Service Worker offline caching).
+1. **Dynamic Remote URL Auto-Discovery (Lifetime 1-Time Install):** App start hote hi GitHub se `live_url.txt` fetch kar ke current live Cloudflare URL par auto-connect ho jati hai. Tunnel URL badalne par APK dobara install karne ki zaroorat nahi rehti!
 2. **Kiosk Lock Mode (`startLockTask()`):** Jab device lock state mein hoti hai, yeh phone ko kiosk mode mein pin kar deta hai.
 3. **`SYSTEM_ALERT_WINDOW` Overlay Guard:** Top status bar aur notification shade ke upar invisible floating barrier banata hai taake customer quick settings pull down na kar sake.
 4. **Hardware Button Suppression:** Back, Home aur Recent Apps button complete block ho jate hain.

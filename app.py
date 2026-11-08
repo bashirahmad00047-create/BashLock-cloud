@@ -181,17 +181,18 @@ def send_whatsapp_wasooli_receipt(receipt_data: dict):
         print(f"[!] send_whatsapp_wasooli_receipt error: {e}")
 
 def get_public_tunnel_url():
-    """Reads live public HTTPS URL from tunnel_url.txt or default."""
-    tunnel_file = os.path.join(BASE_DIR, "tunnel_url.txt")
-    if os.path.exists(tunnel_file):
-        try:
-            with open(tunnel_file, "r") as f:
-                val = f.read().strip()
-                if val.startswith("http"):
-                    return val
-        except Exception:
-            pass
-    return "https://e8d9309a96372e.lhr.life"
+    """Reads live public HTTPS URL from live_url.txt or tunnel_url.txt or default."""
+    for filename in ["live_url.txt", "tunnel_url.txt"]:
+        tunnel_file = os.path.join(BASE_DIR, filename)
+        if os.path.exists(tunnel_file):
+            try:
+                with open(tunnel_file, "r") as f:
+                    val = f.read().strip()
+                    if val.startswith("http"):
+                        return val
+            except Exception:
+                pass
+    return "https://sperm-gem-balanced-choice.trycloudflare.com"
 
 def get_lan_ip():
     """Detects laptop's local LAN/Wi-Fi IPv4 address dynamically."""
