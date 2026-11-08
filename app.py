@@ -219,6 +219,87 @@ def calculate_offline_pin(device_id: str, date_str: str = None) -> str:
 
 # ----------------- EASY 4-DIGIT CODE MOBILE LOCK APP (Requirement 3) ----------------- #
 
+@app.route("/sw.js")
+def service_worker_file():
+    sw_code = """
+const CACHE_NAME = 'bashlock-lockapp-cache-v3';
+
+self.addEventListener('install', (event) => {
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    Promise.all([
+      self.clients.claim(),
+      caches.keys().then((keys) => {
+        return Promise.all(
+          keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+        );
+      })
+    ])
+  );
+});
+
+self.addEventListener('fetch', (event) => {
+  const req = event.request;
+  const url = new URL(req.url);
+
+  // If navigating to /lock-app or subpaths
+  if (req.mode === 'navigate' || url.pathname.startsWith('/lock-app')) {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          // If response is valid (status 200) and not Cloudflare Error 1033 (5xx/530)
+          if (res && res.status === 200) {
+            const clone = res.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(req, clone);
+              cache.put('/lock-app', clone.clone());
+            });
+            return res;
+          }
+          // If Cloudflare returned Error 1033 (HTTP 530/502/503), serve cached lock screen
+          return caches.match(req).then((cached) => cached || caches.match('/lock-app') || res);
+        })
+        .catch(async () => {
+          // Complete offline or tunnel drop
+          const cached = await caches.match(req);
+          if (cached) return cached;
+          const fallback = await caches.match('/lock-app');
+          if (fallback) return fallback;
+          return new Response("BashLock Offline Security Active", {
+            headers: { 'Content-Type': 'text/plain' }
+          });
+        })
+    );
+    return;
+  }
+
+  // Other assets (fonts, css, js)
+  event.respondWith(
+    fetch(req)
+      .then((res) => {
+        if (res && res.status === 200 && (url.pathname.endsWith('.css') || url.pathname.endsWith('.js') || url.hostname.includes('cdnjs') || url.hostname.includes('tailwind'))) {
+          const clone = res.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
+        }
+        return res;
+      })
+      .catch(() => caches.match(req))
+  );
+});
+"""
+    return Response(
+        sw_code.strip(),
+        mimetype="application/javascript",
+        headers={
+            "Content-Type": "application/javascript",
+            "Service-Worker-Allowed": "/",
+            "Cache-Control": "no-cache, no-store, must-revalidate"
+        }
+    )
+
 @app.route("/lock-app")
 @app.route("/lock-app/<setup_code>")
 def lock_app_page(setup_code=""):

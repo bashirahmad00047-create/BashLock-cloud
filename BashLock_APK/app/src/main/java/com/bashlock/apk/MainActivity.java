@@ -52,7 +52,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String TAG = "BashLock_Main";
     
     // Requirement 2: Public HTTPS link of /lock-app
-    public static final String DEFAULT_PUBLIC_HTTPS_URL = "https://gorgeous-changelog-approximate-pale.trycloudflare.com/lock-app";
+    public static final String DEFAULT_PUBLIC_HTTPS_URL = "https://sperm-gem-balanced-choice.trycloudflare.com/lock-app";
     // Local LAN Wi-Fi Fallback IP in case Cloudflare tunnel is unreachable on local Wi-Fi
     public static final String FALLBACK_LAN_HTTP_URL = "http://10.58.52.239:5000/lock-app";
 
@@ -216,6 +216,18 @@ public class MainActivity extends AppCompatActivity {
                     }
                 }
             }
+
+            @Override
+            public void onReceivedHttpError(WebView view, WebResourceRequest request, android.webkit.WebResourceResponse errorResponse) {
+                if (request.isForMainFrame() && errorResponse.getStatusCode() >= 500) {
+                    Log.w(TAG, "Cloudflare Error " + errorResponse.getStatusCode() + " (e.g. Error 1033); engaging offline fallback");
+                    mProgressBar.setVisibility(View.GONE);
+                    mSwipeRefresh.setRefreshing(false);
+                    if (!mTriedFallback) {
+                        loadFallbackUrl();
+                    }
+                }
+            }
         });
 
         mWebView.setWebChromeClient(new WebChromeClient() {
@@ -246,6 +258,9 @@ public class MainActivity extends AppCompatActivity {
             mTriedFallback = true;
             Log.w(TAG, "Cloudflare tunnel unreachable, attempting local Wi-Fi fallback: " + FALLBACK_LAN_HTTP_URL);
             runOnUiThread(() -> {
+                if (mWebView != null && mWebView.getSettings() != null) {
+                    mWebView.getSettings().setCacheMode(WebSettings.LOAD_CACHE_ELSE_NETWORK);
+                }
                 Toast.makeText(MainActivity.this, "Connecting to Local Wi-Fi (10.58.52.239)...", Toast.LENGTH_SHORT).show();
                 loadUrlInternal(FALLBACK_LAN_HTTP_URL);
             });
