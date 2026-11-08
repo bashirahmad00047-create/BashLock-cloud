@@ -46,8 +46,8 @@ Agar aapke paas Android Studio install nahi hai ya aap foran 2 minute mein APK b
 2. "Create App" / "URL to App" par click karein.
 
 3. App URL ke khaney mein apna LIVE HTTPS tunnel URL paste karein:
-   https://liberty-opposite-applying-www.trycloudflare.com/lock-app
-   (Bashir phone direct link: https://liberty-opposite-applying-www.trycloudflare.com/lock-app/4819)
+   https://gorgeous-changelog-approximate-pale.trycloudflare.com/lock-app
+   (Bashir phone direct link: https://gorgeous-changelog-approximate-pale.trycloudflare.com/lock-app/4819)
 
 4. App Name likhein:
    BashLock Guard
@@ -78,7 +78,8 @@ C:\Users\It Hub\Documents\BashLock-Cloud\BashLock_APK
 
 4. Agar tunnel URL update ho, to aap is file mein URL verify kar sakte hain:
    BashLock_APK\app\src\main\java\com\bashlock\apk\MainActivity.java
-   Line 55: DEFAULT_PUBLIC_HTTPS_URL = "https://liberty-opposite-applying-www.trycloudflare.com/lock-app";
+   Line 55: DEFAULT_PUBLIC_HTTPS_URL = "https://gorgeous-changelog-approximate-pale.trycloudflare.com/lock-app";
+   Line 57: FALLBACK_LAN_HTTP_URL = "http://10.58.52.239:5000/lock-app";
 
 5. Ooper menu bar mein click karein:
    Build  ===>  Build Bundle(s) / APK(s)  ===>  Build APK(s)
@@ -132,9 +133,9 @@ Ab phone ka pura control BashLock ke paas hoga!
 --------------------------------------------------------------------------------
 5. LIVE SERVER SUMMARY (PORT 5000 + 5002 + HTTPS)
 --------------------------------------------------------------------------------
-- Dashboard Local:    http://127.0.0.1:5000  (ya http://10.119.0.239:5000)
+- Dashboard Local:    http://127.0.0.1:5000  (ya http://10.58.52.239:5000)
 - Baileys WhatsApp:   Port 5002 (Running automatically inside app.py)
-- Public HTTPS Tunnel: https://liberty-opposite-applying-www.trycloudflare.com
-- Mobile Lock App:    https://liberty-opposite-applying-www.trycloudflare.com/lock-app
-- Bashir Test Phone:  https://liberty-opposite-applying-www.trycloudflare.com/lock-app/4819
+- Public HTTPS Tunnel: https://gorgeous-changelog-approximate-pale.trycloudflare.com
+- Mobile Lock App:    https://gorgeous-changelog-approximate-pale.trycloudflare.com/lock-app
+- Bashir Test Phone:  https://gorgeous-changelog-approximate-pale.trycloudflare.com/lock-app/4819
 ================================================================================

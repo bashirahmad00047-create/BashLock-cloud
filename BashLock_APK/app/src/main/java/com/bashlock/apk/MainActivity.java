@@ -52,7 +52,9 @@ public class MainActivity extends AppCompatActivity {
     private static final String TAG = "BashLock_Main";
     
     // Requirement 2: Public HTTPS link of /lock-app
-    public static final String DEFAULT_PUBLIC_HTTPS_URL = "https://liberty-opposite-applying-www.trycloudflare.com/lock-app";
+    public static final String DEFAULT_PUBLIC_HTTPS_URL = "https://gorgeous-changelog-approximate-pale.trycloudflare.com/lock-app";
+    // Local LAN Wi-Fi Fallback IP in case Cloudflare tunnel is unreachable on local Wi-Fi
+    public static final String FALLBACK_LAN_HTTP_URL = "http://10.58.52.239:5000/lock-app";
 
     private WebView mWebView;
     private ProgressBar mProgressBar;
@@ -64,6 +66,8 @@ public class MainActivity extends AppCompatActivity {
     private View mSystemAlertOverlayView;
     private boolean mIsLocked = false;
     private Handler mMainHandler;
+    private boolean mPageLoadedSuccessfully = false;
+    private boolean mTriedFallback = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -117,6 +121,10 @@ public class MainActivity extends AppCompatActivity {
         applyImmersiveFullscreen();
         if (mIsLocked) {
             ensureLockTaskActive();
+        }
+        // If coming back from Device Admin or permission screen and page hasn't loaded yet, reload
+        if (!mPageLoadedSuccessfully && mWebView != null) {
+            loadLockAppUrl();
         }
     }
 
@@ -191,6 +199,7 @@ public class MainActivity extends AppCompatActivity {
             public void onPageFinished(WebView view, String url) {
                 mProgressBar.setVisibility(View.GONE);
                 mSwipeRefresh.setRefreshing(false);
+                mPageLoadedSuccessfully = true;
                 // Inject auto-detection script to notify native layer of current lock state
                 injectStateObserver();
             }
@@ -200,7 +209,11 @@ public class MainActivity extends AppCompatActivity {
                 if (request.isForMainFrame()) {
                     mProgressBar.setVisibility(View.GONE);
                     mSwipeRefresh.setRefreshing(false);
-                    Toast.makeText(MainActivity.this, "Connecting to BashLock Cloud...", Toast.LENGTH_SHORT).show();
+                    if (!mTriedFallback) {
+                        loadFallbackUrl();
+                    } else {
+                        Toast.makeText(MainActivity.this, "Connecting to BashLock Cloud...", Toast.LENGTH_SHORT).show();
+                    }
                 }
             }
         });
@@ -224,8 +237,24 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void loadLockAppUrl() {
+        mTriedFallback = false;
+        loadUrlInternal(DEFAULT_PUBLIC_HTTPS_URL);
+    }
+
+    private void loadFallbackUrl() {
+        if (!mTriedFallback) {
+            mTriedFallback = true;
+            Log.w(TAG, "Cloudflare tunnel unreachable, attempting local Wi-Fi fallback: " + FALLBACK_LAN_HTTP_URL);
+            runOnUiThread(() -> {
+                Toast.makeText(MainActivity.this, "Connecting to Local Wi-Fi (10.58.52.239)...", Toast.LENGTH_SHORT).show();
+                loadUrlInternal(FALLBACK_LAN_HTTP_URL);
+            });
+        }
+    }
+
+    private void loadUrlInternal(String baseUrl) {
         String savedCode = mPrefs.getString("setup_code", "").trim();
-        String url = DEFAULT_PUBLIC_HTTPS_URL;
+        String url = baseUrl;
         if (!savedCode.isEmpty()) {
             url += "/" + savedCode;
         }
