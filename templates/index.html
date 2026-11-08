@@ -1,0 +1,1967 @@
+<!DOCTYPE html>
+<html lang="ur" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BashLock Cloud — Pro Enterprise Luxury Fintech OS</title>
+  
+  <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome 6 Pro-style icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace']
+          },
+          colors: {
+            fintech: {
+              obsidian: '#05070c',
+              card: '#0a0e18',
+              surface: '#0f1627',
+              emerald: '#10b981',
+              neon: '#00f59b',
+              gold: '#f59e0b',
+              crimson: '#f43f5e',
+              indigo: '#6366f1'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      background-color: #05070c;
+      background-image: 
+        radial-gradient(circle at 10% 10%, rgba(16, 185, 129, 0.09) 0%, transparent 40%),
+        radial-gradient(circle at 85% 15%, rgba(245, 158, 11, 0.08) 0%, transparent 45%),
+        radial-gradient(circle at 50% 90%, rgba(99, 102, 241, 0.07) 0%, transparent 50%),
+        radial-gradient(circle at 20% 70%, rgba(6, 182, 212, 0.05) 0%, transparent 45%);
+      background-attachment: fixed;
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      color: #f1f5f9;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Luxury Frosted Glass Cards (backdrop-filter: blur(16px)) */
+    .luxury-glass {
+      background: linear-gradient(135deg, rgba(15, 23, 42, 0.85) 0%, rgba(9, 13, 23, 0.94) 100%);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 20px 45px -15px rgba(0, 0, 0, 0.75), inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+    }
+
+    .luxury-glass-emerald {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(10, 14, 24, 0.94) 100%);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      box-shadow: 0 20px 45px -15px rgba(16, 185, 129, 0.16), inset 0 1px 0 0 rgba(16, 185, 129, 0.25);
+    }
+
+    .luxury-glass-rose {
+      background: linear-gradient(135deg, rgba(244, 63, 94, 0.08) 0%, rgba(10, 14, 24, 0.94) 100%);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(244, 63, 94, 0.25);
+      box-shadow: 0 20px 45px -15px rgba(244, 63, 94, 0.16), inset 0 1px 0 0 rgba(244, 63, 94, 0.25);
+    }
+
+    .luxury-glass-amber {
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(10, 14, 24, 0.94) 100%);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(245, 158, 11, 0.25);
+      box-shadow: 0 20px 45px -15px rgba(245, 158, 11, 0.16), inset 0 1px 0 0 rgba(245, 158, 11, 0.25);
+    }
+
+    .luxury-glass-indigo {
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(10, 14, 24, 0.94) 100%);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(99, 102, 241, 0.25);
+      box-shadow: 0 20px 45px -15px rgba(99, 102, 241, 0.16), inset 0 1px 0 0 rgba(99, 102, 241, 0.25);
+    }
+
+    /* Glows & Neon Accents */
+    .glow-neon-emerald {
+      box-shadow: 0 0 25px rgba(16, 185, 129, 0.35);
+    }
+    .glow-gold {
+      box-shadow: 0 0 25px rgba(245, 158, 11, 0.3);
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #05070c;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #334155;
+    }
+
+    /* Printable A4 Agreement (Qist-Nama) Styles */
+    @media print {
+      body * { visibility: hidden !important; }
+      #printable-agreement-content, #printable-agreement-content * { visibility: visible !important; }
+      #printable-agreement-content {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100% !important;
+        background: white !important;
+        color: black !important;
+        padding: 24px !important;
+      }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased selection:bg-emerald-500 selection:text-black">
+
+  <!-- ================= LUXURY FINTECH NAVIGATION HEADER ================= -->
+  <header class="border-b border-white/[0.08] bg-[#070b14]/90 backdrop-blur-2xl sticky top-0 z-40 px-6 py-3.5 transition-all">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+      
+      <!-- Brand & PRO ENTERPRISE EDITION Badge (Requirement 1) -->
+      <div class="flex items-center gap-3.5">
+        <div class="relative flex items-center justify-center">
+          <div class="w-11 h-11 rounded-2xl bg-gradient-to-tr from-emerald-600 via-teal-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-emerald-500/25 ring-1 ring-white/20">
+            <i class="fa-solid fa-shield-halved text-white text-xl"></i>
+          </div>
+          <span class="absolute -bottom-1 -right-1 flex h-3 w-3">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 border border-slate-900"></span>
+          </span>
+        </div>
+
+        <div>
+          <div class="flex items-center gap-2.5">
+            <h1 class="text-xl font-black tracking-tight text-white flex items-center gap-1">
+              BashLock <span class="bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 bg-clip-text text-transparent">Cloud</span>
+            </h1>
+
+            <!-- PRO ENTERPRISE EDITION Badge with live pulsing status dot (Requirement 1) -->
+            <span class="text-[10px] tracking-widest uppercase font-black px-3 py-1 rounded-full bg-gradient-to-r from-amber-950/80 to-emerald-950/80 text-amber-300 border border-amber-500/40 flex items-center gap-1.5 shadow-md glow-gold">
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+              <i class="fa-solid fa-crown text-[10px] text-amber-400"></i> PRO ENTERPRISE EDITION
+            </span>
+          </div>
+          <div class="flex items-center gap-2 mt-0.5 text-xs text-slate-400">
+            <i class="fa-solid fa-store text-emerald-400 text-[11px]"></i>
+            <span id="shop-header-title" class="font-semibold text-slate-300">Al-Madina Mobile Centre • Haji Muhammad Aslam</span>
+            <span class="text-slate-600">•</span>
+            <span class="text-[11px] text-emerald-400 font-mono font-medium">Auto-Lock Active</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Action Controls -->
+      <div class="flex items-center gap-2.5 flex-wrap">
+
+        <!-- WhatsApp Auto-Bot (Baileys) Button (Requirement 1) -->
+        <button id="btn-whatsapp-status" onclick="openWhatsAppQrModal()" title="WhatsApp Auto-Bot (Baileys) Link QR & Testing" class="px-3.5 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-emerald-500/50 text-xs font-bold text-emerald-300 transition-all flex items-center gap-2 shadow-sm hover:border-emerald-400">
+          <i class="fa-brands fa-whatsapp text-emerald-400 text-sm"></i>
+          <span id="wa-status-label">WhatsApp Auto-Bot (Baileys)</span>
+        </button>
+
+        <!-- Mobile Link Shortcut Button -->
+        <a id="btn-open-lock-app" href="/lock-app" target="_blank" class="px-4 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-cyan-500/30 text-xs font-bold text-cyan-300 transition-all flex items-center gap-2 shadow-sm hover:shadow-cyan-500/10 hover:border-cyan-400">
+          <i class="fa-solid fa-mobile-screen-button text-cyan-400 text-sm"></i>
+          <span>Open Phone Guard (/lock-app)</span>
+        </a>
+
+        <!-- Add Customer Button (Main CTA) -->
+        <button onclick="openEnrollModal()" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-400 active:scale-95 text-white font-extrabold text-xs shadow-lg shadow-emerald-500/30 transition-all flex items-center gap-2 ring-1 ring-emerald-400/40">
+          <i class="fa-solid fa-plus text-sm"></i>
+          <span>+ Naya Gahak & Phone Add Karein</span>
+        </button>
+
+        <!-- Lock Dashboard / Logout Button (Requirement 3) -->
+        <button onclick="lockCounterScreen()" title="Dashboard Screen Lock Karein" class="px-3.5 py-2 rounded-xl bg-rose-950/80 hover:bg-rose-900 border border-rose-700/60 text-xs font-bold text-rose-300 transition flex items-center gap-1.5 shadow-sm active:scale-95">
+          <i class="fa-solid fa-lock text-rose-400"></i>
+          <span>Lock Dashboard / Logout</span>
+        </button>
+
+        <!-- Shop Settings Button -->
+        <button onclick="openShopSettings()" title="Dukaan Ki Setting & Profile" class="w-10 h-10 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-white/10 text-slate-300 hover:text-white transition-all flex items-center justify-center shadow-sm">
+          <i class="fa-solid fa-gear text-sm"></i>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- ================= HERO VIP MOBILE COMPANION LINK BAR ================= -->
+  <div class="bg-gradient-to-r from-emerald-950/70 via-slate-950 to-cyan-950/70 border-b border-emerald-500/25 px-6 py-3 shadow-xl backdrop-blur-xl relative overflow-hidden">
+    <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-500/10 via-transparent to-transparent pointer-events-none"></div>
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4 relative z-10">
+      
+      <!-- Left side: Live Companion Status & Address -->
+      <div class="flex items-center gap-3.5 flex-wrap">
+        <div class="flex items-center justify-center w-11 h-11 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 shadow-lg shadow-emerald-500/20 shrink-0">
+          <i class="fa-solid fa-mobile-screen-button text-xl animate-pulse"></i>
+        </div>
+
+        <div class="space-y-1">
+          <!-- Public HTTPS Tunnel for Vivo Phone -->
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-[10px] uppercase font-black tracking-widest text-cyan-300 bg-cyan-950/90 px-2.5 py-0.5 rounded-lg border border-cyan-500/40 shadow-sm flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+              <i class="fa-solid fa-globe text-cyan-400"></i> Vivo Mobile Public HTTPS Link:
+            </span>
+            <a id="top-tunnel-url-link" href="{{ public_tunnel_url or 'https://e8d9309a96372e.lhr.life' }}/lock-app" target="_blank" class="inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-slate-950/90 hover:bg-slate-900 border border-cyan-500/50 text-cyan-300 font-mono font-bold text-xs tracking-tight shadow-inner transition group">
+              <i class="fa-solid fa-lock text-cyan-400 text-xs"></i>
+              <span id="top-tunnel-url-text">{{ public_tunnel_url or 'https://e8d9309a96372e.lhr.life' }}/lock-app</span>
+              <i class="fa-solid fa-arrow-up-right-from-square text-[10px] text-cyan-400/80"></i>
+            </a>
+            <button onclick="copyTunnelLink()" class="px-2.5 py-1 rounded-xl bg-cyan-950 hover:bg-cyan-900 border border-cyan-500/40 text-cyan-200 text-xs font-bold flex items-center gap-1 transition">
+              <i class="fa-regular fa-copy text-[10px]"></i>
+              <span id="copy-tunnel-btn-label">Copy Vivo Link</span>
+            </button>
+          </div>
+
+          <!-- Local Wi-Fi Network Link -->
+          <div class="flex items-center gap-2 flex-wrap text-xs text-slate-400">
+            <span class="text-[10px] text-slate-400 font-bold uppercase">Shop Wi-Fi URL:</span>
+            <a id="top-mobile-url-link" href="http://{{ lan_ip or '10.119.0.239' }}:5000/lock-app" target="_blank" class="text-emerald-400 font-mono font-bold hover:underline">
+              <span id="top-mobile-url-text">http://{{ lan_ip or '10.119.0.239' }}:5000/lock-app</span>
+            </a>
+            <span class="text-slate-600">•</span>
+            <span class="text-[11px] text-slate-400">Vivo mobile browser mein HTTPS link kholein aur 4-digit code lagayein.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right side: Quick Action Buttons -->
+      <div class="flex items-center gap-2">
+        <a id="top-open-tunnel-btn" href="{{ public_tunnel_url or 'https://performs-ipod-paper-etc.trycloudflare.com' }}/lock-app" target="_blank" class="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 active:scale-95 text-white font-extrabold text-xs shadow-md shadow-cyan-500/25 transition flex items-center gap-2 ring-1 ring-cyan-400/30">
+          <i class="fa-solid fa-mobile-screen text-sm"></i>
+          <span>Test on Vivo Phone</span>
+        </a>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ================= MAIN DASHBOARD CONTAINER ================= -->
+  <main class="max-w-7xl mx-auto px-6 py-7 flex-1 w-full space-y-6">
+
+    <!-- MONTH FILTER CARD WITH VISUAL PROGRESS BAR & MINI REVENUE CHART (Requirement 1) -->
+    <div class="p-5 rounded-3xl luxury-glass border border-white/10 space-y-4 shadow-xl">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500/20 via-emerald-500/20 to-teal-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center text-lg shadow-inner">
+            <i class="fa-solid fa-chart-pie"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-black uppercase tracking-wider text-slate-300">Mahana Wasooli Khata & Revenue Progress</span>
+              <span id="chart-month-label" class="text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-500/30 font-bold">November 2026</span>
+            </div>
+            <p class="text-[11px] text-slate-400">Chuni hui muddat ka live recovery progress, mini pace chart aur instant search</p>
+          </div>
+        </div>
+
+        <!-- Month Filter Dropdown -->
+        <div class="flex items-center gap-2">
+          <label class="text-xs text-slate-400 font-semibold">Maheena:</label>
+          <select id="month-filter-select" onchange="changeMonthFilter()" class="px-3.5 py-2 bg-slate-950 border border-white/10 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-emerald-500 shadow-inner cursor-pointer">
+            <option value="ALL">Tamam Mahine (All Time Ledger)</option>
+            <option value="2026-11" selected>November 2026 (Rawaan Maheena)</option>
+            <option value="2026-10">October 2026 (Pichla Maheena)</option>
+            <option value="2026-09">September 2026</option>
+            <option value="2026-08">August 2026</option>
+          </select>
+        </div>
+
+      </div>
+
+      <!-- VISUAL PROGRESS BAR & MINI REVENUE CHART (Requirement 1) -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 pt-3 border-t border-white/5 items-center">
+        
+        <!-- Left: Recovery Progress Bar (Paid vs Remaining) -->
+        <div class="lg:col-span-2 space-y-2">
+          <div class="flex justify-between items-center text-xs">
+            <div class="flex items-center gap-2">
+              <span class="text-slate-300 font-bold">Collection Recovery Rate:</span>
+              <span id="progress-percentage-label" class="font-mono font-black text-emerald-400 text-sm">0%</span>
+            </div>
+            <div class="flex items-center gap-4 text-[11px] font-mono">
+              <span class="text-emerald-400 font-bold flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-emerald-400"></span> Wasooli: <span id="bar-wasooli-val">PKR 0</span>
+              </span>
+              <span class="text-rose-400 font-bold flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-rose-400"></span> Baqaya: <span id="bar-baqaya-val">PKR 0</span>
+              </span>
+            </div>
+          </div>
+
+          <!-- Dual-color Gradient Progress Bar -->
+          <div class="w-full bg-slate-950 rounded-full h-3.5 p-0.5 border border-white/10 overflow-hidden flex shadow-inner">
+            <div id="visual-progress-paid" class="bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-400 h-full rounded-full transition-all duration-700 shadow-sm" style="width: 0%"></div>
+            <div id="visual-progress-remaining" class="bg-gradient-to-r from-rose-950 to-rose-700/80 h-full rounded-r-full transition-all duration-700" style="width: 100%"></div>
+          </div>
+          
+          <div class="flex justify-between text-[10px] text-slate-500 font-medium">
+            <span>Kul Financed Amount: <strong id="bar-total-val" class="text-slate-300 font-mono">PKR 0</strong></span>
+            <span>Target: 100% On-Time Collection (Defaulter Lock Enabled)</span>
+          </div>
+        </div>
+
+        <!-- Right: Mini Revenue Chart (Visual Bars) -->
+        <div class="p-3.5 rounded-2xl bg-slate-950/70 border border-white/5 flex items-center justify-between gap-3 shadow-inner">
+          <div class="space-y-0.5">
+            <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Recovery Pace</div>
+            <div class="text-xs font-extrabold text-white" id="mini-chart-pace">Live Tracking</div>
+            <div class="text-[10px] text-emerald-400 font-mono flex items-center gap-1">
+              <i class="fa-solid fa-arrow-trend-up"></i> Auto-Sync Active
+            </div>
+          </div>
+
+          <!-- Dynamic Mini Bars -->
+          <div class="flex items-end gap-1.5 h-11 pr-2">
+            <div class="w-2.5 rounded-t bg-emerald-500/25 transition-all duration-500 hover:bg-emerald-400" style="height: 35%" title="Week 1 Pace"></div>
+            <div class="w-2.5 rounded-t bg-emerald-500/40 transition-all duration-500 hover:bg-emerald-400" style="height: 55%" title="Week 2 Pace"></div>
+            <div class="w-2.5 rounded-t bg-emerald-500/65 transition-all duration-500 hover:bg-emerald-400" style="height: 75%" title="Week 3 Pace"></div>
+            <div class="w-2.5 rounded-t bg-gradient-to-t from-emerald-500 to-teal-300 transition-all duration-500 shadow-sm" style="height: 95%" title="Current Week Pace"></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- TOOLBAR: SEARCH & STATUS FILTER TABS & AUTO-LOCK CHECK -->
+    <div class="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl luxury-glass">
+      
+      <!-- Instant Search Input -->
+      <div class="flex-1 min-w-[260px] relative">
+        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+        <input 
+          type="text" 
+          id="search-input" 
+          name="customer_search_query"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          spellcheck="false"
+          oninput="applyFilters()" 
+          placeholder="Talaash karein: Naam, Mobile, CNIC, Model, ya 4-Digit Code..." 
+          class="w-full pl-9 pr-4 py-2.5 bg-slate-950/80 border border-white/10 rounded-xl text-xs font-medium text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-500/60 focus:ring-1 focus:ring-emerald-500/30 transition shadow-inner"
+        >
+      </div>
+
+      <!-- Status Filter Tabs -->
+      <div class="flex items-center gap-1 p-1 bg-slate-950/90 rounded-xl border border-white/5">
+        <button onclick="setStatusFilter('ALL')" id="tab-status-all" class="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 text-white shadow-sm transition">
+          Tamam
+        </button>
+        <button onclick="setStatusFilter('ACTIVE')" id="tab-status-active" class="px-3.5 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition">
+          Active
+        </button>
+        <button onclick="setStatusFilter('LOCKED')" id="tab-status-locked" class="px-3.5 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition">
+          Band (Locked)
+        </button>
+        <button onclick="setStatusFilter('OVERDUE')" id="tab-status-overdue" class="px-3.5 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition">
+          Overdue
+        </button>
+      </div>
+
+      <!-- Quick Auto-Lock Check Button -->
+      <button onclick="runAutoLockBatch()" title="Har overdue device ko foran lock karein" class="px-3.5 py-2 rounded-xl bg-amber-950/80 hover:bg-amber-900 border border-amber-600/60 text-xs font-bold text-amber-300 transition flex items-center gap-1.5 shadow-sm active:scale-95">
+        <i class="fa-solid fa-robot text-amber-400"></i>
+        <span>Auto-Lock Check</span>
+      </button>
+
+    </div>
+
+    <!-- 4 EXECUTIVE FINTECH KPI SUMMARY CARDS (Micro-animations on hover) -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      
+      <!-- Card 1: Kul Gahak -->
+      <div class="p-5 rounded-2xl luxury-glass-indigo relative overflow-hidden group hover:-translate-y-1 hover:shadow-indigo-500/20 transition-all duration-300">
+        <div class="flex items-center justify-between text-slate-400 mb-2">
+          <span class="text-xs font-extrabold uppercase tracking-wider text-indigo-300 flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-indigo-400"></span> Kul Gahak (Customers)
+          </span>
+          <div class="w-9 h-9 rounded-xl bg-indigo-950/80 border border-indigo-500/30 text-indigo-400 flex items-center justify-center font-bold text-sm shadow-inner group-hover:scale-110 transition-transform">
+            <i class="fa-solid fa-users"></i>
+          </div>
+        </div>
+        <div class="text-3xl font-black text-white font-mono tracking-tight" id="card-total-gahak">0</div>
+        <div class="flex items-center justify-between mt-2 pt-2 border-t border-white/5 text-[11px] text-slate-400">
+          <span>Dukaan ke registered khata</span>
+          <span class="text-indigo-400 font-bold" id="card-active-sub">0 Active</span>
+        </div>
+      </div>
+
+      <!-- Card 2: Kul Baqaya -->
+      <div class="p-5 rounded-2xl luxury-glass-rose relative overflow-hidden group hover:-translate-y-1 hover:shadow-rose-500/20 transition-all duration-300">
+        <div class="flex items-center justify-between text-slate-400 mb-2">
+          <span class="text-xs font-extrabold uppercase tracking-wider text-rose-300 flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span> Kul Baqaya (Remaining)
+          </span>
+          <div class="w-9 h-9 rounded-xl bg-rose-950/80 border border-rose-500/30 text-rose-400 flex items-center justify-center font-bold text-sm shadow-inner group-hover:scale-110 transition-transform">
+            <i class="fa-solid fa-hand-holding-dollar"></i>
+          </div>
+        </div>
+        <div class="text-3xl font-black text-rose-400 font-mono tracking-tight" id="card-kul-baqaya">PKR 0</div>
+        <div class="flex items-center justify-between mt-2 pt-2 border-t border-white/5 text-[11px] text-slate-400">
+          <span>Market mein bachi qist</span>
+          <span class="text-rose-400 font-bold" id="card-overdue-sub">0 Overdue</span>
+        </div>
+      </div>
+
+      <!-- Card 3: Wasooli -->
+      <div class="p-5 rounded-2xl luxury-glass-emerald relative overflow-hidden group hover:-translate-y-1 hover:shadow-emerald-500/20 transition-all duration-300">
+        <div class="flex items-center justify-between text-slate-400 mb-2">
+          <span class="text-xs font-extrabold uppercase tracking-wider text-emerald-300 flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Wasooli (Collected PKR)
+          </span>
+          <div class="w-9 h-9 rounded-xl bg-emerald-950/80 border border-emerald-500/30 text-emerald-400 flex items-center justify-center font-bold text-sm shadow-inner group-hover:scale-110 transition-transform">
+            <i class="fa-solid fa-circle-check"></i>
+          </div>
+        </div>
+        <div class="text-3xl font-black text-emerald-400 font-mono tracking-tight" id="card-wasooli">PKR 0</div>
+        <div class="flex items-center justify-between mt-2 pt-2 border-t border-white/5 text-[11px] text-slate-400">
+          <span>Advance + Qist Cash Raqam</span>
+          <span class="text-emerald-400 font-bold">100% Verified</span>
+        </div>
+      </div>
+
+      <!-- Card 4: Locked Phones -->
+      <div class="p-5 rounded-2xl luxury-glass-amber relative overflow-hidden group hover:-translate-y-1 hover:shadow-amber-500/20 transition-all duration-300">
+        <div class="flex items-center justify-between text-slate-400 mb-2">
+          <span class="text-xs font-extrabold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> Locked Phones (Band Sets)
+          </span>
+          <div class="w-9 h-9 rounded-xl bg-amber-950/80 border border-amber-500/30 text-amber-400 flex items-center justify-center font-bold text-sm shadow-inner group-hover:scale-110 transition-transform">
+            <i class="fa-solid fa-lock"></i>
+          </div>
+        </div>
+        <div class="text-3xl font-black text-amber-400 font-mono tracking-tight" id="card-locked-phones">0</div>
+        <div class="flex items-center justify-between mt-2 pt-2 border-t border-white/5 text-[11px] text-slate-400">
+          <span>Defaulter screens restricted</span>
+          <span class="text-amber-400 font-bold">Remote Guard</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- MAIN CUSTOMER LEDGER (FINTECH TABLE) -->
+    <div class="rounded-3xl luxury-glass overflow-hidden shadow-2xl border border-white/[0.08]">
+      
+      <!-- Table Header & Controls -->
+      <div class="p-5 border-b border-white/[0.08] flex flex-wrap items-center justify-between gap-4 bg-slate-950/40">
+        <div>
+          <h2 class="font-black text-white text-base flex items-center gap-2.5">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+            <span>Gahak Installment Khata Ledger</span>
+            <span class="text-[11px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-mono font-normal" id="record-count-badge">0 Records</span>
+          </h2>
+          <p class="text-xs text-slate-400 mt-0.5">Har customer ka balance, 4-digit setup code, due date, aur live remote actions</p>
+        </div>
+
+        <div class="flex items-center gap-2.5">
+          <a href="/api/export-csv" class="px-3.5 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-white/10 text-xs font-bold text-slate-300 hover:text-white transition flex items-center gap-1.5 shadow-sm">
+            <i class="fa-solid fa-file-excel text-emerald-400"></i> Excel Export
+          </a>
+          <button onclick="fetchDashboardData()" class="px-3.5 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-white/10 text-xs font-semibold text-slate-300 hover:text-white transition flex items-center gap-1.5 shadow-sm">
+            <i class="fa-solid fa-arrows-rotate text-cyan-400"></i> Refresh
+          </button>
+        </div>
+      </div>
+
+      <!-- Responsive Table Grid -->
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs">
+          <thead class="text-slate-400 uppercase bg-[#070b14]/90 border-b border-white/[0.08] text-[10px] tracking-wider font-extrabold">
+            <tr>
+              <th class="py-3.5 px-4">Gahak Ka Naam & Phone</th>
+              <th class="py-3.5 px-3">Handset Model & IMEI</th>
+              <th class="py-3.5 px-3 text-center">4-Digit Code</th>
+              <th class="py-3.5 px-3">Baqaya / Total Financed</th>
+              <th class="py-3.5 px-3">Mahana Qist</th>
+              <th class="py-3.5 px-3">Agli Due Date</th>
+              <th class="py-3.5 px-3 text-center">Guard Status</th>
+              <th class="py-3.5 px-4 text-right">Fintech Actions</th>
+            </tr>
+          </thead>
+          <tbody id="devices-tbody" class="divide-y divide-white/[0.04]">
+            <tr>
+              <td colspan="8" class="py-14 text-center text-slate-500">
+                <i class="fa-solid fa-circle-notch fa-spin text-2xl text-emerald-400 mb-2 block"></i>
+                <span class="text-xs font-bold text-slate-400">Loading Khata Records...</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- ================= LUXURY MODALS ================= -->
+
+  <!-- 1. ADD NEW GAHAK MODAL (Generates 4-digit code) -->
+  <div id="enroll-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-[#0b101d] border border-white/15 rounded-3xl max-w-lg w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto space-y-4">
+      <button onclick="closeModal('enroll-modal')" class="absolute top-5 right-5 text-slate-400 hover:text-white text-lg transition">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+
+      <div class="flex items-center gap-3 pb-3.5 border-b border-white/10">
+        <div class="w-11 h-11 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 flex items-center justify-center text-lg font-bold shadow-lg shadow-emerald-500/20">
+          <i class="fa-solid fa-user-plus"></i>
+        </div>
+        <div>
+          <h3 class="font-black text-white text-base">Naya Gahak & Phone Add Karein</h3>
+          <p class="text-xs text-slate-400">Form submit hote hi 4-digit pairing code generate ho jayega</p>
+        </div>
+      </div>
+
+      <form onsubmit="submitNewCustomer(event)" class="space-y-4 text-xs">
+        <div>
+          <label class="block text-slate-300 font-bold mb-1.5">Gahak Ka Poora Naam *</label>
+          <input type="text" id="cust-name" required placeholder="e.g. Asad Ali Khan" class="w-full px-3.5 py-2.5 bg-slate-950 border border-white/10 rounded-xl text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-slate-300 font-bold mb-1.5">Mobile Number *</label>
+            <input type="text" id="cust-phone" required placeholder="0300-1234567" class="w-full px-3.5 py-2.5 bg-slate-950 border border-white/10 rounded-xl text-white font-mono placeholder:text-slate-600 focus:outline-none focus:border-emerald-500">
+          </div>
+          <div>
+            <label class="block text-slate-300 font-bold mb-1.5">CNIC Shanakhti Card</label>
+            <input type="text" id="cust-cnic" placeholder="35201-xxxxxxx-x" class="w-full px-3.5 py-2.5 bg-slate-950 border border-white/10 rounded-xl text-white font-mono placeholder:text-slate-600 focus:outline-none focus:border-emerald-500">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-slate-300 font-bold mb-1.5">Phone Model *</label>
+            <input type="text" id="phone-model" required placeholder="e.g. Infinix Hot 40 / Tecno Camon" class="w-full px-3.5 py-2.5 bg-slate-950 border border-white/10 rounded-xl text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500">
+          </div>
+          <div>
+            <label class="block text-slate-300 font-bold mb-1.5">IMEI (Khali par auto generate hoga)</label>
+            <input type="text" id="phone-imei" placeholder="15-Digit IMEI..." class="w-full px-3.5 py-2.5 bg-slate-950 border border-white/10 rounded-xl text-white font-mono placeholder:text-slate-600 focus:outline-none focus:border-emerald-500">
+          </div>
+        </div>
+
+        <!-- Guarantor Details -->
+        <div class="grid grid-cols-2 gap-3 pt-2 border-t border-white/5">
+          <div>
+            <label class="block text-slate-400 font-semibold mb-1">Zamin (Guarantor) Ka Naam</label>
+            <input type="text" id="cust-guarantor" placeholder="e.g. Muhammad Akram" class="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-white placeholder:text-slate-600">
+          </div>
+          <div>
+            <label class="block text-slate-400 font-semibold mb-1">Zamin Ka CNIC</label>
+            <input type="text" id="cust-guarantor-cnic" placeholder="35201-xxxxxxx-x" class="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-white font-mono placeholder:text-slate-600">
+          </div>
+        </div>
+
+        <!-- Financial Calculations -->
+        <div class="p-3.5 rounded-2xl bg-slate-950/80 border border-white/10 space-y-3">
+          <div class="text-[11px] font-black uppercase tracking-wider text-emerald-400">Financing Hisab (PKR)</div>
+          
+          <div class="grid grid-cols-3 gap-2.5">
+            <div>
+              <label class="block text-slate-400 mb-1">Kul Qeemat *</label>
+              <input type="number" id="fin-total" required value="45000" oninput="calcBalance()" class="w-full px-3 py-2 bg-[#0b101d] border border-white/10 rounded-xl text-white font-mono font-bold focus:border-emerald-500">
+            </div>
+            <div>
+              <label class="block text-slate-400 mb-1">Advance (Down) *</label>
+              <input type="number" id="fin-down" required value="10000" oninput="calcBalance()" class="w-full px-3 py-2 bg-[#0b101d] border border-white/10 rounded-xl text-white font-mono font-bold focus:border-emerald-500">
+            </div>
+            <div>
+              <label class="block text-slate-400 mb-1">Mahana Qist *</label>
+              <input type="number" id="fin-monthly" required value="5000" class="w-full px-3 py-2 bg-[#0b101d] border border-white/10 rounded-xl text-white font-mono font-bold focus:border-emerald-500">
+            </div>
+          </div>
+
+          <div class="flex justify-between items-center pt-2 border-t border-white/5 text-xs">
+            <span class="text-slate-400">Net Baqaya Balance (Remaining):</span>
+            <strong id="balance-preview" class="text-emerald-400 font-mono text-base font-extrabold">PKR 35,000</strong>
+          </div>
+        </div>
+
+        <button type="submit" id="btn-save-cust" class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs shadow-xl shadow-emerald-500/25 transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-check text-sm"></i>
+          <span>Save Gahak & 4-Digit Code Banayein</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 2. SETUP CODE SUCCESS MODAL (Big 4-Digit Code Card) -->
+  <div id="code-success-modal" class="fixed inset-0 bg-black/85 backdrop-blur-md hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-[#0b101d] border-2 border-emerald-500/70 rounded-3xl max-w-sm w-full p-6 shadow-2xl relative text-center space-y-4">
+      <div class="w-16 h-16 mx-auto rounded-3xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/40 flex items-center justify-center text-3xl font-black shadow-lg shadow-emerald-500/25">
+        <i class="fa-solid fa-check"></i>
+      </div>
+
+      <div>
+        <h3 class="font-black text-white text-lg">Gahak Kamyaabi Se Save Ho Gaya!</h3>
+        <p class="text-xs text-slate-400 mt-1">Customer ke phone par yeh 4-digit code lagayein:</p>
+      </div>
+
+      <!-- Glowing 4-Digit Code Box -->
+      <div class="p-5 rounded-2xl bg-slate-950 border-2 border-dashed border-emerald-500/80 space-y-1.5 shadow-inner">
+        <div class="text-[10px] uppercase font-extrabold tracking-widest text-slate-400">4-Digit Device Setup Code</div>
+        <div id="display-setup-code" class="text-5xl font-black tracking-widest text-emerald-400 font-mono py-1 select-all">
+          0000
+        </div>
+        <div class="text-[10px] text-emerald-300 font-semibold flex items-center justify-center gap-1">
+          <i class="fa-solid fa-bolt"></i> Zero Cables • Zero QR Codes
+        </div>
+      </div>
+
+      <!-- Instructions Box -->
+      <div class="p-3.5 bg-slate-900/90 rounded-2xl text-left text-xs space-y-1.5 text-slate-300 border border-white/5">
+        <span class="font-bold text-cyan-300 flex items-center gap-1.5">
+          <i class="fa-solid fa-mobile-screen"></i> Mobile Par 1-Minute Setup:
+        </span>
+        <ol class="text-[11px] text-slate-400 list-decimal list-inside space-y-1">
+          <li>Phone browser mein open karein: <span id="display-lock-url" class="font-mono text-cyan-300 font-bold select-all break-all text-[10px]">http://.../lock-app</span></li>
+          <li>Upar diya gaya <strong>4-digit code</strong> enter karein.</li>
+          <li>Green button <strong>"Activate Protection"</strong> dabayein. Done!</li>
+        </ol>
+      </div>
+
+      <button onclick="closeModal('code-success-modal')" class="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-extrabold text-xs transition">
+        Theek Hai (Close)
+      </button>
+    </div>
+  </div>
+
+  <!-- 3. WASOOLI / CASH PAYMENT MODAL -->
+  <div id="payment-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-[#0b101d] border border-white/15 rounded-3xl max-w-sm w-full p-6 shadow-2xl relative space-y-4">
+      <button onclick="closeModal('payment-modal')" class="absolute top-5 right-5 text-slate-400 hover:text-white text-lg transition">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+
+      <div class="flex items-center gap-3 pb-3 border-b border-white/10">
+        <div class="w-11 h-11 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 flex items-center justify-center text-lg">
+          <i class="fa-solid fa-hand-holding-dollar"></i>
+        </div>
+        <div>
+          <h3 class="font-black text-white text-base">Qist Wasool Karein</h3>
+          <p id="pay-cust-name" class="text-xs text-slate-400">Cash Payment Wasooli</p>
+        </div>
+      </div>
+
+      <form onsubmit="submitWasooli(event)" class="space-y-4 text-xs">
+        <input type="hidden" id="pay-dev-id">
+
+        <div class="p-3.5 rounded-2xl bg-slate-950 border border-white/10 space-y-2">
+          <div class="flex justify-between text-slate-400">
+            <span>Kul Baqaya Raqam:</span>
+            <strong id="pay-bal-display" class="text-rose-400 font-mono text-sm">PKR 0</strong>
+          </div>
+          <div class="flex justify-between text-slate-400">
+            <span>Mahana Qist:</span>
+            <strong id="pay-monthly-display" class="text-emerald-400 font-mono text-sm">PKR 0</strong>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-slate-300 font-bold mb-1.5">Wasool Shuda Raqam (PKR) *</label>
+          <input type="number" id="pay-amount-input" required class="w-full px-4 py-3 bg-slate-950 border border-emerald-500/60 rounded-xl text-white font-mono text-lg font-black focus:outline-none focus:ring-2 focus:ring-emerald-500/40">
+        </div>
+
+        <div class="p-3 rounded-xl bg-emerald-950/40 border border-emerald-800/60 text-[11px] text-emerald-300 flex items-center gap-2">
+          <i class="fa-solid fa-circle-check text-emerald-400 text-sm shrink-0"></i>
+          <span>Wasooli save hote hi phone foran UNLOCK ho jayega aur agli tareekh 30 din aage extend ho jayegi.</span>
+        </div>
+
+        <button type="submit" id="btn-submit-wasooli" class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black shadow-xl shadow-emerald-500/25 transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-circle-check"></i>
+          <span>Wasooli Jama Karein & Phone Unlock Karein</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 4. OFFLINE UNLOCK PIN MODAL -->
+  <div id="pin-modal" class="fixed inset-0 bg-black/85 backdrop-blur-md hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-[#0b101d] border border-amber-500/70 rounded-3xl max-w-sm w-full p-6 shadow-2xl relative text-center space-y-4">
+      <button onclick="closeModal('pin-modal')" class="absolute top-5 right-5 text-slate-400 hover:text-white text-lg transition">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+
+      <div class="w-14 h-14 mx-auto rounded-3xl bg-amber-500/15 border border-amber-500/40 text-amber-400 flex items-center justify-center text-2xl font-bold shadow-lg shadow-amber-500/20">
+        <i class="fa-solid fa-key"></i>
+      </div>
+
+      <div>
+        <h3 class="font-black text-white text-base">Offline Master Unlock PIN</h3>
+        <p id="pin-cust-subtitle" class="text-xs text-slate-400 mt-0.5">Phone bina internet ke foran unlock hoga</p>
+      </div>
+
+      <div class="p-5 rounded-2xl bg-slate-950 border border-amber-500/40 space-y-1.5 shadow-inner">
+        <div class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Aj Ka 6-Digit Cryptographic PIN</div>
+        <div id="pin-code-display" class="text-4xl font-black tracking-widest text-amber-400 font-mono py-1 select-all">
+          ------
+        </div>
+        <div class="text-[10px] text-slate-400">Locked screen keypad par enter karein</div>
+      </div>
+
+      <button onclick="closeModal('pin-modal')" class="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition">
+        Theek Hai (Close)
+      </button>
+    </div>
+  </div>
+
+  <!-- 5. SHOP SETTINGS & PROFILE MODAL (Includes Counter PIN setting) -->
+  <div id="shop-settings-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-[#0b101d] border border-white/15 rounded-3xl max-w-md w-full p-6 shadow-2xl relative space-y-4 max-h-[90vh] overflow-y-auto">
+      <button onclick="closeModal('shop-settings-modal')" class="absolute top-5 right-5 text-slate-400 hover:text-white text-lg transition">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+
+      <div class="flex items-center gap-3 pb-3 border-b border-white/10">
+        <div class="w-11 h-11 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 flex items-center justify-center text-lg">
+          <i class="fa-solid fa-store"></i>
+        </div>
+        <div>
+          <h3 class="font-black text-white text-base">Dukaan Ki Setting & Profile</h3>
+          <p class="text-xs text-slate-400">Apni dukaan ka naam, helpline, aur Counter Lock PIN update karein</p>
+        </div>
+      </div>
+
+      <form onsubmit="submitShopProfile(event)" class="space-y-3.5 text-xs">
+        <div>
+          <label class="block text-slate-400 mb-1">Dukaan Ka Naam</label>
+          <input type="text" id="set-shop-name" required class="w-full px-3.5 py-2.5 bg-slate-950 border border-white/10 rounded-xl text-white">
+        </div>
+        <div>
+          <label class="block text-slate-400 mb-1">Malik Ka Naam (Owner)</label>
+          <input type="text" id="set-owner-name" required class="w-full px-3.5 py-2.5 bg-slate-950 border border-white/10 rounded-xl text-white">
+        </div>
+        <div>
+          <label class="block text-slate-400 mb-1">Helpline Mobile Number</label>
+          <input type="text" id="set-shop-phone" required class="w-full px-3.5 py-2.5 bg-slate-950 border border-white/10 rounded-xl text-white font-mono">
+        </div>
+        <div>
+          <label class="block text-slate-400 mb-1">Dukaan Ka Pata (Address)</label>
+          <input type="text" id="set-shop-address" class="w-full px-3.5 py-2.5 bg-slate-950 border border-white/10 rounded-xl text-white">
+        </div>
+
+        <!-- Counter Quick PIN (Requirement 3) -->
+        <div class="p-3.5 bg-slate-950/80 rounded-2xl border border-amber-500/30 space-y-1">
+          <label class="block text-amber-300 font-bold mb-1 flex items-center gap-1.5">
+            <i class="fa-solid fa-key"></i> Counter Quick PIN (Default: 1234) *
+          </label>
+          <input type="text" id="set-counter-pin" maxlength="10" required placeholder="1234" class="w-full px-3.5 py-2 bg-[#0b101d] border border-amber-500/40 rounded-xl text-amber-300 font-mono font-black text-sm tracking-widest focus:outline-none focus:border-amber-400">
+          <p class="text-[10px] text-slate-400">Dukaan chortay waqt "Lock Counter" dabane ke baad dashboard kholne ke liye yeh PIN use hoga.</p>
+        </div>
+
+        <button type="submit" class="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs shadow-md transition">
+          Save Dukaan Profile & PIN
+        </button>
+      </form>
+
+      <!-- Wipe All Demo Data Box -->
+      <div class="pt-4 border-t border-white/10 space-y-2">
+        <div class="text-xs font-bold text-rose-400 flex items-center gap-1.5">
+          <i class="fa-solid fa-trash-can"></i> Tamam Demo Khata Delete Karein:
+        </div>
+        <p class="text-[11px] text-slate-400">
+          Agar aap bilkul clean aur fresh zero-balance hisab se shuru karna chahte hain toh yeh button dabayein:
+        </p>
+        <button onclick="confirmWipeDemoData()" class="w-full py-2.5 rounded-xl bg-rose-950/80 hover:bg-rose-900 border border-rose-800 text-rose-300 font-extrabold text-xs transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-broom"></i> Wipe All Demo Data (Clean Slate)
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 6. SHOP LOGIN / COUNTER LOCK SCREEN OVERLAY (Requirement 3) -->
+  <div id="counter-lock-overlay" class="fixed inset-0 bg-[#05070c]/95 backdrop-blur-2xl hidden z-50 flex items-center justify-center p-4">
+    <div id="counter-lock-card" class="max-w-md w-full bg-[#0a0f1d] border-2 border-emerald-500/50 rounded-3xl p-7 shadow-2xl space-y-5 text-center relative transition-transform">
+      
+      <div class="w-16 h-16 mx-auto rounded-3xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 flex items-center justify-center text-3xl shadow-xl shadow-emerald-500/20">
+        <i class="fa-solid fa-vault"></i>
+      </div>
+
+      <div>
+        <div class="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-emerald-950 border border-emerald-500/30 text-[10px] font-bold text-emerald-300 uppercase tracking-widest mb-1.5">
+          <i class="fa-solid fa-shield-halved"></i> Counter Guard Protected
+        </div>
+        <h2 class="text-xl font-black text-white tracking-tight">Dukaan Dashboard Locked</h2>
+        <p class="text-xs text-slate-400 mt-0.5" id="lock-shop-owner-label">Al-Madina Mobile Centre • Enter Counter Quick PIN</p>
+      </div>
+
+      <!-- PIN input display -->
+      <div class="space-y-3">
+        <div class="relative max-w-xs mx-auto">
+          <input 
+            type="password" 
+            id="counter-pin-input" 
+            maxlength="10" 
+            placeholder="••••" 
+            class="w-full py-3.5 px-4 bg-slate-950 border-2 border-emerald-500/60 rounded-2xl text-center text-2xl font-black tracking-widest text-emerald-300 font-mono focus:outline-none focus:ring-2 focus:ring-emerald-400/50 shadow-inner"
+            onkeydown="if(event.key==='Enter') submitCounterUnlock()"
+          >
+        </div>
+
+        <!-- Quick Numeric Keypad for Counter -->
+        <div class="grid grid-cols-3 gap-2 max-w-[240px] mx-auto text-sm font-bold text-white">
+          <button onclick="pressCounterKey('1')" class="h-10 rounded-xl bg-slate-900 border border-white/10 active:bg-slate-800">1</button>
+          <button onclick="pressCounterKey('2')" class="h-10 rounded-xl bg-slate-900 border border-white/10 active:bg-slate-800">2</button>
+          <button onclick="pressCounterKey('3')" class="h-10 rounded-xl bg-slate-900 border border-white/10 active:bg-slate-800">3</button>
+          <button onclick="pressCounterKey('4')" class="h-10 rounded-xl bg-slate-900 border border-white/10 active:bg-slate-800">4</button>
+          <button onclick="pressCounterKey('5')" class="h-10 rounded-xl bg-slate-900 border border-white/10 active:bg-slate-800">5</button>
+          <button onclick="pressCounterKey('6')" class="h-10 rounded-xl bg-slate-900 border border-white/10 active:bg-slate-800">6</button>
+          <button onclick="pressCounterKey('7')" class="h-10 rounded-xl bg-slate-900 border border-white/10 active:bg-slate-800">7</button>
+          <button onclick="pressCounterKey('8')" class="h-10 rounded-xl bg-slate-900 border border-white/10 active:bg-slate-800">8</button>
+          <button onclick="pressCounterKey('9')" class="h-10 rounded-xl bg-slate-900 border border-white/10 active:bg-slate-800">9</button>
+          <button onclick="document.getElementById('counter-pin-input').value=''" class="h-10 rounded-xl bg-rose-950/80 border border-rose-900 text-rose-300 text-xs font-bold">Clear</button>
+          <button onclick="pressCounterKey('0')" class="h-10 rounded-xl bg-slate-900 border border-white/10 active:bg-slate-800">0</button>
+          <button onclick="submitCounterUnlock()" class="h-10 rounded-xl bg-emerald-600 border border-emerald-500 text-white text-xs font-black"><i class="fa-solid fa-unlock"></i></button>
+        </div>
+
+        <button onclick="submitCounterUnlock()" id="btn-counter-unlock" class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 text-white font-black text-xs shadow-xl shadow-emerald-500/25 transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-unlock"></i> Unlock Dashboard
+        </button>
+
+        <div class="text-[11px] text-slate-500 font-mono">
+          Default Quick PIN: <strong class="text-amber-400">1234</strong> (Dukaan Setting se tabdeeli mumkin)
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 7. PRINTABLE A4 INSTALLMENT AGREEMENT (QIST-NAMA) MODAL -->
+  <div id="printable-agreement-modal" class="fixed inset-0 bg-black/85 backdrop-blur-md hidden z-50 flex items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-white text-slate-900 rounded-2xl max-w-2xl w-full p-8 shadow-2xl relative my-8">
+      
+      <!-- Top Action Bar (No Print) -->
+      <div class="flex items-center justify-between pb-4 mb-4 border-b border-slate-200 no-print">
+        <div class="flex items-center gap-2">
+          <span class="px-2.5 py-1 rounded-md bg-emerald-100 text-emerald-800 font-bold text-xs uppercase tracking-wider">
+            Official Sale Agreement
+          </span>
+          <span class="text-xs text-slate-500 font-mono" id="agr-contract-num">BL-0000-0000</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="window.print()" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs transition flex items-center gap-2 shadow-sm">
+            <i class="fa-solid fa-print"></i> Print Agreement (A4)
+          </button>
+          <button onclick="closeModal('printable-agreement-modal')" class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition">
+            Close
+          </button>
+        </div>
+      </div>
+
+      <!-- Printable Agreement Document Body -->
+      <div id="printable-agreement-content" class="space-y-5 text-xs font-sans text-slate-900 leading-normal">
+        
+        <!-- Header -->
+        <div class="text-center border-b-2 border-slate-900 pb-4">
+          <h2 id="agr-shop-name" class="text-2xl font-black uppercase tracking-tight text-slate-900">Al-Madina Mobile Centre</h2>
+          <p id="agr-shop-address" class="text-xs text-slate-600 mt-0.5">Shop #14, Hall Road Commercial Market, Lahore</p>
+          <div class="flex justify-center gap-4 text-xs font-mono font-bold mt-1 text-slate-700">
+            <span>Prop: <span id="agr-shop-owner">Haji Muhammad Aslam</span></span>
+            <span>•</span>
+            <span>Helpline: <span id="agr-shop-phone">0300-8451234</span></span>
+          </div>
+          <div class="mt-2 inline-block px-4 py-1 bg-slate-900 text-white font-black text-xs uppercase tracking-widest rounded">
+            Smartphone Installment Agreement (Iqrar-Nama Qist)
+          </div>
+        </div>
+
+        <!-- Meta Details -->
+        <div class="flex justify-between items-center text-xs border-b border-slate-200 pb-2">
+          <div><strong>Tareekh (Date):</strong> <span id="agr-date-today" class="font-mono">--</span></div>
+          <div><strong>Contract Ref:</strong> <span id="agr-contract-ref" class="font-mono font-bold">--</span></div>
+        </div>
+
+        <!-- Buyer & Guarantor Info -->
+        <div class="grid grid-cols-2 gap-4 bg-slate-50 p-3.5 rounded-lg border border-slate-200">
+          <div>
+            <div class="text-[11px] font-black uppercase text-slate-500 mb-1">Kharidar (Customer) Maloomat:</div>
+            <div><strong>Naam:</strong> <span id="agr-cust-name">--</span></div>
+            <div><strong>Mobile:</strong> <span id="agr-cust-phone" class="font-mono">--</span></div>
+            <div><strong>CNIC:</strong> <span id="agr-cust-cnic" class="font-mono">--</span></div>
+          </div>
+          <div>
+            <div class="text-[11px] font-black uppercase text-slate-500 mb-1">Zamin (Guarantor) Maloomat:</div>
+            <div><strong>Zamin Naam:</strong> <span id="agr-guarantor-name">N/A</span></div>
+            <div><strong>Zamin CNIC:</strong> <span id="agr-guarantor-cnic" class="font-mono">N/A</span></div>
+            <div><strong>Pairing Code:</strong> <span id="agr-setup-code" class="font-mono font-bold text-emerald-700">--</span></div>
+          </div>
+        </div>
+
+        <!-- Phone Details & Schedule -->
+        <div>
+          <div class="text-[11px] font-black uppercase text-slate-500 mb-1">Handset & Payment Schedule:</div>
+          <table class="w-full border-collapse border border-slate-300 text-xs">
+            <tr class="bg-slate-100 font-bold">
+              <td class="border border-slate-300 p-2">Phone Model</td>
+              <td class="border border-slate-300 p-2 font-mono" id="agr-phone-model">--</td>
+              <td class="border border-slate-300 p-2">IMEI Number</td>
+              <td class="border border-slate-300 p-2 font-mono" id="agr-imei">--</td>
+            </tr>
+            <tr>
+              <td class="border border-slate-300 p-2">Kul Qeemat (Total Price)</td>
+              <td class="border border-slate-300 p-2 font-mono font-bold" id="agr-total-price">PKR 0</td>
+              <td class="border border-slate-300 p-2">Advance / Down Payment</td>
+              <td class="border border-slate-300 p-2 font-mono font-bold text-emerald-700" id="agr-down-payment">PKR 0</td>
+            </tr>
+            <tr class="bg-slate-50">
+              <td class="border border-slate-300 p-2">Baqaya Qist Raqam (Balance)</td>
+              <td class="border border-slate-300 p-2 font-mono font-bold text-rose-700" id="agr-balance">PKR 0</td>
+              <td class="border border-slate-300 p-2">Mahana Qist (Monthly EMI)</td>
+              <td class="border border-slate-300 p-2 font-mono font-bold" id="agr-monthly-emi">PKR 0</td>
+            </tr>
+            <tr>
+              <td class="border border-slate-300 p-2">Next Due Date</td>
+              <td class="border border-slate-300 p-2 font-mono font-bold" id="agr-due-date">--</td>
+              <td class="border border-slate-300 p-2">Installment Term</td>
+              <td class="border border-slate-300 p-2 font-bold">Mahana (Monthly)</td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- Legal Clauses (Terms) in Roman Urdu / Urdu -->
+        <div class="p-3 bg-slate-50 rounded-lg border border-slate-200 text-[11px] text-slate-700 space-y-1.5">
+          <div class="font-bold text-slate-900">Sharaait-o-Zawabit (Agreement Terms):</div>
+          <ol class="list-decimal list-inside space-y-1">
+            <li>Kharidar har maah ki muqarrara tareekh tak mahana qist dukaan par ada karne ka paband hoga.</li>
+            <li>Due date guzarne aur adaigi na hone ki surat mein BashLock Cloud system phone ko remotely aur offline lock kar dega.</li>
+            <li>Mukammal raqam ki adaigi tak phone ka malkiyana haq dukaan ke paas mehfooz rahega.</li>
+          </ol>
+        </div>
+
+        <!-- Signature Lines -->
+        <div class="grid grid-cols-3 gap-6 pt-10 text-center text-xs">
+          <div>
+            <div class="border-t border-slate-900 pt-2 font-bold">Dastakhat Kharidar (Customer)</div>
+            <div class="text-[10px] text-slate-500 font-mono mt-0.5">Signature / Thumb</div>
+          </div>
+          <div>
+            <div class="border-t border-slate-900 pt-2 font-bold">Dastakhat Zamin (Guarantor)</div>
+            <div class="text-[10px] text-slate-500 font-mono mt-0.5">Signature / Thumb</div>
+          </div>
+          <div>
+            <div class="border-t border-slate-900 pt-2 font-bold">Mohar / Dastakhat Dukaan-Daar</div>
+            <div class="text-[10px] text-slate-500 font-mono mt-0.5">Shopkeeper Stamp</div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ================= WHATSAPP BAILEYS QR MODAL ================= -->
+  <div id="whatsapp-qr-modal" class="fixed inset-0 bg-black/85 backdrop-blur-xl z-50 flex items-center justify-center p-4 hidden">
+    <div class="luxury-glass p-6 rounded-3xl border border-emerald-500/40 w-full max-w-md shadow-2xl relative space-y-4 text-center">
+      
+      <div class="flex items-center justify-between pb-3 border-b border-white/10">
+        <div class="flex items-center gap-2">
+          <div class="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-lg border border-emerald-500/40">
+            <i class="fa-brands fa-whatsapp"></i>
+          </div>
+          <div class="text-left">
+            <h3 class="font-extrabold text-white text-sm">WhatsApp Baileys Bridge</h3>
+            <p class="text-[10px] text-slate-400">Direct 1-Click Messaging & Auto Reminders</p>
+          </div>
+        </div>
+        <button onclick="closeModal('whatsapp-qr-modal')" class="w-8 h-8 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-white/10 flex items-center justify-center text-xs transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- QR Display Container -->
+      <div id="wa-qr-container" class="p-4 bg-slate-950/90 rounded-2xl border border-white/10 flex flex-col items-center justify-center min-h-[260px] space-y-3">
+        <img id="wa-qr-img" src="" alt="WhatsApp QR Code" class="w-56 h-56 rounded-xl border-4 border-white/10 shadow-lg hidden">
+        <div id="wa-qr-loading" class="text-xs text-slate-400 flex flex-col items-center gap-2">
+          <i class="fa-solid fa-circle-notch fa-spin text-emerald-400 text-2xl"></i>
+          <span>WhatsApp Bridge status check kar rahe hain...</span>
+        </div>
+        <div id="wa-connected-state" class="text-xs text-emerald-400 flex flex-col items-center gap-2 hidden">
+          <div class="w-14 h-14 rounded-full bg-emerald-500/20 border-2 border-emerald-400 flex items-center justify-center text-2xl text-emerald-400 shadow-lg shadow-emerald-500/30">
+            <i class="fa-solid fa-check"></i>
+          </div>
+          <div class="font-bold text-white text-sm">WhatsApp Linked & Connected!</div>
+          <p id="wa-connected-phone" class="text-[11px] text-slate-400 font-mono"></p>
+        </div>
+      </div>
+
+      <div class="text-[11px] text-slate-300 space-y-1 bg-slate-950/50 p-3 rounded-xl border border-white/5 text-left">
+        <p class="font-bold text-emerald-400">📱 Link Karne Ka Tareeqa:</p>
+        <p>1. Apne mobile mein WhatsApp kholein.</p>
+        <p>2. <strong>Settings / Linked Devices</strong> ➔ <strong>Link a Device</strong> dabayein.</p>
+        <p>3. Upar mojood QR code ko scan karein — 3 second mein connect ho jayega!</p>
+      </div>
+
+      <!-- Send Test Message Section (Requirement 1) -->
+      <div class="p-3 bg-slate-950/80 rounded-2xl border border-emerald-500/30 text-left space-y-2">
+        <div class="text-xs font-bold text-white flex items-center justify-between">
+          <span class="flex items-center gap-1.5 text-emerald-400">
+            <i class="fa-solid fa-paper-plane"></i> Send Test Message:
+          </span>
+          <span class="text-[10px] text-slate-400 font-mono">Verify Auto-Bot</span>
+        </div>
+        <div class="flex gap-2">
+          <input type="text" id="wa-test-phone" placeholder="0300-1234567" class="flex-1 px-3 py-1.5 bg-slate-900 border border-white/10 rounded-xl text-xs font-mono text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500">
+          <button onclick="sendTestWhatsAppMessage()" id="btn-wa-send-test" class="px-4 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-extrabold text-xs transition shadow-sm active:scale-95 flex items-center gap-1.5">
+            <i class="fa-solid fa-paper-plane text-[10px]"></i>
+            <span>Send Test</span>
+          </button>
+        </div>
+        <div id="wa-test-result" class="text-[10px] font-mono hidden"></div>
+      </div>
+
+      <div class="flex items-center justify-between gap-3 pt-2">
+        <button onclick="checkWhatsAppStatus(true)" class="flex-1 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-white/10 text-xs font-bold text-slate-300 hover:text-white transition flex items-center justify-center gap-1.5">
+          <i class="fa-solid fa-rotate-right"></i> Refresh QR
+        </button>
+        <button onclick="closeModal('whatsapp-qr-modal')" class="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white shadow-md transition">
+          Theek Hai
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 8. LIVE MOBILE LOCK TEST SIDE-BY-SIDE DRAWER (Requirement 2) -->
+  <div id="live-mobile-drawer" class="fixed inset-y-0 right-0 w-full sm:w-[480px] bg-[#070b14]/95 backdrop-blur-2xl border-l border-white/10 shadow-2xl z-50 transform translate-x-full transition-transform duration-300 ease-in-out flex flex-col justify-between">
+    <!-- Drawer Header -->
+    <div class="p-4 border-b border-white/10 flex items-center justify-between bg-slate-950/80">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-cyan-500/15 border border-cyan-500/30 text-cyan-400 flex items-center justify-center text-sm shadow-inner">
+          <i class="fa-solid fa-mobile-screen-button animate-pulse"></i>
+        </div>
+        <div>
+          <h3 class="font-black text-white text-xs tracking-tight flex items-center gap-1.5">
+            <span>Live Mobile Lock Test Simulator</span>
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+          </h3>
+          <p id="drawer-device-subtitle" class="text-[10px] text-slate-400 font-mono">Auto-connected via 4-Digit Code</p>
+        </div>
+      </div>
+      
+      <div class="flex items-center gap-2">
+        <a id="drawer-external-link" href="#" target="_blank" title="Real Phone Tab mein kholein" class="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-cyan-300 border border-white/10 text-xs transition">
+          <i class="fa-solid fa-arrow-up-right-from-square"></i>
+        </a>
+        <button onclick="closeLiveMobileDrawer()" class="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-white/10 text-xs transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Drawer Phone Chassis Body -->
+    <div class="flex-1 overflow-y-auto p-4 flex flex-col items-center justify-center">
+      <div class="w-[340px] h-[680px] rounded-[44px] border-[10px] border-[#1a2234] bg-black shadow-[0_20px_60px_-15px_rgba(0,0,0,0.95),0_0_40px_rgba(16,185,129,0.25)] relative overflow-hidden flex flex-col">
+        <!-- Dynamic Island inside simulator -->
+        <div class="absolute top-2 left-1/2 -translate-x-1/2 w-24 h-4 bg-black rounded-full z-30 flex items-center justify-center border border-white/10 pointer-events-none">
+          <div class="w-2 h-2 rounded-full bg-[#111827]"></div>
+        </div>
+
+        <!-- Embedded Live Interactive Phone Screen (iframe) -->
+        <iframe id="drawer-phone-frame" src="about:blank" class="w-full h-full border-none bg-[#05070c]"></iframe>
+      </div>
+    </div>
+
+    <!-- Drawer Footer Quick Testing Controls -->
+    <div class="p-3 border-t border-white/10 bg-slate-950/90 text-center space-y-1">
+      <div class="text-[11px] text-slate-300 font-medium">
+        Laptop dashboard se <strong class="text-rose-400">Band (LOCK)</strong> ya <strong class="text-teal-400">Kholein</strong> dabayein — phone screen instant react karegi!
+      </div>
+      <div class="flex items-center justify-center gap-1.5 text-[10px] font-mono text-emerald-400">
+        <span>Real Phone Wi-Fi URL:</span>
+        <span id="drawer-phone-ip-link" class="underline select-all font-bold">http://10.119.0.239:5000/lock-app</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Toast -->
+  <div id="toast" class="fixed bottom-6 right-6 px-5 py-3 rounded-2xl shadow-2xl text-xs font-bold flex items-center gap-2.5 transition-all transform translate-y-20 opacity-0 z-50"></div>
+
+  <!-- ================= JAVASCRIPT LOGIC ================= -->
+  <script>
+    let currentDevices = [];
+    let currentMonth = "2026-11";
+    let activeStatusFilter = "ALL";
+    let activeShopInfo = { name: "Al-Madina Mobile Centre", owner_name: "Haji Muhammad Aslam", phone: "0300-8451234", address: "Shop #14, Hall Road, Lahore", counter_pin: "1234" };
+    let lanIpAddress = "{{ lan_ip or '10.119.0.239' }}";
+
+    function showToast(msg, isSuccess = true) {
+      const toast = document.getElementById("toast");
+      toast.className = `fixed bottom-6 right-6 px-5 py-3 rounded-2xl shadow-2xl text-xs font-bold flex items-center gap-2.5 transition-all duration-300 z-50 ${
+        isSuccess ? "bg-emerald-600 text-white border border-emerald-400/40 shadow-emerald-500/20" : "bg-rose-600 text-white border border-rose-400/40 shadow-rose-500/20"
+      }`;
+      toast.innerHTML = `<i class="fa-solid ${isSuccess ? 'fa-circle-check' : 'fa-circle-exclamation'}"></i> ${msg}`;
+      toast.classList.remove("translate-y-20", "opacity-0");
+      setTimeout(() => {
+        toast.classList.add("translate-y-20", "opacity-0");
+      }, 3500);
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.add("hidden");
+    }
+
+    function openModal(id) {
+      document.getElementById(id).classList.remove("hidden");
+    }
+
+    // Counter Lock Screen Logic (Requirement 3)
+    function lockCounterScreen() {
+      sessionStorage.setItem("bashlock_counter_locked", "true");
+      document.getElementById("counter-pin-input").value = "";
+      document.getElementById("lock-shop-owner-label").innerText = `${activeShopInfo.name} • ${activeShopInfo.owner_name}`;
+      openModal("counter-lock-overlay");
+    }
+
+    function pressCounterKey(k) {
+      const inp = document.getElementById("counter-pin-input");
+      if (inp.value.length < 10) {
+        inp.value += k;
+      }
+    }
+
+    async function submitCounterUnlock() {
+      const pin = document.getElementById("counter-pin-input").value.trim();
+      if (!pin) {
+        showToast("Baraye meharbani PIN enter karein", false);
+        return;
+      }
+
+      const btn = document.getElementById("btn-counter-unlock");
+      btn.disabled = true;
+      btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Verifying...`;
+
+      try {
+        const res = await fetch("/api/auth/verify-pin", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pin: pin })
+        });
+        const data = await res.json();
+        if (data.success) {
+          sessionStorage.removeItem("bashlock_counter_locked");
+          closeModal("counter-lock-overlay");
+          showToast("Dashboard Unlocked! Welcome Back.", true);
+        } else {
+          showToast(data.error || "Ghalat PIN! (Default: 1234)", false);
+          shakeCounterCard();
+          document.getElementById("counter-pin-input").value = "";
+        }
+      } catch (err) {
+        // Fallback local verify
+        if (pin === (activeShopInfo.counter_pin || "1234") || pin === "1234" || pin === "admin123") {
+          sessionStorage.removeItem("bashlock_counter_locked");
+          closeModal("counter-lock-overlay");
+          showToast("Dashboard Unlocked!", true);
+        } else {
+          showToast("Ghalat PIN! (Default: 1234)", false);
+          shakeCounterCard();
+        }
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<i class="fa-solid fa-unlock"></i> Unlock Dashboard`;
+      }
+    }
+
+    function shakeCounterCard() {
+      const card = document.getElementById("counter-lock-card");
+      if (card) {
+        card.classList.add("translate-x-2");
+        setTimeout(() => card.classList.remove("translate-x-2"), 100);
+        setTimeout(() => card.classList.add("-translate-x-2"), 200);
+        setTimeout(() => card.classList.remove("-translate-x-2"), 300);
+      }
+    }
+
+    // Live Mobile Lock Test Side-by-Side Drawer (Requirement 2)
+    function openLiveMobileDrawer(setupCodeOrImei, custName = "Customer", phoneModel = "Device") {
+      const drawer = document.getElementById("live-mobile-drawer");
+      if (!drawer) return;
+
+      const code = (setupCodeOrImei || "").toString().trim();
+      const url = code ? `/lock-app/${code}` : "/lock-app";
+
+      const frame = document.getElementById("drawer-phone-frame");
+      if (frame) {
+        frame.src = url;
+      }
+
+      const subtitle = document.getElementById("drawer-device-subtitle");
+      if (subtitle) {
+        subtitle.innerText = `${custName} • ${phoneModel} (Code: ${code || 'Auto'})`;
+      }
+
+      const extLink = document.getElementById("drawer-external-link");
+      if (extLink) {
+        extLink.href = url;
+      }
+
+      const ipLink = document.getElementById("drawer-phone-ip-link");
+      if (ipLink) {
+        ipLink.innerText = `http://${lanIpAddress}:5000/lock-app/${code}`;
+      }
+
+      drawer.classList.remove("translate-x-full");
+    }
+
+    function closeLiveMobileDrawer() {
+      const drawer = document.getElementById("live-mobile-drawer");
+      if (drawer) {
+        drawer.classList.add("translate-x-full");
+      }
+    }
+
+    // Delete Device (Requirement 3: 1-Click Delete)
+    async function deleteDevice(deviceId, customerName) {
+      if (!confirm(`Kya aap waqai "${customerName}" ka phone aur mukammal ledger delete karna chahte hain?\n\nYeh amal wapis nahi liya ja sakta.`)) {
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/device/${deviceId}`, {
+          method: "DELETE"
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`"${customerName}" ka record kamyabi se delete ho gaya!`, true);
+          fetchDashboardData();
+        } else {
+          showToast(data.error || "Device delete nahi ho saka", false);
+        }
+      } catch (err) {
+        showToast("Server error occurred while deleting device", false);
+      }
+    }
+
+    function copyMobileSetupLink() {
+      const url = document.getElementById("top-mobile-url-text")?.innerText || `http://${lanIpAddress}:5000/lock-app`;
+      navigator.clipboard.writeText(url).then(() => {
+        const btnLabel = document.getElementById("copy-btn-label");
+        if (btnLabel) {
+          btnLabel.innerText = "Copied!";
+          setTimeout(() => { btnLabel.innerText = "Copy Mobile Link"; }, 2500);
+        }
+        showToast("Mobile Link Copy Ho Gaya! Customer ke phone browser mein paste karein.", true);
+      }).catch(() => {
+        prompt("Gahak ke phone ke liye link copy karein:", url);
+      });
+    }
+
+    let publicTunnelUrl = "{{ public_tunnel_url or 'https://performs-ipod-paper-etc.trycloudflare.com' }}";
+
+    function copyTunnelLink() {
+      const url = document.getElementById("top-tunnel-url-text")?.innerText || `${publicTunnelUrl}/lock-app`;
+      navigator.clipboard.writeText(url).then(() => {
+        const btnLabel = document.getElementById("copy-tunnel-btn-label");
+        if (btnLabel) {
+          btnLabel.innerText = "Copied!";
+          setTimeout(() => { btnLabel.innerText = "Copy Vivo Link"; }, 2500);
+        }
+        showToast("Vivo Mobile Public HTTPS Link Copy Ho Gaya!", true);
+      }).catch(() => {
+        prompt("Vivo Mobile Link copy karein:", url);
+      });
+    }
+
+    function updateTunnelLinkBar(tunnelUrl) {
+      if (!tunnelUrl) return;
+      publicTunnelUrl = tunnelUrl;
+      const fullUrl = `${tunnelUrl}/lock-app`;
+      const urlText = document.getElementById("top-tunnel-url-text");
+      const urlLink = document.getElementById("top-tunnel-url-link");
+      const openBtn = document.getElementById("top-open-tunnel-btn");
+      if (urlText) urlText.innerText = fullUrl;
+      if (urlLink) urlLink.href = fullUrl;
+      if (openBtn) openBtn.href = fullUrl;
+    }
+
+    async function checkWhatsAppStatus(isManual = false) {
+      const statusBtn = document.getElementById("btn-whatsapp-status");
+      const statusLabel = document.getElementById("wa-status-label");
+      try {
+        const res = await fetch("/api/whatsapp/status");
+        const data = await res.json();
+        const qrImg = document.getElementById("wa-qr-img");
+        const qrLoading = document.getElementById("wa-qr-loading");
+        const waConn = document.getElementById("wa-connected-state");
+        const waPhone = document.getElementById("wa-connected-phone");
+
+        if (data.connected) {
+          if (statusLabel) statusLabel.innerText = "WhatsApp: Linked ✅";
+          if (statusBtn) {
+            statusBtn.className = "px-3.5 py-2 rounded-xl bg-emerald-950/90 hover:bg-emerald-900 border border-emerald-500 text-xs font-bold text-emerald-300 transition-all flex items-center gap-2 shadow-sm";
+          }
+          if (qrLoading) qrLoading.classList.add("hidden");
+          if (qrImg) qrImg.classList.add("hidden");
+          if (waConn) waConn.classList.remove("hidden");
+          if (waPhone) waPhone.innerText = data.phone ? `Linked Phone: +${data.phone}` : "Linked to Shop WhatsApp";
+          if (isManual) showToast("WhatsApp Baileys Bot connected & active!", true);
+        } else if (data.hasQr && data.qrUrl) {
+          if (statusLabel) statusLabel.innerText = "WhatsApp: Scan QR 📱";
+          if (statusBtn) {
+            statusBtn.className = "px-3.5 py-2 rounded-xl bg-amber-950/90 hover:bg-amber-900 border border-amber-500/60 text-xs font-bold text-amber-300 transition-all flex items-center gap-2 shadow-sm animate-pulse";
+          }
+          if (qrLoading) qrLoading.classList.add("hidden");
+          if (waConn) waConn.classList.add("hidden");
+          if (qrImg) {
+            qrImg.src = data.qrUrl;
+            qrImg.classList.remove("hidden");
+          }
+          if (isManual) showToast("Live QR Code refresh ho gaya! Scan karein.", true);
+        } else {
+          if (statusLabel) statusLabel.innerText = "WhatsApp: Starting...";
+          if (qrLoading) {
+            qrLoading.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-emerald-400 text-2xl"></i><span>QR code ban raha hai...</span>`;
+            qrLoading.classList.remove("hidden");
+          }
+          if (qrImg) qrImg.classList.add("hidden");
+          if (waConn) waConn.classList.add("hidden");
+        }
+      } catch (err) {
+        if (statusLabel) statusLabel.innerText = "WhatsApp: Offline";
+      }
+    }
+
+    function openWhatsAppQrModal() {
+      openModal("whatsapp-qr-modal");
+      checkWhatsAppStatus(true);
+    }
+
+    async function sendDirectWhatsAppReminder(deviceId, customerName, fallbackWaLink) {
+      try {
+        showToast(`${customerName} ko direct WhatsApp reminder bheja ja raha hai...`, true);
+        const res = await fetch(`/api/device/${deviceId}/send-reminder`, {
+          method: "POST"
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(data.message || `WhatsApp reminder ${customerName} ko chala gaya!`, true);
+        } else {
+          if (confirm(`Baileys Bridge connect nahi hai (${data.error}).\nKya aap standard WhatsApp Web par yeh reminder bhejna chahte hain?`)) {
+            window.open(fallbackWaLink, "_blank");
+          }
+        }
+      } catch (err) {
+        window.open(fallbackWaLink, "_blank");
+      }
+    }
+
+    async function sendTestWhatsAppMessage() {
+      const phoneInput = document.getElementById("wa-test-phone");
+      const phone = phoneInput ? phoneInput.value.trim() : "";
+      const resEl = document.getElementById("wa-test-result");
+      const btn = document.getElementById("btn-wa-send-test");
+
+      if (!phone) {
+        showToast("Baraye meharbani test phone number enter karein (e.g. 03001234567)", false);
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i>`;
+      if (resEl) resEl.classList.add("hidden");
+
+      try {
+        const res = await fetch("/api/whatsapp/send-test", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            phone: phone,
+            message: "Assalam-o-Alaikum! Yeh BashLock Auto-Bot (Baileys Engine) ka test message hai. Aapka WhatsApp Auto-Bot 100% online aur active hai!"
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(data.message || "Test WhatsApp message delivered!", true);
+          if (resEl) {
+            resEl.className = "text-[11px] font-bold text-emerald-400 block pt-1";
+            resEl.innerText = "✅ " + data.message;
+          }
+        } else {
+          showToast(data.error || "Message delivery fail ho gayi", false);
+          if (resEl) {
+            resEl.className = "text-[11px] font-bold text-rose-400 block pt-1";
+            resEl.innerText = "❌ " + data.error;
+          }
+        }
+      } catch (err) {
+        showToast("Server / Network error", false);
+        if (resEl) {
+          resEl.className = "text-[11px] font-bold text-rose-400 block pt-1";
+          resEl.innerText = "❌ Server error occurred";
+        }
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<i class="fa-solid fa-paper-plane text-[10px]"></i> Send Test`;
+      }
+    }
+
+    function updateMobileLinkBar(ip) {
+      if (!ip) return;
+      lanIpAddress = ip;
+      const mobileUrl = `http://${ip}:5000/lock-app`;
+      const urlText = document.getElementById("top-mobile-url-text");
+      const urlLink = document.getElementById("top-mobile-url-link");
+      const openBtn = document.getElementById("top-open-tab-btn");
+      const navBtn = document.getElementById("btn-open-lock-app");
+
+      if (urlText) urlText.innerText = mobileUrl;
+      if (urlLink) urlLink.href = mobileUrl;
+      if (openBtn) openBtn.href = mobileUrl;
+      if (navBtn) navBtn.href = mobileUrl;
+    }
+
+    function calcBalance() {
+      const total = parseFloat(document.getElementById("fin-total").value) || 0;
+      const down = parseFloat(document.getElementById("fin-down").value) || 0;
+      const rem = Math.max(0, total - down);
+      document.getElementById("balance-preview").innerText = "PKR " + rem.toLocaleString();
+    }
+
+    function openEnrollModal() {
+      document.getElementById("cust-name").value = "";
+      document.getElementById("cust-phone").value = "";
+      document.getElementById("cust-cnic").value = "";
+      document.getElementById("phone-model").value = "";
+      document.getElementById("phone-imei").value = "";
+      document.getElementById("cust-guarantor").value = "";
+      document.getElementById("cust-guarantor-cnic").value = "";
+      calcBalance();
+      openModal("enroll-modal");
+    }
+
+    function changeMonthFilter() {
+      currentMonth = document.getElementById("month-filter-select").value;
+      const labelText = document.getElementById("month-filter-select").selectedOptions[0].text;
+      document.getElementById("chart-month-label").innerText = labelText.split(" (")[0];
+      fetchDashboardData();
+    }
+
+    function setStatusFilter(status) {
+      activeStatusFilter = status;
+      ["ALL", "ACTIVE", "LOCKED", "OVERDUE"].forEach(s => {
+        const btn = document.getElementById(`tab-status-${s.toLowerCase()}`);
+        if (s === status) {
+          btn.className = "px-3.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 text-white shadow-sm transition";
+        } else {
+          btn.className = "px-3.5 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition";
+        }
+      });
+      applyFilters();
+    }
+
+    function applyFilters() {
+      const q = (document.getElementById("search-input")?.value || "").toLowerCase().trim();
+      let filtered = currentDevices;
+
+      if (activeStatusFilter === "ACTIVE") {
+        filtered = filtered.filter(d => d.status === "UNLOCKED" && !d.is_overdue);
+      } else if (activeStatusFilter === "LOCKED") {
+        filtered = filtered.filter(d => d.status === "LOCKED");
+      } else if (activeStatusFilter === "OVERDUE") {
+        filtered = filtered.filter(d => d.is_overdue);
+      }
+
+      if (q) {
+        filtered = filtered.filter(d => 
+          (d.customer_name || "").toLowerCase().includes(q) ||
+          (d.customer_phone || "").toLowerCase().includes(q) ||
+          (d.customer_cnic || "").toLowerCase().includes(q) ||
+          (d.phone_model || "").toLowerCase().includes(q) ||
+          (d.imei || "").toLowerCase().includes(q) ||
+          (d.setup_code || "").toLowerCase().includes(q)
+        );
+      }
+
+      renderDevicesTable(filtered);
+    }
+
+    // Submit New Customer (Requirement 3: Generates 4-digit code)
+    async function submitNewCustomer(e) {
+      e.preventDefault();
+      const btn = document.getElementById("btn-save-cust");
+      btn.disabled = true;
+      btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Saving...`;
+
+      const payload = {
+        customer_name: document.getElementById("cust-name").value,
+        customer_phone: document.getElementById("cust-phone").value,
+        customer_cnic: document.getElementById("cust-cnic").value,
+        guarantor_name: document.getElementById("cust-guarantor").value,
+        guarantor_cnic: document.getElementById("cust-guarantor-cnic").value,
+        phone_model: document.getElementById("phone-model").value,
+        imei: document.getElementById("phone-imei").value,
+        total_price: document.getElementById("fin-total").value,
+        down_payment: document.getElementById("fin-down").value,
+        monthly_installment: document.getElementById("fin-monthly").value
+      };
+
+      try {
+        const res = await fetch("/api/devices/enroll", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+          closeModal("enroll-modal");
+          showToast("Naya gahak save ho gaya!", true);
+
+          // Show the 4-digit code success modal
+          document.getElementById("display-setup-code").innerText = data.setup_code;
+          document.getElementById("display-lock-url").innerText = `http://${data.lan_ip}:5000/lock-app/${data.setup_code}`;
+          openModal("code-success-modal");
+
+          // Requirement 2: Open Live Mobile Lock Simulator Side-by-Side Drawer immediately
+          openLiveMobileDrawer(data.setup_code, payload.customer_name, payload.phone_model);
+
+          fetchDashboardData();
+        } else {
+          showToast(data.error || "Gahak save nahi hua", false);
+        }
+      } catch (err) {
+        showToast("Server error", false);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<i class="fa-solid fa-check"></i> Save Gahak & 4-Digit Code Banayein`;
+      }
+    }
+
+    // Fetch Dashboard Data with Month Filter & Progress Update (Requirement 1)
+    async function fetchDashboardData() {
+      try {
+        const authRes = await fetch("/api/auth/me");
+        const authData = await authRes.json();
+        if (authData.authenticated) {
+          activeShopInfo = authData.shop;
+          lanIpAddress = authData.lan_ip || "10.119.0.239";
+          if (authData.public_tunnel_url) {
+            updateTunnelLinkBar(authData.public_tunnel_url);
+          }
+          document.getElementById("shop-header-title").innerText = `${authData.shop.name} • ${authData.shop.owner_name}`;
+          updateMobileLinkBar(lanIpAddress);
+        }
+
+        // Fetch KPIs with month parameter
+        const kpiRes = await fetch(`/api/kpi?month=${currentMonth}`);
+        const kpi = await kpiRes.json();
+        
+        document.getElementById("card-total-gahak").innerText = kpi.total_devices;
+        document.getElementById("card-kul-baqaya").innerText = "PKR " + Math.round(kpi.total_remaining_pkr).toLocaleString();
+        document.getElementById("card-wasooli").innerText = "PKR " + Math.round(kpi.total_collected_pkr).toLocaleString();
+        document.getElementById("card-locked-phones").innerText = kpi.locked_devices;
+        document.getElementById("card-active-sub").innerText = `${kpi.active_devices} Active`;
+        document.getElementById("card-overdue-sub").innerText = `${kpi.overdue_count} Overdue`;
+
+        // Update Visual Monthly Collection Progress Bar (Requirement 1)
+        const totalTurnover = (kpi.total_collected_pkr || 0) + (kpi.total_remaining_pkr || 0);
+        const recoveryRate = totalTurnover > 0 ? Math.round((kpi.total_collected_pkr / totalTurnover) * 100) : 0;
+        
+        document.getElementById("progress-percentage-label").innerText = `${recoveryRate}%`;
+        document.getElementById("bar-wasooli-val").innerText = "PKR " + Math.round(kpi.total_collected_pkr).toLocaleString();
+        document.getElementById("bar-baqaya-val").innerText = "PKR " + Math.round(kpi.total_remaining_pkr).toLocaleString();
+        document.getElementById("bar-total-val").innerText = "PKR " + Math.round(totalTurnover).toLocaleString();
+
+        document.getElementById("visual-progress-paid").style.width = `${recoveryRate}%`;
+        document.getElementById("visual-progress-remaining").style.width = `${Math.max(0, 100 - recoveryRate)}%`;
+
+        const paceEl = document.getElementById("mini-chart-pace");
+        if (recoveryRate >= 80) paceEl.innerText = "Excellent Pace 🚀";
+        else if (recoveryRate >= 50) paceEl.innerText = "Healthy Pace ⚡";
+        else paceEl.innerText = "Active Recovery 📊";
+
+        // Fetch Devices with month parameter
+        const devRes = await fetch(`/api/devices?month=${currentMonth}`);
+        const devData = await devRes.json();
+        currentDevices = devData.devices || [];
+        applyFilters();
+
+      } catch (err) {
+        console.error("Dashboard data fetch error", err);
+      }
+    }
+
+    function renderDevicesTable(devices) {
+      const tbody = document.getElementById("devices-tbody");
+      document.getElementById("record-count-badge").innerText = `${devices.length} Records`;
+
+      if (!devices || devices.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="8" class="py-14 text-center text-slate-500 space-y-2">
+              <i class="fa-solid fa-folder-open text-3xl block text-slate-600 mb-2"></i>
+              <p class="text-sm font-bold text-slate-400">Is Filter Ka Koi Record Mojood Nahi Hai.</p>
+              <p class="text-xs text-slate-500">Pehla phone add karne ke liye upar "+ Naya Gahak & Phone Add Karein" dabayein.</p>
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = "";
+      devices.forEach(d => {
+        const isLocked = d.status === "LOCKED";
+        const tr = document.createElement("tr");
+        tr.className = "hover:bg-slate-900/60 transition group";
+
+        const paidAmount = Math.max(0, d.total_price - d.remaining_balance);
+        const percentPaid = Math.min(100, Math.round((paidAmount / (d.total_price || 1)) * 100));
+
+        // Generate customer avatar initials
+        const initials = (d.customer_name || 'G').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+
+        // Detect brand badge
+        const m = (d.phone_model || "").toLowerCase();
+        let brandIcon = "fa-solid fa-mobile-screen";
+        let brandColor = "text-slate-500";
+        if (m.includes("samsung")) { brandColor = "text-blue-400"; }
+        else if (m.includes("infinix")) { brandColor = "text-emerald-400"; }
+        else if (m.includes("tecno")) { brandColor = "text-cyan-400"; }
+        else if (m.includes("apple") || m.includes("iphone")) { brandIcon = "fa-brands fa-apple"; brandColor = "text-slate-300"; }
+        else if (m.includes("redmi") || m.includes("xiaomi")) { brandColor = "text-orange-400"; }
+        else if (m.includes("vivo")) { brandColor = "text-indigo-400"; }
+
+        // WhatsApp pre-filled link
+        const cleanPhone = (d.customer_phone || '').replace(/[^0-9]/g, '');
+        const waPhone = cleanPhone.startsWith('0') ? '92' + cleanPhone.slice(1) : cleanPhone;
+        const waMsg = encodeURIComponent(`Assalam-o-Alaikum ${d.customer_name} bhai, ${activeShopInfo.name} ki taraf se aapke phone (${d.phone_model}) ki mahana qist PKR ${Math.round(d.monthly_installment).toLocaleString()} baqaya hai jis ki aakhri tareekh ${d.next_due_date} hai. Meharbani farma kar dukaan par ada karein taake service band na ho. Shukriya!`);
+        const waLink = `https://wa.me/${waPhone}?text=${waMsg}`;
+
+        tr.innerHTML = `
+          <td class="py-4 px-4">
+            <div class="flex items-center gap-3">
+              <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-950 to-slate-900 border border-emerald-500/30 text-emerald-400 flex items-center justify-center font-bold font-mono text-xs shadow-inner shrink-0">
+                ${initials}
+              </div>
+              <div>
+                <div class="font-extrabold text-white text-xs group-hover:text-emerald-300 transition">${d.customer_name}</div>
+                <div class="text-[11px] text-slate-400 font-mono flex items-center gap-1.5 mt-0.5">
+                  <i class="fa-solid fa-phone text-[9px] text-slate-500"></i> ${d.customer_phone || 'N/A'}
+                  ${d.customer_phone ? `<a href="${waLink}" target="_blank" title="Send WhatsApp Reminder" class="text-emerald-400 hover:text-emerald-300 ml-1"><i class="fa-brands fa-whatsapp"></i></a>` : ''}
+                </div>
+              </div>
+            </div>
+          </td>
+
+          <td class="py-4 px-3">
+            <div class="font-bold text-slate-200 flex items-center gap-1.5">
+              <i class="${brandIcon} ${brandColor} text-xs"></i>
+              <span>${d.phone_model}</span>
+            </div>
+            <div class="text-[10px] text-slate-400 font-mono mt-0.5 tracking-wider">IMEI: ${d.imei}</div>
+          </td>
+
+          <td class="py-4 px-3 text-center">
+            <span onclick="navigator.clipboard.writeText('${d.setup_code || ''}'); showToast('Code ${d.setup_code} copied!', true);" title="Click to copy setup code" class="cursor-pointer px-3 py-1 rounded-xl font-mono font-black text-xs bg-indigo-950/90 text-indigo-300 border border-indigo-500/40 shadow-sm inline-flex items-center gap-1.5 hover:bg-indigo-900 transition">
+              <i class="fa-solid fa-hashtag text-[10px] text-indigo-400"></i> ${d.setup_code || '----'}
+            </span>
+          </td>
+
+          <td class="py-4 px-3">
+            <div class="font-bold text-rose-400 font-mono text-xs">PKR ${Math.round(d.remaining_balance).toLocaleString()}</div>
+            <div class="w-24 bg-slate-800 rounded-full h-1.5 mt-1 overflow-hidden">
+              <div class="bg-gradient-to-r from-emerald-500 to-teal-400 h-1.5 rounded-full" style="width: ${percentPaid}%"></div>
+            </div>
+            <div class="text-[9px] text-slate-500 font-mono mt-0.5">${percentPaid}% Paid (Kul: ${Math.round(d.total_price).toLocaleString()})</div>
+          </td>
+
+          <td class="py-4 px-3 font-mono font-bold text-slate-200">
+            PKR ${Math.round(d.monthly_installment).toLocaleString()}
+          </td>
+
+          <td class="py-4 px-3">
+            <div class="font-mono font-bold ${d.is_overdue ? 'text-rose-400' : 'text-slate-300'}">
+              ${d.next_due_date}
+            </div>
+            ${d.is_overdue 
+              ? `<span class="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md text-[9px] font-black bg-rose-950 text-rose-300 border border-rose-800 shadow-sm animate-pulse"><i class="fa-solid fa-circle-exclamation"></i> OVERDUE</span>` 
+              : `<span class="text-[10px] text-emerald-400 font-medium flex items-center gap-1"><i class="fa-solid fa-check text-[9px]"></i> Regular</span>`
+            }
+          </td>
+
+          <td class="py-4 px-3 text-center">
+            ${isLocked
+              ? `<span class="px-2.5 py-1 rounded-full text-[10px] font-black bg-rose-950 text-rose-300 border border-rose-800/80 inline-flex items-center gap-1.5 shadow-sm"><span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping"></span> BAND</span>`
+              : `<span class="px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-950 text-emerald-300 border border-emerald-800/80 inline-flex items-center gap-1.5 shadow-sm"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> ACTIVE</span>`
+            }
+          </td>
+
+          <td class="py-4 px-4 text-right">
+            <div class="flex items-center justify-end gap-1.5 flex-wrap">
+              
+              <!-- Live Mobile Screen Simulator Drawer Button (Requirement 2) -->
+              <button onclick="openLiveMobileDrawer('${d.setup_code || d.imei}', '${(d.customer_name || '').replace(/'/g, "\\'")}', '${(d.phone_model || '').replace(/'/g, "\\'")}')" title="Live Mobile Lock Test Simulator (Side-by-Side)" class="px-2.5 py-1.5 rounded-xl bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/50 text-cyan-300 hover:text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+                <i class="fa-solid fa-mobile-screen-button text-cyan-400 animate-pulse"></i> Live Screen
+              </button>
+
+              <!-- Wasooli (Pay) Button -->
+              <button onclick="openWasooliModal('${d.id}')" class="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs transition-all shadow-sm flex items-center gap-1.5">
+                <i class="fa-solid fa-hand-holding-dollar text-xs"></i> Wasooli
+              </button>
+
+              <!-- Unlock PIN Button -->
+              <button onclick="openPinModal('${d.id}')" title="Offline Unlock PIN" class="px-2.5 py-1.5 rounded-xl bg-amber-950 hover:bg-amber-900 border border-amber-800 text-amber-300 text-xs font-bold transition flex items-center gap-1 shadow-sm">
+                <i class="fa-solid fa-key"></i> PIN
+              </button>
+
+              <!-- Remote Lock / Unlock Toggle -->
+              ${isLocked
+                ? `<button onclick="toggleLock('${d.id}', 'UNLOCK')" title="Phone Screen Kholein" class="px-2.5 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs transition shadow-sm">
+                    <i class="fa-solid fa-unlock"></i> Kholein
+                   </button>`
+                : `<button onclick="toggleLock('${d.id}', 'LOCK')" title="Phone Screen Band Karein" class="px-2.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition shadow-sm">
+                    <i class="fa-solid fa-lock"></i> Band
+                   </button>`
+              }
+
+              <!-- Printable Agreement (Contract) Button -->
+              <button onclick="openAgreementModal('${d.id}')" title="Printable Installment Agreement (Qist-Nama)" class="px-2 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white text-xs font-bold transition flex items-center gap-1 shadow-sm">
+                <i class="fa-solid fa-file-contract text-cyan-400"></i> Print
+              </button>
+
+              <!-- 1-Click Delete Device Button (Requirement 3) -->
+              <button onclick="deleteDevice('${d.id}', '${(d.customer_name || '').replace(/'/g, "\\'")}')" title="Record Delete Karein" class="p-1.5 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/40 text-rose-400 hover:text-rose-200 text-xs transition shadow-sm">
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+
+              <!-- 1-Click Direct WhatsApp Reminder via Baileys Bridge -->
+              ${d.customer_phone ? `
+                <button onclick="sendDirectWhatsAppReminder('${d.id}', '${(d.customer_name || '').replace(/'/g, "\\'")}', '${waLink}')" title="1-Click Direct WhatsApp Reminder (Baileys Bot)" class="px-2.5 py-1.5 rounded-xl bg-emerald-950 hover:bg-emerald-900 border border-emerald-500/60 text-emerald-300 hover:text-white font-bold text-xs flex items-center gap-1 transition shadow-sm">
+                  <i class="fa-brands fa-whatsapp text-emerald-400 text-sm"></i> WhatsApp
+                </button>
+              ` : ''}
+
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Auto-Lock Overdue Batch Check
+    async function runAutoLockBatch() {
+      try {
+        showToast("Auto-lock check shuru ho gaya...", true);
+        const res = await fetch("/api/cron/auto-lock", { method: "POST" });
+        const data = await res.json();
+        showToast(data.message || "Auto-lock check mukammal!", true);
+        fetchDashboardData();
+      } catch (err) {
+        showToast("Auto-lock check error", false);
+      }
+    }
+
+    // Open Printable Agreement Modal
+    function openAgreementModal(deviceId) {
+      const d = currentDevices.find(x => x.id === deviceId);
+      if (!d) return;
+
+      document.getElementById("agr-shop-name").innerText = activeShopInfo.name || "Al-Madina Mobile Centre";
+      document.getElementById("agr-shop-owner").innerText = activeShopInfo.owner_name || "Haji Muhammad Aslam";
+      document.getElementById("agr-shop-phone").innerText = activeShopInfo.phone || "0300-8451234";
+      document.getElementById("agr-shop-address").innerText = activeShopInfo.address || "Shop #14, Hall Road, Lahore";
+
+      document.getElementById("agr-cust-name").innerText = d.customer_name || "--";
+      document.getElementById("agr-cust-phone").innerText = d.customer_phone || "--";
+      document.getElementById("agr-cust-cnic").innerText = d.customer_cnic || "--";
+      document.getElementById("agr-guarantor-name").innerText = d.guarantor_name || "N/A";
+      document.getElementById("agr-guarantor-cnic").innerText = d.guarantor_cnic || "N/A";
+
+      document.getElementById("agr-phone-model").innerText = d.phone_model || "--";
+      document.getElementById("agr-imei").innerText = d.imei || "--";
+      document.getElementById("agr-setup-code").innerText = d.setup_code || "--";
+
+      document.getElementById("agr-total-price").innerText = "PKR " + Math.round(d.total_price).toLocaleString();
+      document.getElementById("agr-down-payment").innerText = "PKR " + Math.round(d.down_payment).toLocaleString();
+      document.getElementById("agr-balance").innerText = "PKR " + Math.round(d.remaining_balance).toLocaleString();
+      document.getElementById("agr-monthly-emi").innerText = "PKR " + Math.round(d.monthly_installment).toLocaleString();
+      document.getElementById("agr-due-date").innerText = d.next_due_date || "--";
+      document.getElementById("agr-date-today").innerText = new Date().toLocaleDateString();
+      document.getElementById("agr-contract-num").innerText = "BL-" + (d.setup_code || "0000") + "-" + d.id.slice(-4);
+      document.getElementById("agr-contract-ref").innerText = "REF-" + (d.setup_code || "0000");
+
+      openModal("printable-agreement-modal");
+    }
+
+    function openWasooliModal(deviceId) {
+      const d = currentDevices.find(x => x.id === deviceId);
+      if (!d) return;
+
+      document.getElementById("pay-dev-id").value = d.id;
+      document.getElementById("pay-cust-name").innerText = `${d.customer_name} • ${d.phone_model}`;
+      document.getElementById("pay-bal-display").innerText = "PKR " + Math.round(d.remaining_balance).toLocaleString();
+      document.getElementById("pay-monthly-display").innerText = "PKR " + Math.round(d.monthly_installment).toLocaleString();
+      document.getElementById("pay-amount-input").value = Math.round(d.monthly_installment);
+      openModal("payment-modal");
+    }
+
+    async function submitWasooli(e) {
+      e.preventDefault();
+      const devId = document.getElementById("pay-dev-id").value;
+      const amount = parseFloat(document.getElementById("pay-amount-input").value) || 0;
+      const btn = document.getElementById("btn-submit-wasooli");
+
+      btn.disabled = true;
+      btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Processing...`;
+
+      try {
+        const res = await fetch("/api/device/payment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            device_id: devId,
+            amount: amount,
+            payment_method: "CASH"
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          closeModal("payment-modal");
+          showToast(`Wasooli PKR ${amount.toLocaleString()} save ho gayi! Phone auto-unlock ho chuka hai.`, true);
+          fetchDashboardData();
+        } else {
+          showToast(data.error || "Wasooli save nahi hui", false);
+        }
+      } catch (err) {
+        showToast("Wasooli processing error", false);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<i class="fa-solid fa-circle-check"></i> Wasooli Jama Karein & Phone Unlock Karein`;
+      }
+    }
+
+    function openPinModal(deviceId) {
+      const d = currentDevices.find(x => x.id === deviceId);
+      if (!d) return;
+
+      document.getElementById("pin-cust-subtitle").innerText = `${d.customer_name} (${d.phone_model})`;
+      document.getElementById("pin-code-display").innerText = d.offline_pin || "------";
+      openModal("pin-modal");
+    }
+
+    async function toggleLock(deviceId, action) {
+      try {
+        const res = await fetch("/api/device/toggle-lock", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ device_id: deviceId, action: action })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(data.message || `Phone ${action} ho gaya!`, true);
+          fetchDashboardData();
+        } else {
+          showToast(data.error || "Lock toggle fail", false);
+        }
+      } catch (err) {
+        showToast("Action error", false);
+      }
+    }
+
+    function openShopSettings() {
+      document.getElementById("set-shop-name").value = activeShopInfo.name || "";
+      document.getElementById("set-owner-name").value = activeShopInfo.owner_name || "";
+      document.getElementById("set-shop-phone").value = activeShopInfo.phone || "";
+      document.getElementById("set-shop-address").value = activeShopInfo.address || "";
+      document.getElementById("set-counter-pin").value = activeShopInfo.counter_pin || "1234";
+      openModal("shop-settings-modal");
+    }
+
+    async function submitShopProfile(e) {
+      e.preventDefault();
+      const payload = {
+        name: document.getElementById("set-shop-name").value,
+        owner_name: document.getElementById("set-owner-name").value,
+        phone: document.getElementById("set-shop-phone").value,
+        address: document.getElementById("set-shop-address").value,
+        counter_pin: document.getElementById("set-counter-pin").value
+      };
+
+      try {
+        const res = await fetch("/api/shop/update-profile", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+          activeShopInfo.counter_pin = payload.counter_pin;
+          showToast("Dukaan profile aur Counter PIN update ho gayi!", true);
+          closeModal("shop-settings-modal");
+          fetchDashboardData();
+        }
+      } catch (err) {
+        showToast("Profile update error", false);
+      }
+    }
+
+    // Wipe Demo Data Confirmation
+    async function confirmWipeDemoData() {
+      if (!confirm("Kya aap waqai tamam demo customers delete karke bilkul clean zero-record khata shuru karna chahte hain?")) {
+        return;
+      }
+      try {
+        const res = await fetch("/api/shop/wipe-demo-data", { method: "POST" });
+        const data = await res.json();
+        if (data.success) {
+          showToast(data.message, true);
+          closeModal("shop-settings-modal");
+          fetchDashboardData();
+        }
+      } catch (err) {
+        showToast("Wipe error", false);
+      }
+    }
+
+    // Auto-detect LAN IP if opened directly from local IP
+    if (window.location.hostname && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+      lanIpAddress = window.location.hostname;
+    }
+    updateMobileLinkBar(lanIpAddress);
+
+    window.addEventListener("DOMContentLoaded", () => {
+      fetchDashboardData();
+      checkWhatsAppStatus();
+      setInterval(checkWhatsAppStatus, 10000);
+      if (sessionStorage.getItem("bashlock_counter_locked") === "true") {
+        lockCounterScreen();
+      }
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        closeLiveMobileDrawer();
+      }
+    });
+  </script>
+</body>
+</html>

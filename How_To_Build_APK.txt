@@ -1,0 +1,140 @@
+================================================================================
+       BASHLOCK CLOUD — HOW TO BUILD APK GUIDE (ROMAN URDU)
+       Android Native App Wrapper Compiling & Deployment Manual
+================================================================================
+
+Assalam-o-Alaikum!
+
+Aapka sawal tha: 
+"Mera /lock-app mobile browser mein open/close to ho raha hai, lekin physical mobile ke hardware buttons (Home, Recent Apps wagaira) ko block kyun nahi kar raha?"
+
+--------------------------------------------------------------------------------
+1. ASAL WAJA (Mobile Browser vs Native Android APK)
+--------------------------------------------------------------------------------
+Android OS ki security policy ke tehat, Chrome, Vivo Browser ya koi bhi web browser
+ek "Sandbox" mein chalta hai. Android OS kisi bhi website ko yeh permission 
+NAHI deta ke woh:
+- Mobile ka Home button disable kar sake.
+- Recent Apps (task switcher) button disable kar sake.
+- Phone ki Status Bar / Notification shade ko pull-down hone se rokay.
+- Phone ko Settings mein jakar app band karne se rokay.
+
+Agar website ko yeh permissions mil jayen to internet par koi bhi malicious website
+har bande ka phone permanently freeze kar sakti hai.
+
+IS LIYE REAL WORLD MEIN PHONE KO HAMESHA EK NATIVE ANDROID APK CHAHIYE HOTI HAI:
+Humne aapke liye BashLock ki complete Native Android source code tayyar kar di hai:
+Folder Path:
+C:\Users\It Hub\Documents\BashLock-Cloud\BashLock_APK
+
+Yeh APK Android ke 4 power-level features use karti hai:
+1) DeviceAdminReceiver: Phone ki Settings mein ja kar Uninstall ka button gayab kar deta hai.
+2) startLockTask() (Kiosk Mode): Android ke Home aur Recent Apps buttons ko completely lock kar deta hai.
+3) SYSTEM_ALERT_WINDOW (Draw Over Other Apps): Notification bar ko ooper se kheenchne nahi deta.
+4) WebBridge Native Interface: Jab aap laptop se "LOCK" dabate hain, yeh web se direct Android OS ko signal bhejta hai ke phone freeze kar do.
+
+
+--------------------------------------------------------------------------------
+TAREEQA 1: 2-MINUTE MEIN CLOUD BUILDER SE APK BANANA (NO ANDROID STUDIO NEEDED)
+--------------------------------------------------------------------------------
+Agar aapke paas Android Studio install nahi hai ya aap foran 2 minute mein APK banana chahte hain:
+
+1. Apne laptop ya mobile par yeh free website kholein:
+   https://www.webintoapp.com
+   (Ya https://www.appsgeyser.com)
+
+2. "Create App" / "URL to App" par click karein.
+
+3. App URL ke khaney mein apna LIVE HTTPS tunnel URL paste karein:
+   https://liberty-opposite-applying-www.trycloudflare.com/lock-app
+   (Bashir phone direct link: https://liberty-opposite-applying-www.trycloudflare.com/lock-app/4819)
+
+4. App Name likhein:
+   BashLock Guard
+
+5. Settings / Display tab mein:
+   - Fullscreen Mode: Enable (Yes)
+   - Keep Screen Awake: Enable (Yes)
+   - Enable JavaScript: Enable (Yes)
+
+6. "Generate APK / Download" par click karein.
+   2 minute mein aapke paas ready-to-install "BashLockGuard.apk" download ho jayegi!
+
+7. Is APK ko apne Vivo phone mein install kar lein.
+
+
+--------------------------------------------------------------------------------
+TAREEQA 2: ANDROID STUDIO SE OFFICIAL APK COMPILE KARNA (5 SE 7 MINUTES)
+--------------------------------------------------------------------------------
+BashLock ka full native code already is folder mein rakha hai:
+C:\Users\It Hub\Documents\BashLock-Cloud\BashLock_APK
+
+1. Android Studio open karein.
+2. "Open Existing Project" par click karein aur yeh folder select karein:
+   C:\Users\It Hub\Documents\BashLock-Cloud\BashLock_APK
+
+3. Android Studio niche Gradle Sync karega (1-2 minutes).
+   (Ensure karein ke internet chal raha ho taake Android dependencies sync ho saken).
+
+4. Agar tunnel URL update ho, to aap is file mein URL verify kar sakte hain:
+   BashLock_APK\app\src\main\java\com\bashlock\apk\MainActivity.java
+   Line 55: DEFAULT_PUBLIC_HTTPS_URL = "https://liberty-opposite-applying-www.trycloudflare.com/lock-app";
+
+5. Ooper menu bar mein click karein:
+   Build  ===>  Build Bundle(s) / APK(s)  ===>  Build APK(s)
+
+6. 2 minute mein Android Studio right bottom par notification dikhaye ga:
+   "APK(s) generated successfully: [locate]"
+
+7. "locate" par click karein. Yeh aapko debug APK folder par le jayega:
+   BashLock_APK\app\build\outputs\apk\debug\app-debug.apk
+
+8. Is `app-debug.apk` ko Vivo phone par USB data cable ya WhatsApp ke zariye send karein aur Install dabayein.
+
+
+--------------------------------------------------------------------------------
+3. VIVO / CUSTOMER PHONE PAR 1-TIME PERMISSION SETUP (ZAROORI)
+--------------------------------------------------------------------------------
+Jab pehli baar APK phone par open ho gi, yeh screen par 2 permissions mangegi:
+
+1) "Display over other apps" (Draw over apps):
+   Isko ALLOW karein taake lock screen ke ooper koi doosri app ya notification na aa sake.
+
+2) "Device Administrator" (Device Admin):
+   Screen par prompt aayega "Activate this device admin app".
+   Isko "Activate" karein. Is se customer Settings -> Apps mein ja kar is app ko Uninstall nahi kar sakega.
+
+3) Vivo Phone Special Setting:
+   Vivo phones (Funtouch OS) mein:
+   Settings -> Battery -> Background Power Consumption -> BashLock -> "High Background Power Usage" ALLOW karein.
+
+
+--------------------------------------------------------------------------------
+4. PRO SHOPKEEPER ZERO-ESCAPE KIOSK MODE (DEVICE OWNER COMMAND)
+--------------------------------------------------------------------------------
+Agar aap chahte hain ke customer kisi bhi tarah Phone se nikal na sakay (jaise Samsung Knox ya commercial installment locking softwares karte hain):
+
+1. Naye phone ko setup karte waqt (ya factory reset ke baad) phone mein USB Debugging on karein.
+2. Laptop se USB cable lagayein.
+3. Laptop terminal mein sirf yeh ek line command chalayein:
+
+   adb shell dpm set-device-owner com.bashlock.apk/.BashLockDeviceAdminReceiver
+
+Nateeja:
+Ab phone ka pura control BashLock ke paas hoga!
+- Customer na phone restart karke bach sakega.
+- Na Safe Mode mein ja sakega.
+- Na factory reset kar sakega.
+- Jab laptop dashboard se "LOCK" dabaya jayega, phone 100% freeze ho jayega.
+- Jab laptop dashboard se "UNLOCK" dabaya jayega ya 6-digit offline Master PIN enter kiya jayega, phone instant normal ho jayega!
+
+
+--------------------------------------------------------------------------------
+5. LIVE SERVER SUMMARY (PORT 5000 + 5002 + HTTPS)
+--------------------------------------------------------------------------------
+- Dashboard Local:    http://127.0.0.1:5000  (ya http://10.119.0.239:5000)
+- Baileys WhatsApp:   Port 5002 (Running automatically inside app.py)
+- Public HTTPS Tunnel: https://liberty-opposite-applying-www.trycloudflare.com
+- Mobile Lock App:    https://liberty-opposite-applying-www.trycloudflare.com/lock-app
+- Bashir Test Phone:  https://liberty-opposite-applying-www.trycloudflare.com/lock-app/4819
+================================================================================

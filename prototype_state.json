@@ -1,0 +1,40 @@
+{
+  "enterprise_id": "",
+  "signup_url_name": "",
+  "active_policy_name": "bashlock_unlocked",
+  "mock_devices": [
+    {
+      "id": "devices/dev-1794123236",
+      "name": "Redmi Note 13",
+      "imei": "861111222233334",
+      "customer": "Test User",
+      "phone": "+92 300 0000000",
+      "status": "UNLOCKED",
+      "policy": "bashlock_unlocked",
+      "last_seen": "Abhi enroll hua (Provisioning Ready)",
+      "tamper_protection": "Active"
+    },
+    {
+      "id": "devices/mock-phone-001",
+      "name": "Samsung Galaxy A15 (Demo)",
+      "imei": "860123456789012",
+      "customer": "Muhammad Bilal",
+      "phone": "+92 300 1234567",
+      "status": "LOCKED",
+      "policy": "bashlock_locked",
+      "last_seen": "Abhi Command Received",
+      "tamper_protection": "Active"
+    },
+    {
+      "id": "devices/mock-phone-002",
+      "name": "Infinix Hot 40 (Demo)",
+      "imei": "864567890123456",
+      "customer": "Zahid Mehmood",
+      "phone": "+92 321 9876543",
+      "status": "LOCKED",
+      "policy": "bashlock_locked",
+      "last_seen": "12 min pehle",
+      "tamper_protection": "Active"
+    }
+  ]
+}

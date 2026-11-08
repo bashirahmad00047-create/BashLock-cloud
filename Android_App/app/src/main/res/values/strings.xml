@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">BashLock Guard</string>
+    <string name="device_admin_description">BashLock Device Administration policy protects installment payment security and enforces remote lock and unlock features.</string>
+    <string name="admin_receiver_status">BashLock Device Admin Active</string>
+    <string name="lock_title">PHONE SCREEN LOCKED</string>
+    <string name="lock_subtitle">Monthly Installment Overdue. Contact Shopkeeper.</string>
+    <string name="enter_pin">Enter 6-Digit Master Unlock PIN</string>
+    <string name="unlock_button">Unlock Phone</string>
+    <string name="channel_name">BashLock Guard Channel</string>
+    <string name="channel_description">Active foreground protection service for installment devices</string>
+</resources>

@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:background="#0A0608">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="24dp">
+
+        <!-- Top Warning Badge -->
+        <TextView
+            android:id="@+id/tvLockBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="⚠️ BASHLOCK EMI ENFORCEMENT"
+            android:textColor="#F43F5E"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.1"
+            android:background="#2B0A12"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="6dp"
+            android:layout_marginBottom="20dp" />
+
+        <!-- Lock Icon -->
+        <TextView
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:text="🔒"
+            android:textSize="40sp"
+            android:gravity="center"
+            android:background="#4C0519"
+            android:layout_marginBottom="16dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/lock_title"
+            android:textColor="#FFFFFF"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvLockMessage"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/lock_subtitle"
+            android:textColor="#FDA4AF"
+            android:textSize="13sp"
+            android:gravity="center"
+            android:layout_marginTop="6dp"
+            android:layout_marginBottom="24dp" />
+
+        <!-- Due Amount Card -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="#161B26"
+            android:padding="16dp"
+            android:gravity="center"
+            android:layout_marginBottom="24dp">
+
+            <TextView
+                android:id="@+id/tvShopDetails"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Al-Madina Mobile Centre • 0300-8451234"
+                android:textColor="#94A3B8"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/tvDueAmount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Baqaya: PKR 30,000"
+                android:textColor="#34D399"
+                android:textStyle="bold"
+                android:textSize="18sp"
+                android:layout_marginTop="4dp" />
+        </LinearLayout>
+
+        <!-- PIN Dots Display -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/enter_pin"
+            android:textColor="#94A3B8"
+            android:textSize="12sp"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:id="@+id/tvPinDisplay"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="○  ○  ○  ○  ○  ○"
+            android:textColor="#F43F5E"
+            android:textStyle="bold"
+            android:textSize="24sp"
+            android:letterSpacing="0.2"
+            android:layout_marginBottom="20dp" />
+
+        <!-- Numeric Keypad Grid (3 columns) -->
+        <GridLayout
+            android:layout_width="260dp"
+            android:layout_height="wrap_content"
+            android:columnCount="3"
+            android:rowCount="4"
+            android:layout_gravity="center">
+
+            <!-- Row 1 -->
+            <Button android:id="@+id/btn1" text="1" style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="80dp" android:layout_height="60dp" android:textColor="#FFF" android:textSize="20sp" />
+            <Button android:id="@+id/btn2" text="2" style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="80dp" android:layout_height="60dp" android:textColor="#FFF" android:textSize="20sp" />
+            <Button android:id="@+id/btn3" text="3" style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="80dp" android:layout_height="60dp" android:textColor="#FFF" android:textSize="20sp" />
+
+            <!-- Row 2 -->
+            <Button android:id="@+id/btn4" text="4" style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="80dp" android:layout_height="60dp" android:textColor="#FFF" android:textSize="20sp" />
+            <Button android:id="@+id/btn5" text="5" style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="80dp" android:layout_height="60dp" android:textColor="#FFF" android:textSize="20sp" />
+            <Button android:id="@+id/btn6" text="6" style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="80dp" android:layout_height="60dp" android:textColor="#FFF" android:textSize="20sp" />
+
+            <!-- Row 3 -->
+            <Button android:id="@+id/btn7" text="7" style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="80dp" android:layout_height="60dp" android:textColor="#FFF" android:textSize="20sp" />
+            <Button android:id="@+id/btn8" text="8" style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="80dp" android:layout_height="60dp" android:textColor="#FFF" android:textSize="20sp" />
+            <Button android:id="@+id/btn9" text="9" style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="80dp" android:layout_height="60dp" android:textColor="#FFF" android:textSize="20sp" />
+
+            <!-- Row 4 -->
+            <Button android:id="@+id/btnClear" text="CLR" style="@style/Widget.MaterialComponents.Button" android:backgroundTint="#4C0519" android:layout_width="80dp" android:layout_height="60dp" android:textColor="#F43F5E" android:textSize="14sp" />
+            <Button android:id="@+id/btn0" text="0" style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="80dp" android:layout_height="60dp" android:textColor="#FFF" android:textSize="20sp" />
+            <Button android:id="@+id/btnUnlock" text="GO" style="@style/Widget.MaterialComponents.Button" android:backgroundTint="#059669" android:layout_width="80dp" android:layout_height="60dp" android:textColor="#FFF" android:textSize="14sp" android:textStyle="bold" />
+        </GridLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Offline Support: Dukaan-daar se 6-Digit Master PIN lein."
+            android:textColor="#64748B"
+            android:textSize="11sp"
+            android:layout_marginTop="20dp" />
+
+    </LinearLayout>
+</ScrollView>

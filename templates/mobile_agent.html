@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="ur" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>BashLock Device Companion</title>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#090d16">
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    body {
+      background-color: #090d16;
+      font-family: system-ui, -apple-system, sans-serif;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .glow-rose {
+      box-shadow: 0 0 30px rgba(244, 63, 94, 0.4);
+    }
+    .glow-emerald {
+      box-shadow: 0 0 30px rgba(16, 185, 129, 0.3);
+    }
+  </style>
+</head>
+<body class="text-slate-100 min-h-screen flex flex-col justify-between overflow-hidden">
+
+  <!-- Mobile Top Notification Bar -->
+  <header class="p-4 flex items-center justify-between border-b border-slate-800/80 bg-slate-950/80 backdrop-blur z-50">
+    <div class="flex items-center gap-2.5">
+      <div id="status-pulse-dot" class="w-3 h-3 rounded-full bg-emerald-400 animate-pulse shadow-sm shadow-emerald-400"></div>
+      <span class="text-xs font-bold tracking-tight text-white flex items-center gap-1.5">
+        BashLock <span class="text-cyan-400">Cloud</span>
+      </span>
+    </div>
+    <div class="flex items-center gap-2">
+      <span id="sync-indicator" class="text-[10px] font-mono text-slate-400 flex items-center gap-1">
+        <i class="fa-solid fa-wifi text-emerald-400"></i> Wi-Fi Live
+      </span>
+      <button onclick="requestFullscreen()" class="text-xs text-slate-400 hover:text-white px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800">
+        <i class="fa-solid fa-expand"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- SCREEN VIEW A: UNLOCKED / ACTIVE GOOD STANDING -->
+  <main id="view-unlocked" class="flex-1 flex flex-col justify-between p-6 text-center space-y-6">
+    
+    <!-- Top Status Card -->
+    <div class="pt-4 space-y-4">
+      <div class="w-20 h-20 mx-auto rounded-3xl bg-emerald-950/80 border-2 border-emerald-500/80 text-emerald-400 flex items-center justify-center text-3xl shadow-2xl glow-emerald">
+        <i class="fa-solid fa-shield-check"></i>
+      </div>
+      <div>
+        <h2 class="text-lg font-extrabold text-white">Device Protected & Active</h2>
+        <p class="text-xs text-slate-400 mt-1">BashLock Device Owner Kiosk Protection Enabled</p>
+      </div>
+
+      <!-- Good Standing Banner -->
+      <div class="p-4 rounded-2xl bg-emerald-950/30 border border-emerald-800/50 text-left space-y-2">
+        <div class="flex items-center justify-between text-xs font-bold text-emerald-400">
+          <span><i class="fa-solid fa-circle-check mr-1"></i> Account in Good Standing</span>
+          <span class="px-2 py-0.5 rounded bg-emerald-900/60 text-[10px] uppercase">Normal Access</span>
+        </div>
+        <p class="text-xs text-slate-300 leading-relaxed">
+          Aapki tamam installments waqt par hain. Phone ka access baghair kisi pabandi ke active hai.
+        </p>
+      </div>
+    </div>
+
+    <!-- Handset & Customer Snapshot -->
+    <div class="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-2.5 text-xs text-left">
+      <div class="flex justify-between border-b border-slate-800 pb-2">
+        <span class="text-slate-400">Customer Name:</span>
+        <strong id="unlocked-cust-name" class="text-white">--</strong>
+      </div>
+      <div class="flex justify-between border-b border-slate-800 pb-2">
+        <span class="text-slate-400">Handset Model:</span>
+        <strong id="unlocked-phone-model" class="text-cyan-300">--</strong>
+      </div>
+      <div class="flex justify-between border-b border-slate-800 pb-2">
+        <span class="text-slate-400">IMEI:</span>
+        <span id="unlocked-imei" class="font-mono text-slate-300">--</span>
+      </div>
+      <div class="flex justify-between border-b border-slate-800 pb-2">
+        <span class="text-slate-400">Next Installment Due:</span>
+        <strong id="unlocked-due-date" class="text-emerald-400 font-mono">--</strong>
+      </div>
+      <div class="flex justify-between">
+        <span class="text-slate-400">Remaining Balance:</span>
+        <strong id="unlocked-balance" class="text-white font-mono">PKR 0</strong>
+      </div>
+    </div>
+
+    <!-- Testing Instruction Footer -->
+    <div class="p-3 bg-slate-950/80 rounded-xl border border-slate-800 text-[11px] text-slate-400 space-y-1">
+      <p class="font-semibold text-slate-300"><i class="fa-solid fa-laptop text-cyan-400 mr-1"></i> Live Wi-Fi Demonstration Mode:</p>
+      <p>Is screen ko apne phone par open rakhein. Laptop dashboard se <strong>"LOCK"</strong> button click karte hi yeh phone foran red security screen par freeze ho jayega.</p>
+    </div>
+
+  </main>
+
+  <!-- SCREEN VIEW B: FULL-SCREEN RED FREEZE LOCK -->
+  <main id="view-locked" class="hidden flex-1 flex flex-col justify-between p-6 text-center space-y-4 bg-gradient-to-b from-rose-950 via-slate-950 to-black">
+    
+    <!-- Warning Icon & Title -->
+    <div class="pt-2 space-y-2">
+      <div class="w-16 h-16 mx-auto rounded-3xl bg-rose-600/30 border-2 border-rose-500 text-rose-400 flex items-center justify-center text-3xl shadow-2xl glow-rose animate-pulse">
+        <i class="fa-solid fa-lock"></i>
+      </div>
+      <h2 class="text-base font-black text-rose-400 tracking-wider uppercase">Device Temporarily Locked</h2>
+      <p class="text-xs text-slate-300 leading-tight">Qist ki adaigi overdue hone par phone ka system access restrict kar diya gaya hai.</p>
+    </div>
+
+    <!-- Overdue Amount & Shop Helpline Box -->
+    <div class="p-3.5 rounded-2xl bg-rose-950/40 border border-rose-800/60 space-y-2 text-xs">
+      <div class="text-[10px] uppercase font-bold tracking-wider text-rose-300">Outstanding Overdue Installment</div>
+      <div id="locked-overdue-amount" class="text-2xl font-black text-white font-mono">PKR 5,000</div>
+      <div id="locked-shop-name" class="font-bold text-slate-200">Al-Madina Mobile Centre</div>
+      <a id="locked-shop-call-btn" href="#" class="inline-flex items-center justify-center gap-2 w-full py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-lg shadow-rose-600/40 transition">
+        <i class="fa-solid fa-phone"></i> Call Shop Helpline
+      </a>
+    </div>
+
+    <!-- Interactive 6-Digit Offline Keypad -->
+    <div class="space-y-2.5 pb-2">
+      <div class="text-[11px] text-slate-400 font-semibold">Enter 6-Digit Shop Offline Unlock PIN:</div>
+      
+      <!-- 6 PIN Dots -->
+      <div class="flex justify-center gap-2.5 mb-1.5">
+        <div class="w-3.5 h-3.5 rounded-full border border-slate-500 pin-dot" id="p-dot-0"></div>
+        <div class="w-3.5 h-3.5 rounded-full border border-slate-500 pin-dot" id="p-dot-1"></div>
+        <div class="w-3.5 h-3.5 rounded-full border border-slate-500 pin-dot" id="p-dot-2"></div>
+        <div class="w-3.5 h-3.5 rounded-full border border-slate-500 pin-dot" id="p-dot-3"></div>
+        <div class="w-3.5 h-3.5 rounded-full border border-slate-500 pin-dot" id="p-dot-4"></div>
+        <div class="w-3.5 h-3.5 rounded-full border border-slate-500 pin-dot" id="p-dot-5"></div>
+      </div>
+
+      <!-- Touch Keypad Grid -->
+      <div class="grid grid-cols-3 gap-2 px-4 max-w-xs mx-auto">
+        <button onclick="phoneKeypadPress('1')" class="h-11 rounded-2xl bg-slate-900/90 active:bg-slate-700 text-base font-bold text-white border border-slate-800 shadow">1</button>
+        <button onclick="phoneKeypadPress('2')" class="h-11 rounded-2xl bg-slate-900/90 active:bg-slate-700 text-base font-bold text-white border border-slate-800 shadow">2</button>
+        <button onclick="phoneKeypadPress('3')" class="h-11 rounded-2xl bg-slate-900/90 active:bg-slate-700 text-base font-bold text-white border border-slate-800 shadow">3</button>
+        <button onclick="phoneKeypadPress('4')" class="h-11 rounded-2xl bg-slate-900/90 active:bg-slate-700 text-base font-bold text-white border border-slate-800 shadow">4</button>
+        <button onclick="phoneKeypadPress('5')" class="h-11 rounded-2xl bg-slate-900/90 active:bg-slate-700 text-base font-bold text-white border border-slate-800 shadow">5</button>
+        <button onclick="phoneKeypadPress('6')" class="h-11 rounded-2xl bg-slate-900/90 active:bg-slate-700 text-base font-bold text-white border border-slate-800 shadow">6</button>
+        <button onclick="phoneKeypadPress('7')" class="h-11 rounded-2xl bg-slate-900/90 active:bg-slate-700 text-base font-bold text-white border border-slate-800 shadow">7</button>
+        <button onclick="phoneKeypadPress('8')" class="h-11 rounded-2xl bg-slate-900/90 active:bg-slate-700 text-base font-bold text-white border border-slate-800 shadow">8</button>
+        <button onclick="phoneKeypadPress('9')" class="h-11 rounded-2xl bg-slate-900/90 active:bg-slate-700 text-base font-bold text-white border border-slate-800 shadow">9</button>
+        <button onclick="phoneKeypadClear()" class="h-11 rounded-2xl bg-rose-950/80 active:bg-rose-800 text-xs font-bold text-rose-300 border border-rose-900">Clear</button>
+        <button onclick="phoneKeypadPress('0')" class="h-11 rounded-2xl bg-slate-900/90 active:bg-slate-700 text-base font-bold text-white border border-slate-800 shadow">0</button>
+        <button onclick="phoneKeypadBackspace()" class="h-11 rounded-2xl bg-slate-900/90 active:bg-slate-700 text-sm font-bold text-white border border-slate-800"><i class="fa-solid fa-delete-left"></i></button>
+      </div>
+
+      <div id="locked-hint-pin" class="text-[10px] text-amber-400 font-mono mt-1">Hint Master PIN: ------</div>
+    </div>
+
+  </main>
+
+  <!-- Notification Toast -->
+  <div id="mobile-toast" class="fixed bottom-4 left-4 right-4 py-2.5 px-4 rounded-xl shadow-2xl text-xs font-bold text-center transition-all duration-300 transform translate-y-24 opacity-0 z-50"></div>
+
+  <!-- JAVASCRIPT LIVE COMPANION AGENT LOGIC -->
+  <script>
+    const targetImei = "{{ target_imei }}";
+    let activeDeviceId = null;
+    let keypadBuffer = "";
+    let previousLockStatus = null;
+    let audioCtx = null;
+
+    // Web Audio Synthesizer (No external sound files required)
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+    }
+
+    function playKeyClickSound() {
+      try {
+        initAudio();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.frequency.value = 850;
+        gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.04);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.04);
+      } catch (e) {}
+    }
+
+    function playAlarmSound() {
+      try {
+        initAudio();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = "sawtooth";
+        osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.3);
+        gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.3);
+      } catch (e) {}
+    }
+
+    function playUnlockSuccessChime() {
+      try {
+        initAudio();
+        const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+        notes.forEach((freq, index) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = "sine";
+          osc.frequency.value = freq;
+          const startTime = audioCtx.currentTime + (index * 0.08);
+          gain.gain.setValueAtTime(0.12, startTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.25);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(startTime);
+          osc.stop(startTime + 0.25);
+        });
+      } catch (e) {}
+    }
+
+    function showMobileToast(msg, isSuccess = true) {
+      const toast = document.getElementById("mobile-toast");
+      toast.className = `fixed bottom-4 left-4 right-4 py-2.5 px-4 rounded-xl shadow-2xl text-xs font-bold text-center transition-all duration-300 z-50 ${
+        isSuccess ? "bg-emerald-600 text-white" : "bg-rose-600 text-white"
+      }`;
+      toast.innerText = msg;
+      toast.classList.remove("translate-y-24", "opacity-0");
+      setTimeout(() => {
+        toast.classList.add("translate-y-24", "opacity-0");
+      }, 3000);
+    }
+
+    // Keep screen awake (WakeLock API)
+    async function requestWakeLock() {
+      try {
+        if ('wakeLock' in navigator) {
+          await navigator.wakeLock.request('screen');
+        }
+      } catch (err) {}
+    }
+
+    function requestFullscreen() {
+      const elem = document.documentElement;
+      if (elem.requestFullscreen) {
+        elem.requestFullscreen().catch(() => {});
+      } else if (elem.webkitRequestFullscreen) {
+        elem.webkitRequestFullscreen();
+      }
+    }
+
+    // Real-Time Polling Heartbeat (1.5s interval)
+    async function syncDeviceStatus() {
+      try {
+        const res = await fetch(`/api/device/by-imei/${targetImei}/status`);
+        const data = await res.json();
+        if (!data.success) return;
+
+        const d = data.device;
+        activeDeviceId = d.id;
+
+        const isLocked = (d.status === "LOCKED");
+
+        // Sound & Haptic Alert on State Transition
+        if (previousLockStatus !== null && previousLockStatus !== isLocked) {
+          if (isLocked) {
+            playAlarmSound();
+            if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 400]);
+            showMobileToast("ALERT: Device Lock Command Received!", false);
+          } else {
+            playUnlockSuccessChime();
+            if (navigator.vibrate) navigator.vibrate(200);
+            showMobileToast("Device Unlocked - Normal Access Restored!", true);
+          }
+        }
+        previousLockStatus = isLocked;
+
+        // Render Views
+        const viewUnlocked = document.getElementById("view-unlocked");
+        const viewLocked = document.getElementById("view-locked");
+        const pulseDot = document.getElementById("status-pulse-dot");
+
+        if (isLocked) {
+          viewUnlocked.classList.add("hidden");
+          viewLocked.classList.remove("hidden");
+          pulseDot.className = "w-3 h-3 rounded-full bg-rose-500 animate-pulse shadow-sm shadow-rose-500";
+
+          document.getElementById("locked-overdue-amount").innerText = "PKR " + Math.round(d.monthly_installment).toLocaleString();
+          document.getElementById("locked-shop-name").innerText = d.shop_name;
+          document.getElementById("locked-shop-call-btn").href = "tel:" + d.shop_phone;
+          document.getElementById("locked-hint-pin").innerText = `Hint Master PIN: ${d.offline_pin}`;
+        } else {
+          viewUnlocked.classList.remove("hidden");
+          viewLocked.classList.add("hidden");
+          pulseDot.className = "w-3 h-3 rounded-full bg-emerald-400 animate-pulse shadow-sm shadow-emerald-400";
+
+          document.getElementById("unlocked-cust-name").innerText = d.customer_name;
+          document.getElementById("unlocked-phone-model").innerText = d.phone_model;
+          document.getElementById("unlocked-imei").innerText = d.imei;
+          document.getElementById("unlocked-due-date").innerText = d.next_due_date;
+          document.getElementById("unlocked-balance").innerText = "PKR " + Math.round(d.remaining_balance).toLocaleString();
+        }
+
+      } catch (err) {
+        console.error("Sync error", err);
+      }
+    }
+
+    // Keypad Logic on Real Phone Screen
+    function phoneKeypadPress(num) {
+      initAudio();
+      playKeyClickSound();
+      if (keypadBuffer.length < 6) {
+        keypadBuffer += num;
+        updateKeypadDots();
+        if (keypadBuffer.length === 6) {
+          submitOfflinePIN();
+        }
+      }
+    }
+
+    function phoneKeypadBackspace() {
+      initAudio();
+      playKeyClickSound();
+      if (keypadBuffer.length > 0) {
+        keypadBuffer = keypadBuffer.slice(0, -1);
+        updateKeypadDots();
+      }
+    }
+
+    function phoneKeypadClear() {
+      initAudio();
+      keypadBuffer = "";
+      updateKeypadDots();
+    }
+
+    function updateKeypadDots() {
+      for (let i = 0; i < 6; i++) {
+        const dot = document.getElementById(`p-dot-${i}`);
+        if (i < keypadBuffer.length) {
+          dot.className = "w-3.5 h-3.5 rounded-full bg-amber-400 border border-amber-300 shadow-sm shadow-amber-400 scale-110 transition";
+        } else {
+          dot.className = "w-3.5 h-3.5 rounded-full border border-slate-500 scale-100 transition";
+        }
+      }
+    }
+
+    async function submitOfflinePIN() {
+      if (!activeDeviceId || keypadBuffer.length !== 6) return;
+      try {
+        const res = await fetch("/api/device/unlock-by-pin", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ device_id: activeDeviceId, pin: keypadBuffer })
+        });
+        const data = await res.json();
+        if (data.success) {
+          playUnlockSuccessChime();
+          showMobileToast("PIN Verified! Device Unlocked.", true);
+          keypadBuffer = "";
+          updateKeypadDots();
+          syncDeviceStatus();
+        } else {
+          if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+          showMobileToast(data.error || "Ghalat PIN!", false);
+          phoneKeypadClear();
+        }
+      } catch (e) {
+        showMobileToast("Verification error", false);
+      }
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      requestWakeLock();
+      syncDeviceStatus();
+      setInterval(syncDeviceStatus, 1500); // Poll every 1.5s
+    });
+  </script>
+</body>
+</html>
