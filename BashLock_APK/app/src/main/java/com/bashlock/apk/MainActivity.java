@@ -58,9 +58,7 @@ public class MainActivity extends AppCompatActivity {
     
     // Dynamic GitHub Remote Config URL - Allows 1-time permanent APK install!
     public static final String GITHUB_RAW_LIVE_URL = "https://raw.githubusercontent.com/bashirahmad00047-create/BashLock-cloud/main/live_url.txt";
-    public static final String DEFAULT_PUBLIC_HTTPS_URL = "https://sperm-gem-balanced-choice.trycloudflare.com/lock-app";
-    // Local LAN Wi-Fi Fallback IP in case Cloudflare tunnel is unreachable on local Wi-Fi
-    public static final String FALLBACK_LAN_HTTP_URL = "http://10.58.52.239:5000/lock-app";
+    public static final String DEFAULT_PUBLIC_HTTPS_URL = "https://uniform-platform-terms-borders.trycloudflare.com/lock-app";
 
     private WebView mWebView;
     private ProgressBar mProgressBar;
@@ -73,7 +71,6 @@ public class MainActivity extends AppCompatActivity {
     private boolean mIsLocked = false;
     private Handler mMainHandler;
     private boolean mPageLoadedSuccessfully = false;
-    private boolean mTriedFallback = false;
     private boolean mIsResolvingUrl = false;
 
     @Override
@@ -225,24 +222,17 @@ public class MainActivity extends AppCompatActivity {
                     mSwipeRefresh.setRefreshing(false);
                     // Check if tunnel URL updated on GitHub
                     fetchLiveUrlFromGitHub(true);
-                    if (!mTriedFallback) {
-                        loadFallbackUrl();
-                    } else {
-                        Toast.makeText(MainActivity.this, "Connecting to BashLock Cloud...", Toast.LENGTH_SHORT).show();
-                    }
+                    Toast.makeText(MainActivity.this, "Connecting to BashLock Cloud...", Toast.LENGTH_SHORT).show();
                 }
             }
 
             @Override
             public void onReceivedHttpError(WebView view, WebResourceRequest request, android.webkit.WebResourceResponse errorResponse) {
                 if (request.isForMainFrame() && errorResponse.getStatusCode() >= 500) {
-                    Log.w(TAG, "Cloudflare Error " + errorResponse.getStatusCode() + " (e.g. Error 1033); checking GitHub for updated link");
+                    Log.w(TAG, "Cloudflare Error " + errorResponse.getStatusCode() + "; checking GitHub for updated link");
                     mProgressBar.setVisibility(View.GONE);
                     mSwipeRefresh.setRefreshing(false);
                     fetchLiveUrlFromGitHub(true);
-                    if (!mTriedFallback) {
-                        loadFallbackUrl();
-                    }
                 }
             }
         });
@@ -267,11 +257,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private String getActiveBaseUrl() {
-        return mPrefs.getString("cached_live_url", DEFAULT_PUBLIC_HTTPS_URL);
+        String cached = mPrefs.getString("cached_live_url", "").trim();
+        if (cached.startsWith("https://") && !cached.contains("10.")) {
+            return cached;
+        }
+        return DEFAULT_PUBLIC_HTTPS_URL;
     }
 
     private void loadLockAppUrl() {
-        mTriedFallback = false;
         // 1. Immediately load currently saved / default URL (no blank screen lag)
         loadUrlInternal(getActiveBaseUrl());
         // 2. Concurrently fetch the latest live URL from GitHub raw
@@ -302,7 +295,7 @@ public class MainActivity extends AppCompatActivity {
 
                     if (line != null) {
                         String fetchedUrl = line.trim();
-                        if (fetchedUrl.startsWith("http")) {
+                        if (fetchedUrl.startsWith("https://") && !fetchedUrl.contains("10.")) {
                             if (!fetchedUrl.endsWith("/lock-app")) {
                                 fetchedUrl = fetchedUrl + "/lock-app";
                             }
@@ -327,20 +320,6 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         }).start();
-    }
-
-    private void loadFallbackUrl() {
-        if (!mTriedFallback) {
-            mTriedFallback = true;
-            Log.w(TAG, "Cloudflare tunnel unreachable, attempting local Wi-Fi fallback: " + FALLBACK_LAN_HTTP_URL);
-            runOnUiThread(() -> {
-                if (mWebView != null && mWebView.getSettings() != null) {
-                    mWebView.getSettings().setCacheMode(WebSettings.LOAD_CACHE_ELSE_NETWORK);
-                }
-                Toast.makeText(MainActivity.this, "Connecting to Local Wi-Fi (10.58.52.239)...", Toast.LENGTH_SHORT).show();
-                loadUrlInternal(FALLBACK_LAN_HTTP_URL);
-            });
-        }
     }
 
     private void loadUrlInternal(String baseUrl) {

@@ -218,9 +218,14 @@ public class BashLockGuardService extends Service {
                         }
                     }
                 }
+            } else {
+                // If HTTP status is not 200, refresh URL from GitHub
+                refreshLiveUrlFromGitHub();
             }
         } catch (Exception e) {
             Log.d(TAG, "Polling check server reachability: " + e.getMessage());
+            // If connection fails, fetch latest Cloudflare URL from GitHub
+            refreshLiveUrlFromGitHub();
         } finally {
             if (conn != null) {
                 conn.disconnect();
@@ -230,11 +235,47 @@ public class BashLockGuardService extends Service {
 
     private String resolveLiveServerUrl() {
         // First check locally cached live URL
-        String url = mPrefs.getString("cached_live_url", "");
-        if (url.startsWith("http")) {
+        String url = mPrefs.getString("cached_live_url", "").trim();
+        if (url.startsWith("https://") && !url.contains("10.")) {
             return url;
         }
         return MainActivity.DEFAULT_PUBLIC_HTTPS_URL;
+    }
+
+    private void refreshLiveUrlFromGitHub() {
+        HttpURLConnection conn = null;
+        try {
+            URL url = new URL(MainActivity.GITHUB_RAW_LIVE_URL + "?t=" + System.currentTimeMillis());
+            conn = (HttpURLConnection) url.openConnection();
+            conn.setConnectTimeout(6000);
+            conn.setReadTimeout(6000);
+            conn.setRequestMethod("GET");
+            conn.setUseCaches(false);
+            conn.setRequestProperty("User-Agent", "BashLock-Background-Guard");
+
+            if (conn.getResponseCode() == HttpURLConnection.HTTP_OK) {
+                BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                String line = reader.readLine();
+                reader.close();
+
+                if (line != null) {
+                    String fetched = line.trim();
+                    if (fetched.startsWith("https://") && !fetched.contains("10.")) {
+                        if (!fetched.endsWith("/lock-app")) {
+                            fetched = fetched + "/lock-app";
+                        }
+                        mPrefs.edit().putString("cached_live_url", fetched).apply();
+                        Log.i(TAG, "GuardService refreshed live URL from GitHub: " + fetched);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.d(TAG, "GitHub live_url fetch error: " + e.getMessage());
+        } finally {
+            if (conn != null) {
+                conn.disconnect();
+            }
+        }
     }
 
     /**

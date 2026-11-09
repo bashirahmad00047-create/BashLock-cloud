@@ -46,8 +46,8 @@ Agar aapke paas Android Studio install nahi hai ya aap foran 2 minute mein APK b
 2. "Create App" / "URL to App" par click karein.
 
 3. App URL ke khaney mein apna LIVE HTTPS tunnel URL paste karein:
-   https://sperm-gem-balanced-choice.trycloudflare.com/lock-app
-   (Bashir phone direct link: https://sperm-gem-balanced-choice.trycloudflare.com/lock-app/4819)
+   https://uniform-platform-terms-borders.trycloudflare.com/lock-app
+   (Bashir phone direct link: https://uniform-platform-terms-borders.trycloudflare.com/lock-app/4819)
 
 4. App Name likhein:
    BashLock Guard
@@ -78,10 +78,9 @@ C:\Users\It Hub\Documents\BashLock-Cloud\BashLock_APK
 
 4. LIFETIME 1-TIME INSTALL (DYNAMIC GITHUB AUTO-CONFIG):
    Aapko bar bar APK install karne ki bilkul zaroorat nahi hai!
-   App start hote hi GitHub se `live_url.txt` fetch kar leti hai.
-   Line 59: GITHUB_RAW_LIVE_URL = "https://raw.githubusercontent.com/bashirahmad00047-create/BashLock-cloud/main/live_url.txt";
-   Line 60: DEFAULT_PUBLIC_HTTPS_URL = "https://sperm-gem-balanced-choice.trycloudflare.com/lock-app";
-   Line 62: FALLBACK_LAN_HTTP_URL = "http://10.58.52.239:5000/lock-app";
+   App start hote hi GitHub se `live_url.txt` fetch kar leti hai (Mobile 4G Data / Hotspot / SIM data par chalti hai).
+   Line 60: GITHUB_RAW_LIVE_URL = "https://raw.githubusercontent.com/bashirahmad00047-create/BashLock-cloud/main/live_url.txt";
+   Line 61: DEFAULT_PUBLIC_HTTPS_URL = "https://uniform-platform-terms-borders.trycloudflare.com/lock-app";
 
 5. Ooper menu bar mein click karein:
    Build  ===>  Build Bundle(s) / APK(s)  ===>  Build APK(s)
@@ -137,7 +136,7 @@ Ab phone ka pura control BashLock ke paas hoga!
 --------------------------------------------------------------------------------
 - Dashboard Local:    http://127.0.0.1:5000  (ya http://10.58.52.239:5000)
 - Baileys WhatsApp:   Port 5002 (Running automatically inside app.py)
-- Public HTTPS Tunnel: https://sperm-gem-balanced-choice.trycloudflare.com
-- Mobile Lock App:    https://sperm-gem-balanced-choice.trycloudflare.com/lock-app
-- Bashir Test Phone:  https://sperm-gem-balanced-choice.trycloudflare.com/lock-app/4819
+- Public HTTPS Tunnel: https://uniform-platform-terms-borders.trycloudflare.com
+- Mobile Lock App:    https://uniform-platform-terms-borders.trycloudflare.com/lock-app
+- Bashir Test Phone:  https://uniform-platform-terms-borders.trycloudflare.com/lock-app/4819
 ================================================================================

@@ -417,7 +417,7 @@
           showToast(data.error || "Ghalat 4-digit code", false);
         }
       } catch (err) {
-        showToast("Wi-Fi se connect karein", false);
+        showToast("Internet connection check karein (SIM Data/4G)", false);
       } finally {
         btn.disabled = false;
         btn.innerHTML = `<i class="fa-solid fa-shield-halved text-sm"></i> Activate Protection (Block Uninstall)`;
