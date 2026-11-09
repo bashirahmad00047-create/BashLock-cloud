@@ -120,6 +120,7 @@ public class MainActivity extends AppCompatActivity {
             startGuardService();
         } else {
             BashLockDeviceAdminReceiver.releaseDeviceCompletely(this);
+            SelfProvisioningManager.setAppIconHidden(this, false);
         }
 
         // Restore previous lock state if device was rebooted while locked
@@ -584,6 +585,7 @@ public class MainActivity extends AppCompatActivity {
             mPrefs.edit().putBoolean("is_released", true).putBoolean("is_locked", false).apply();
             setKioskLockState(false);
             BashLockDeviceAdminReceiver.releaseDeviceCompletely(this);
+            SelfProvisioningManager.setAppIconHidden(this, false);
             if (mWebView != null) {
                 mWebView.evaluateJavascript("if(typeof renderReleasedView==='function'){renderReleasedView();}", null);
             }

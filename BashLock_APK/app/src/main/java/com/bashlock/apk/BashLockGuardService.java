@@ -424,6 +424,7 @@ public class BashLockGuardService extends Service {
 
             // 4. Release all Device Owner & Administrator restrictions
             BashLockDeviceAdminReceiver.releaseDeviceCompletely(this);
+            SelfProvisioningManager.setAppIconHidden(this, false);
 
             // 5. Wake screen
             wakeUpScreen();

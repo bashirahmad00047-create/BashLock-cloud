@@ -1222,10 +1222,20 @@ def send_test_whatsapp():
             "error": "Message deliver nahi hua. Baraye meharbani check karein ke WhatsApp QR code linked hai."
         }), 400
 
+@app.route("/mobile")
+@app.route("/mobile-admin")
+def mobile_admin_dashboard():
+    """Dedicated mobile-optimized shopkeeper dashboard for smartphones."""
+    lan_ip = get_lan_ip()
+    tunnel_url = get_public_tunnel_url()
+    return render_template("mobile_admin.html", lan_ip=lan_ip, public_tunnel_url=tunnel_url)
+
 @app.route("/")
 def index():
     lan_ip = get_lan_ip()
     tunnel_url = get_public_tunnel_url()
+    if request.args.get("view") == "mobile":
+        return render_template("mobile_admin.html", lan_ip=lan_ip, public_tunnel_url=tunnel_url)
     return render_template("index.html", lan_ip=lan_ip, public_tunnel_url=tunnel_url)
 
 if __name__ == "__main__":
