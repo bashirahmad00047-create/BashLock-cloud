@@ -284,6 +284,14 @@ public class BashLockGuardService extends Service {
     private void triggerImmediateLockPopup() {
         mPrefs.edit().putBoolean("is_locked", true).apply();
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            try {
+                Context directBootContext = createDeviceProtectedStorageContext();
+                directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE)
+                        .edit().putBoolean("is_locked", true).apply();
+            } catch (Exception ignored) {}
+        }
+
         // Wake device screen up if turned off
         wakeUpScreen();
 
@@ -329,6 +337,14 @@ public class BashLockGuardService extends Service {
     }
 
     private void notifyUnlockState() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            try {
+                Context directBootContext = createDeviceProtectedStorageContext();
+                directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE)
+                        .edit().putBoolean("is_locked", false).apply();
+            } catch (Exception ignored) {}
+        }
+
         Intent unlockIntent = new Intent(this, MainActivity.class);
         unlockIntent.addFlags(
                 Intent.FLAG_ACTIVITY_NEW_TASK

@@ -11,8 +11,13 @@ import androidx.core.content.ContextCompat;
 
 /**
  * BootReceiver:
- * Restarts BashLockGuardService upon device boot, quick boot,
- * package replacement, or unexpected service kill.
+ * BroadcastReceiver listening for BOOT_COMPLETED and LOCKED_BOOT_COMPLETED.
+ *
+ * Responsibilities:
+ * 1. Supports Direct Boot (executes immediately upon device boot before PIN unlock).
+ * 2. Launches persistent 24/7 foreground security guard service.
+ * 3. Immediately brings up Kiosk Lock Screen if device was previously in locked state.
+ * 4. Re-asserts Device Owner protections (setUninstallBlocked and LockTask).
  */
 public class BootReceiver extends BroadcastReceiver {
     private static final String TAG = "BashLock_BootReceiver";
@@ -22,7 +27,10 @@ public class BootReceiver extends BroadcastReceiver {
         String action = intent != null ? intent.getAction() : "";
         Log.i(TAG, "BootReceiver triggered with action: " + action);
 
-        // 1. Immediately launch persistent 24/7 foreground guard service
+        // 1. Re-assert Device Owner policies on reboot
+        BashLockDeviceAdminReceiver.configureDeviceOwnerPolicies(context);
+
+        // 2. Immediately launch persistent 24/7 foreground guard service
         try {
             Intent serviceIntent = new Intent(context, BashLockGuardService.class);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -30,15 +38,33 @@ public class BootReceiver extends BroadcastReceiver {
             } else {
                 context.startService(serviceIntent);
             }
+            Log.i(TAG, "BashLockGuardService started from BootReceiver");
         } catch (Exception e) {
-            Log.e(TAG, "Failed to start BashLockGuardService from boot: " + e.getMessage());
+            Log.e(TAG, "Failed to start BashLockGuardService on boot: " + e.getMessage());
         }
 
-        // 2. If device was previously in locked state, immediately bring up Kiosk Lock Screen
-        SharedPreferences prefs = context.getSharedPreferences("BashLock_Config", Context.MODE_PRIVATE);
-        boolean isLocked = prefs.getBoolean("is_locked", false);
+        // 3. Check lock state across Direct Boot (Device Protected) and Standard storage
+        boolean isLocked = false;
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                Context directBootContext = context.createDeviceProtectedStorageContext();
+                SharedPreferences directPrefs = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE);
+                if (directPrefs.contains("is_locked")) {
+                    isLocked = directPrefs.getBoolean("is_locked", false);
+                }
+            }
+        } catch (Exception ignored) {}
+
+        if (!isLocked) {
+            try {
+                SharedPreferences normalPrefs = context.getSharedPreferences("BashLock_Config", Context.MODE_PRIVATE);
+                isLocked = normalPrefs.getBoolean("is_locked", false);
+            } catch (Exception ignored) {}
+        }
+
+        // 4. If device was previously in locked state, immediately bring up Kiosk Lock Screen
         if (isLocked) {
-            Log.w(TAG, "Device rebooted while locked! Forcing MainActivity Kiosk lock immediately.");
+            Log.w(TAG, "Device rebooted while in LOCKED state! Forcing MainActivity Kiosk lock immediately.");
             Intent lockIntent = new Intent(context, MainActivity.class);
             lockIntent.addFlags(
                     Intent.FLAG_ACTIVITY_NEW_TASK

@@ -111,6 +111,9 @@ public class MainActivity extends AppCompatActivity {
         promptAccessibilityService();
         promptBatteryOptimization();
 
+        // Enforce Device Owner policies (setUninstallBlocked and LockTask) if provisioned
+        BashLockDeviceAdminReceiver.configureDeviceOwnerPolicies(this);
+
         // Start 24/7 Persistent Background Security Guard Service
         startGuardService();
 
@@ -129,6 +132,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        BashLockDeviceAdminReceiver.configureDeviceOwnerPolicies(this);
         applyImmersiveFullscreen();
         if (mIsLocked) {
             ensureLockTaskActive();
@@ -352,6 +356,18 @@ public class MainActivity extends AppCompatActivity {
         this.mIsLocked = isLocked;
         mPrefs.edit().putBoolean("is_locked", isLocked).apply();
 
+        // Persist to Direct Boot storage for immediate boot-time enforcement before PIN unlock
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            try {
+                Context directBootContext = createDeviceProtectedStorageContext();
+                directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE)
+                        .edit().putBoolean("is_locked", isLocked).apply();
+            } catch (Exception ignored) {}
+        }
+
+        // Apply Device Owner hardware lock enforcement (status bar / keyguard disable)
+        BashLockDeviceAdminReceiver.setKioskEnforcement(this, isLocked);
+
         if (isLocked) {
             Log.w(TAG, "LOCK ACTIVATED: Engaging startLockTask() and System Overlay Guard");
             ensureLockTaskActive();
@@ -367,6 +383,9 @@ public class MainActivity extends AppCompatActivity {
 
     private void ensureLockTaskActive() {
         try {
+            if (mDpm != null && mDpm.isDeviceOwnerApp(getPackageName())) {
+                mDpm.setLockTaskPackages(mAdminComponent, new String[]{getPackageName()});
+            }
             ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 if (am != null && am.getLockTaskModeState() == ActivityManager.LOCK_TASK_MODE_NONE) {
