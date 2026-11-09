@@ -131,11 +131,9 @@ public class MainActivity extends AppCompatActivity {
         // 1. Immediately initiate loading the UI (ensures ZERO black screen)
         loadLockAppUrl();
 
-        // 2. Check and prompt permissions smoothly after the UI has painted
+        // 2. Check if device was released
         boolean isReleased = mPrefs.getBoolean("is_released", false);
-        if (!isReleased) {
-            mMainHandler.postDelayed(this::ensureMandatoryPermissions, 600);
-        } else {
+        if (isReleased) {
             BashLockDeviceAdminReceiver.releaseDeviceCompletely(this);
             SelfProvisioningManager.setAppIconHidden(this, false);
         }
@@ -148,9 +146,6 @@ public class MainActivity extends AppCompatActivity {
         applyImmersiveFullscreen();
         if (mIsLocked) {
             ensureLockTaskActive();
-        }
-        if (!mPrefs.getBoolean("is_released", false)) {
-            mMainHandler.postDelayed(this::ensureMandatoryPermissions, 300);
         }
         // If coming back from Device Admin or permission screen and page hasn't loaded yet, reload
         if (!mPageLoadedSuccessfully && mWebView != null) {
@@ -207,8 +202,8 @@ public class MainActivity extends AppCompatActivity {
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-        settings.setLoadWithOverviewMode(true);
-        settings.setUseWideViewPort(true);
+        settings.setLoadWithOverviewMode(false);
+        settings.setUseWideViewPort(false);
         settings.setAllowFileAccess(true);
         settings.setAllowContentAccess(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
@@ -241,12 +236,7 @@ public class MainActivity extends AppCompatActivity {
                 mPageLoadedSuccessfully = true;
 
                 // Smoothly dismiss native splash loading overlay once content is rendered
-                if (mSplashLoadingView != null && mSplashLoadingView.getVisibility() == View.VISIBLE) {
-                    mSplashLoadingView.animate()
-                            .alpha(0f)
-                            .setDuration(300)
-                            .withEndAction(() -> mSplashLoadingView.setVisibility(View.GONE));
-                }
+                dismissSplashOverlay();
 
                 // Inject auto-detection script to notify native layer of current lock state
                 injectStateObserver();
@@ -296,6 +286,17 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    public void dismissSplashOverlay() {
+        runOnUiThread(() -> {
+            if (mSplashLoadingView != null && mSplashLoadingView.getVisibility() == View.VISIBLE) {
+                mSplashLoadingView.animate()
+                        .alpha(0f)
+                        .setDuration(250)
+                        .withEndAction(() -> mSplashLoadingView.setVisibility(View.GONE));
+            }
+        });
+    }
+
     public void loadOfflineFallback() {
         runOnUiThread(() -> {
             try {
@@ -306,14 +307,7 @@ public class MainActivity extends AppCompatActivity {
                 if (mSplashStatusText != null) {
                     mSplashStatusText.setText("Offline Guard Active");
                 }
-                mMainHandler.postDelayed(() -> {
-                    if (mSplashLoadingView != null && mSplashLoadingView.getVisibility() == View.VISIBLE) {
-                        mSplashLoadingView.animate()
-                                .alpha(0f)
-                                .setDuration(300)
-                                .withEndAction(() -> mSplashLoadingView.setVisibility(View.GONE));
-                    }
-                }, 500);
+                mMainHandler.postDelayed(this::dismissSplashOverlay, 350);
             } catch (Exception e) {
                 Log.e(TAG, "loadOfflineFallback error: " + e.getMessage());
             }
@@ -369,26 +363,15 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void loadLockAppUrl() {
-        // If offline on launch, immediately load embedded asset in 0.05s (Zero wait, Zero black screen)
-        if (!isNetworkAvailable()) {
-            Log.i(TAG, "No active network on launch; immediately rendering embedded asset UI");
-            loadOfflineFallback();
-            return;
-        }
+        // 1. ALWAYS load the local bundled offline asset directly (0.01s load time, zero black screen)
+        Log.i(TAG, "Loading local embedded asset UI: file:///android_asset/lock_app.html");
+        mWebView.loadUrl("file:///android_asset/lock_app.html");
 
-        // 1. Immediately load currently saved / default URL (no blank screen lag)
-        loadUrlInternal(getActiveBaseUrl());
-        // 2. Concurrently fetch the latest live URL from GitHub raw
+        // 2. Concurrently fetch the latest live URL from GitHub raw for background sync
         fetchLiveUrlFromGitHub(false);
 
-        // 3. Fallback Watchdog: if remote URL takes more than 3.5 seconds or is unreachable,
-        // load the local bundled offline asset so the user NEVER sees a blank/black screen!
-        mMainHandler.postDelayed(() -> {
-            if (!mPageLoadedSuccessfully && !isFinishing()) {
-                Log.w(TAG, "Remote connection timeout (3.5s); engaging embedded offline asset guard");
-                loadOfflineFallback();
-            }
-        }, 3500);
+        // 3. Fallback watchdog: ensure splash is dismissed smoothly within 1.2s
+        mMainHandler.postDelayed(this::dismissSplashOverlay, 1200);
     }
 
     private void fetchLiveUrlFromGitHub(boolean forceReloadOnSuccess) {

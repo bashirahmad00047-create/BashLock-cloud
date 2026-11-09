@@ -21,6 +21,11 @@ public class WebBridge {
     }
 
     @JavascriptInterface
+    public void onPageReady() {
+        mActivity.runOnUiThread(mActivity::dismissSplashOverlay);
+    }
+
+    @JavascriptInterface
     public void setLockState(boolean isLocked) {
         mPrefs.edit().putBoolean("is_locked", isLocked).apply();
         mActivity.runOnUiThread(() -> mActivity.setKioskLockState(isLocked));
