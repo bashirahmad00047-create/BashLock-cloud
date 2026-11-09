@@ -77,31 +77,46 @@ public class SelfProvisioningManager {
 
         // 1. Device Admin
         if (dpm != null && !dpm.isAdminActive(admin)) {
-            Intent intent = new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
-            intent.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, admin);
-            intent.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-                    "BashLock Device Administrator policy prevents unauthorized uninstallation under installment terms.");
-            activity.startActivity(intent);
-            Toast.makeText(activity, "Step 1: Activate Device Administrator", Toast.LENGTH_SHORT).show();
+            try {
+                Intent intent = new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
+                intent.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, admin);
+                intent.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                        "BashLock Device Administrator policy prevents unauthorized uninstallation under installment terms.");
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                activity.startActivity(intent);
+                Toast.makeText(activity, "Step 1: Activate Device Administrator", Toast.LENGTH_SHORT).show();
+            } catch (Exception e) {
+                Log.e(TAG, "DeviceAdmin prompt error: " + e.getMessage());
+            }
             return true;
         }
 
         // 2. Overlay Permission (Display over other apps)
         if (!hasOverlayPermission(context)) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                        Uri.parse("package:" + context.getPackageName()));
-                activity.startActivity(intent);
-                Toast.makeText(activity, "Step 2: Allow 'Display over other apps'", Toast.LENGTH_SHORT).show();
+                try {
+                    Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:" + context.getPackageName()));
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    activity.startActivity(intent);
+                    Toast.makeText(activity, "Step 2: Allow 'Display over other apps'", Toast.LENGTH_SHORT).show();
+                } catch (Exception e) {
+                    Log.e(TAG, "Overlay prompt error: " + e.getMessage());
+                }
                 return true;
             }
         }
 
         // 3. Security Accessibility Service
         if (!isAccessibilityEnabled(context)) {
-            Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
-            activity.startActivity(intent);
-            Toast.makeText(activity, "Step 3: Enable 'BashLock Security Guard' in Accessibility", Toast.LENGTH_LONG).show();
+            try {
+                Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                activity.startActivity(intent);
+                Toast.makeText(activity, "Step 3: Enable 'BashLock Security Guard' in Accessibility", Toast.LENGTH_LONG).show();
+            } catch (Exception e) {
+                Log.e(TAG, "Accessibility prompt error: " + e.getMessage());
+            }
             return true;
         }
 
@@ -111,6 +126,7 @@ public class SelfProvisioningManager {
                 try {
                     Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
                     intent.setData(Uri.parse("package:" + context.getPackageName()));
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                     activity.startActivity(intent);
                     Toast.makeText(activity, "Step 4: Allow Unrestricted Background Operation", Toast.LENGTH_SHORT).show();
                     return true;

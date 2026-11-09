@@ -12,7 +12,7 @@ import requests
 import subprocess
 import threading
 from datetime import datetime, timedelta
-from flask import Flask, render_template, request, jsonify, session, Response
+from flask import Flask, render_template, request, jsonify, session, Response, redirect
 import qrcode
 from database import get_db_connection, hash_password, init_db, wipe_all_demo_data
 
@@ -398,6 +398,69 @@ def activate_device_by_code(code_or_imei):
         "success": True,
         "message": "Phone protection kamyabi se ACTIVATE ho gayi hai!",
         "device": d
+    })
+
+@app.route("/api/pair", methods=["GET", "POST"])
+def api_pair():
+    """Pairs mobile phone with 4-digit code and directly redirects to /lock-app/<code>."""
+    code = ""
+    if request.method == "POST":
+        if request.is_json:
+            data = request.get_json(silent=True) or {}
+            code = data.get("code") or data.get("setup_code") or ""
+        else:
+            code = request.form.get("code") or request.form.get("setup_code") or ""
+    if not code:
+        code = request.args.get("code") or request.args.get("setup_code") or ""
+
+    code = str(code).strip()
+    if not code:
+        if request.method == "GET" and "text/html" in request.headers.get("Accept", ""):
+            return redirect("/lock-app")
+        return jsonify({"success": False, "error": "4-digit code is required"}), 400
+
+    conn = get_db_connection()
+    now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+
+    row = conn.execute("""
+        SELECT d.*, c.full_name as customer_name, s.name as shop_name, s.phone as shop_phone
+        FROM devices d
+        LEFT JOIN customers c ON d.customer_id = c.id
+        JOIN shops s ON d.shop_id = s.id
+        WHERE d.setup_code = ? OR d.imei = ?
+    """, (code, code)).fetchone()
+
+    if not row:
+        conn.close()
+        if request.method == "GET" and "text/html" in request.headers.get("Accept", ""):
+            return redirect(f"/lock-app/{code}?error=not_found")
+        return jsonify({"success": False, "error": "Ghalat 4-Digit Setup Code!"}), 404
+
+    d = dict(row)
+    conn.execute("""
+        UPDATE devices 
+        SET last_seen = 'Protection Active (No USB / Code Paired)'
+        WHERE id = ?
+    """, (d["id"],))
+
+    conn.execute("""
+        INSERT INTO audit_logs (shop_id, event_type, message, created_at)
+        VALUES (?, 'DEVICE_ACTIVATED', ?, ?)
+    """, (d["shop_id"], f"{d['phone_model']} ({d['customer_name']}) 4-digit code se activate ho gaya.", now_str))
+
+    conn.commit()
+    conn.close()
+
+    d["offline_pin"] = calculate_offline_pin(d["id"])
+
+    if request.method == "GET" and "text/html" in request.headers.get("Accept", ""):
+        return redirect(f"/lock-app/{code}")
+
+    return jsonify({
+        "success": True,
+        "message": "Phone protection kamyabi se ACTIVATE ho gayi hai!",
+        "device": d,
+        "redirect_url": f"/lock-app/{code}"
     })
 
 # ----------------- MONTHLY HISAB & KPI SUMMARY (Requirement 2) ----------------- #

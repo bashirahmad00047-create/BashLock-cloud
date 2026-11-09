@@ -454,52 +454,45 @@
 
     // Step 1: Activate with 4-Digit Code
     async function activateProtection() {
-      const code = document.getElementById("input-setup-code").value.trim();
+      const codeInput = document.getElementById("input-setup-code");
+      const code = codeInput ? codeInput.value.trim() : "";
       if (!code) {
         showToast("Baraye meharbani 4-digit code likhein", false);
         return;
       }
 
       const btn = document.getElementById("btn-activate");
-      btn.disabled = true;
-      btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Activating Protection...`;
-
-      try {
-        const res = await fetch(`/api/device/by-code/${code}/activate`, { method: "POST" });
-        const data = await res.json();
-        if (data.success) {
-          const d = data.device;
-          currentCode = code;
-          activeDeviceId = d.id;
-          savedDueDate = d.next_due_date;
-          savedPin = d.offline_pin;
-
-          localStorage.setItem("bashlock_paired_code", code);
-          localStorage.setItem("bashlock_device_id", d.id);
-          localStorage.setItem("bashlock_due_date", d.next_due_date);
-          localStorage.setItem("bashlock_offline_pin", d.offline_pin);
-          localStorage.setItem("bashlock_cust_name", d.customer_name);
-          localStorage.setItem("bashlock_phone_model", d.phone_model);
-          localStorage.setItem("bashlock_balance", d.remaining_balance);
-          localStorage.setItem("bashlock_monthly", d.monthly_installment);
-          localStorage.setItem("bashlock_shop_name", d.shop_name);
-          localStorage.setItem("bashlock_shop_phone", d.shop_phone);
-
-          if (window.BashLockNative && typeof window.BashLockNative.savePairingData === 'function') {
-            window.BashLockNative.savePairingData(code, d.offline_pin || '', d.id || '', d.next_due_date || '');
-          }
-
-          showToast("Protection Active ho gayi!", true);
-          renderActiveView(d);
-        } else {
-          showToast(data.error || "Ghalat 4-digit code", false);
-        }
-      } catch (err) {
-        showToast("Internet connection check karein (SIM Data/4G)", false);
-      } finally {
-        btn.disabled = false;
-        btn.innerHTML = `<i class="fa-solid fa-shield-halved text-sm"></i> Activate Protection (Block Uninstall)`;
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Activating Protection...`;
       }
+
+      showToast("Code submit ho gaya! Server se connect ho raha hai...", true);
+
+      // Save locally immediately so no data is lost
+      currentCode = code;
+      localStorage.setItem("bashlock_paired_code", code);
+
+      // Notify native Android bridge immediately
+      try {
+        if (window.BashLockNative && typeof window.BashLockNative.savePairingData === 'function') {
+          window.BashLockNative.savePairingData(code, '', '', '');
+        }
+      } catch (e) {}
+
+      // Asynchronous server pairing notification
+      try {
+        fetch("/api/pair", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: code })
+        }).catch(() => {});
+      } catch (e) {}
+
+      // Directly redirect to /lock-app/<code> to load active status
+      setTimeout(() => {
+        window.location.href = `/lock-app/${encodeURIComponent(code)}`;
+      }, 350);
     }
 
     // Anti-Escape & Kiosk Enforcement Tools (Web + Native APK Bridge)
@@ -854,14 +847,76 @@
         }
       }
     }
-    function requestAdminFromWeb() { if (window.BashLockNative && typeof window.BashLockNative.requestDeviceAdmin === 'function') window.BashLockNative.requestDeviceAdmin(); }
-    function requestOverlayFromWeb() { if (window.BashLockNative && typeof window.BashLockNative.requestOverlayPermission === 'function') window.BashLockNative.requestOverlayPermission(); }
-    function requestAccessFromWeb() { if (window.BashLockNative && typeof window.BashLockNative.requestAccessibilityService === 'function') window.BashLockNative.requestAccessibilityService(); }
-    function requestBatteryFromWeb() { if (window.BashLockNative && typeof window.BashLockNative.requestBatteryOptimization === 'function') window.BashLockNative.requestBatteryOptimization(); }
+    function requestAdminFromWeb() {
+      try {
+        const btn = document.getElementById("perm-btn-admin");
+        if (btn) btn.innerText = "Opening...";
+        if (window.BashLockNative && typeof window.BashLockNative.requestDeviceAdmin === 'function') {
+          window.BashLockNative.requestDeviceAdmin();
+        } else {
+          showToast("Android Device Admin settings open ho rahi hain...", true);
+        }
+      } catch (e) {
+        console.error("Admin request error:", e);
+      }
+    }
+
+    function requestOverlayFromWeb() {
+      try {
+        const btn = document.getElementById("perm-btn-overlay");
+        if (btn) btn.innerText = "Opening...";
+        if (window.BashLockNative && typeof window.BashLockNative.requestOverlayPermission === 'function') {
+          window.BashLockNative.requestOverlayPermission();
+        } else {
+          showToast("Display Over Other Apps setting open ho rahi hai...", true);
+        }
+      } catch (e) {
+        console.error("Overlay request error:", e);
+      }
+    }
+
+    function requestAccessFromWeb() {
+      try {
+        const btn = document.getElementById("perm-btn-access");
+        if (btn) btn.innerText = "Opening...";
+        if (window.BashLockNative && typeof window.BashLockNative.requestAccessibilityService === 'function') {
+          window.BashLockNative.requestAccessibilityService();
+        } else {
+          showToast("Accessibility Guard settings open ho rahi hain...", true);
+        }
+      } catch (e) {
+        console.error("Access request error:", e);
+      }
+    }
+
+    function requestBatteryFromWeb() {
+      try {
+        const btn = document.getElementById("perm-btn-battery");
+        if (btn) btn.innerText = "Opening...";
+        if (window.BashLockNative && typeof window.BashLockNative.requestBatteryOptimization === 'function') {
+          window.BashLockNative.requestBatteryOptimization();
+        } else {
+          showToast("Battery Optimization exemption setting open ho rahi hai...", true);
+        }
+      } catch (e) {
+        console.error("Battery request error:", e);
+      }
+    }
 
     window.addEventListener("DOMContentLoaded", () => {
       // Setup initial back trap
       pushHistoryTrap();
+
+      // Enter key trigger for 4-digit setup code
+      const codeInput = document.getElementById("input-setup-code");
+      if (codeInput) {
+        codeInput.addEventListener("keypress", function(e) {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            activateProtection();
+          }
+        });
+      }
 
       document.body.addEventListener("click", () => {
         tryEnableFullscreen();

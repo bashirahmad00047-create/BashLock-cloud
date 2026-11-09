@@ -82,37 +82,57 @@ public class WebBridge {
 
     @JavascriptInterface
     public boolean isDeviceAdminActive() {
-        return mActivity.isDeviceAdminActive();
+        try {
+            return mActivity.isDeviceAdminActive();
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     @JavascriptInterface
     public void requestDeviceAdmin() {
-        mActivity.runOnUiThread(mActivity::promptDeviceAdmin);
+        try {
+            mActivity.runOnUiThread(mActivity::promptDeviceAdmin);
+        } catch (Exception ignored) {}
     }
 
     @JavascriptInterface
     public boolean hasOverlayPermission() {
-        return mActivity.hasOverlayPermission();
+        try {
+            return mActivity.hasOverlayPermission();
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     @JavascriptInterface
     public void requestOverlayPermission() {
-        mActivity.runOnUiThread(mActivity::promptOverlayPermission);
+        try {
+            mActivity.runOnUiThread(mActivity::promptOverlayPermission);
+        } catch (Exception ignored) {}
     }
 
     @JavascriptInterface
     public boolean isAccessibilityServiceEnabled() {
-        return mActivity.isAccessibilityServiceEnabled();
+        try {
+            return mActivity.isAccessibilityServiceEnabled();
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     @JavascriptInterface
     public void requestAccessibilityService() {
-        mActivity.runOnUiThread(mActivity::promptAccessibilityService);
+        try {
+            mActivity.runOnUiThread(mActivity::promptAccessibilityService);
+        } catch (Exception ignored) {}
     }
 
     @JavascriptInterface
     public void requestBatteryOptimization() {
-        mActivity.runOnUiThread(mActivity::promptBatteryOptimization);
+        try {
+            mActivity.runOnUiThread(mActivity::promptBatteryOptimization);
+        } catch (Exception ignored) {}
     }
 
     @JavascriptInterface

@@ -107,17 +107,8 @@ public class MainActivity extends AppCompatActivity {
 
         boolean isReleased = mPrefs.getBoolean("is_released", false);
         if (!isReleased) {
-            // Check & prompt Device Administration, System Alert Window, & Accessibility permissions
-            promptDeviceAdmin();
-            promptOverlayPermission();
-            promptAccessibilityService();
-            promptBatteryOptimization();
-
-            // Enforce Device Owner policies (setUninstallBlocked and LockTask) if provisioned
-            BashLockDeviceAdminReceiver.configureDeviceOwnerPolicies(this);
-
-            // Start 24/7 Persistent Background Security Guard Service
-            startGuardService();
+            // Check and sequentially auto-prompt missing permissions without freeze or collision
+            ensureMandatoryPermissions();
         } else {
             BashLockDeviceAdminReceiver.releaseDeviceCompletely(this);
             SelfProvisioningManager.setAppIconHidden(this, false);
@@ -139,7 +130,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         if (!mPrefs.getBoolean("is_released", false)) {
-            BashLockDeviceAdminReceiver.configureDeviceOwnerPolicies(this);
+            ensureMandatoryPermissions();
         }
         applyImmersiveFullscreen();
         if (mIsLocked) {
@@ -482,13 +473,20 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void promptDeviceAdmin() {
-        if (mDpm != null && !mDpm.isAdminActive(mAdminComponent)) {
-            Intent intent = new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
-            intent.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, mAdminComponent);
-            intent.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-                    "BashLock Device Administrator policy prevents unauthorized uninstallation under installment terms.");
-            startActivity(intent);
-        }
+        runOnUiThread(() -> {
+            try {
+                if (mDpm != null && !mDpm.isAdminActive(mAdminComponent)) {
+                    Intent intent = new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
+                    intent.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, mAdminComponent);
+                    intent.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                            "BashLock Device Administrator policy prevents unauthorized uninstallation under installment terms.");
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(intent);
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "promptDeviceAdmin error: " + e.getMessage());
+            }
+        });
     }
 
     public boolean hasOverlayPermission() {
@@ -499,11 +497,18 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void promptOverlayPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:" + getPackageName()));
-            startActivity(intent);
-        }
+        runOnUiThread(() -> {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+                    Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:" + getPackageName()));
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(intent);
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "promptOverlayPermission error: " + e.getMessage());
+            }
+        });
     }
 
     public boolean isAccessibilityServiceEnabled() {
@@ -527,11 +532,79 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void promptAccessibilityService() {
-        if (!isAccessibilityServiceEnabled()) {
-            Toast.makeText(this, "Enable BashLock Security Service to protect against unauthorized deactivation", Toast.LENGTH_LONG).show();
-            Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
-            startActivity(intent);
+        runOnUiThread(() -> {
+            try {
+                if (!isAccessibilityServiceEnabled()) {
+                    Toast.makeText(this, "Enable BashLock Security Service in Accessibility", Toast.LENGTH_LONG).show();
+                    Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(intent);
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "promptAccessibilityService error: " + e.getMessage());
+            }
+        });
+    }
+
+    public void promptBatteryOptimization() {
+        runOnUiThread(() -> {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+                    if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
+                        @SuppressLint("BatteryLife")
+                        Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                        intent.setData(Uri.parse("package:" + getPackageName()));
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(intent);
+                    }
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "promptBatteryOptimization error: " + e.getMessage());
+            }
+        });
+    }
+
+    public synchronized void ensureMandatoryPermissions() {
+        if (mPrefs.getBoolean("is_released", false)) {
+            return;
         }
+
+        // 1. Device Admin (Anti-Uninstall)
+        if (mDpm != null && !mDpm.isAdminActive(mAdminComponent)) {
+            Log.i(TAG, "Auto-opening native Device Admin permission screen");
+            promptDeviceAdmin();
+            return;
+        }
+
+        // 2. Overlay Permission (Display over other apps / SYSTEM_ALERT_WINDOW)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+            Log.i(TAG, "Auto-opening native Overlay permission screen");
+            promptOverlayPermission();
+            return;
+        }
+
+        // 3. Security Accessibility Service
+        if (!isAccessibilityServiceEnabled()) {
+            Log.i(TAG, "Auto-opening native Accessibility settings");
+            promptAccessibilityService();
+            return;
+        }
+
+        // 4. Battery Optimization Exemption (24/7 Background Guard)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+            if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
+                Log.i(TAG, "Auto-opening Battery Optimization exemption");
+                promptBatteryOptimization();
+                return;
+            }
+        }
+
+        // All granted -> Configure Device Owner policies & start Guard Service
+        Log.i(TAG, "All mandatory permissions active. Configuring policies & starting Guard Service.");
+        BashLockDeviceAdminReceiver.configureDeviceOwnerPolicies(this);
+        startGuardService();
     }
 
     public void startGuardService() {
@@ -545,20 +618,6 @@ public class MainActivity extends AppCompatActivity {
             Log.i(TAG, "BashLockGuardService started from MainActivity");
         } catch (Exception e) {
             Log.e(TAG, "Failed to start BashLockGuardService: " + e.getMessage());
-        }
-    }
-
-    public void promptBatteryOptimization() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
-            if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
-                try {
-                    @SuppressLint("BatteryLife")
-                    Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
-                    intent.setData(Uri.parse("package:" + getPackageName()));
-                    startActivity(intent);
-                } catch (Exception ignored) {}
-            }
         }
     }
 
