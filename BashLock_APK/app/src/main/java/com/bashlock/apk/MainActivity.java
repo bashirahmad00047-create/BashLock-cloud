@@ -144,6 +144,14 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
         mIsPermissionPromptPending = false;
         applyImmersiveFullscreen();
+
+        // Dismiss service-level guard overlay now that MainActivity is in foreground
+        try {
+            Intent dismissOverlayIntent = new Intent(this, BashLockGuardService.class);
+            dismissOverlayIntent.putExtra("DISMISS_GUARD_OVERLAY", true);
+            startService(dismissOverlayIntent);
+        } catch (Exception ignored) {}
+
         if (mIsLocked) {
             ensureLockTaskActive();
         }

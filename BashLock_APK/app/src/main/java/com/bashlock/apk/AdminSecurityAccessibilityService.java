@@ -101,7 +101,15 @@ public class AdminSecurityAccessibilityService extends AccessibilityService {
 
         // If on Device Admin deactivation screen
         if (hasTextIgnoreCase(root, "Deactivate this device admin app")
+                || hasTextIgnoreCase(root, "Deactivate device admin")
                 || (hasTextIgnoreCase(root, "Deactivate") && hasTextIgnoreCase(root, "admin"))) {
+            return true;
+        }
+
+        // If on uninstall confirmation dialog
+        if (hasTextIgnoreCase(root, "Do you want to uninstall this app?")
+                || hasTextIgnoreCase(root, "Uninstall app")
+                || (hasTextIgnoreCase(root, "Uninstall") && hasBashLockText)) {
             return true;
         }
 
@@ -136,12 +144,27 @@ public class AdminSecurityAccessibilityService extends AccessibilityService {
             performGlobalAction(GLOBAL_ACTION_HOME);
         } catch (Exception ignored) {}
 
-        // 2. Launch Master PIN verification screen on top
+        // 2. Launch MainActivity to foreground
+        Intent mainIntent = new Intent(this, MainActivity.class);
+        mainIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        try {
+            startActivity(mainIntent);
+        } catch (Exception ignored) {}
+
+        // 3. Launch Master PIN verification screen on top
         Intent authIntent = new Intent(this, AdminAuthActivity.class);
         authIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
                 | Intent.FLAG_ACTIVITY_CLEAR_TOP
                 | Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
-        startActivity(authIntent);
+        try {
+            startActivity(authIntent);
+        } catch (Exception ignored) {}
+
+        try {
+            Toast.makeText(getApplicationContext(), "⚠️ BashLock Security: Uninstallation is Protected under Installment terms.", Toast.LENGTH_SHORT).show();
+        } catch (Exception ignored) {}
     }
 
     @Override

@@ -8,11 +8,19 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Color;
+import android.graphics.PixelFormat;
 import android.net.Uri;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.PowerManager;
+import android.provider.Settings;
 import android.util.Log;
+import android.view.Gravity;
+import android.view.View;
+import android.view.WindowManager;
+import android.widget.FrameLayout;
+import android.widget.TextView;
 
 import androidx.core.app.NotificationCompat;
 
@@ -41,13 +49,16 @@ import java.util.concurrent.TimeUnit;
  */
 public class BashLockGuardService extends Service {
     private static final String TAG = "BashLock_GuardService";
-    private static final String CHANNEL_ID = "bashlock_guard_service_channel";
+    private static final String SERVICE_CHANNEL_ID = "bashlock_guard_service_channel";
+    private static final String LOCK_CHANNEL_ID = "bashlock_urgent_lock_channel_v2";
     private static final int NOTIFICATION_ID = 1001;
     private static final int LOCK_POPUP_NOTIFICATION_ID = 1002;
 
     private SharedPreferences mPrefs;
     private ScheduledExecutorService mScheduler;
     private PowerManager.WakeLock mWakeLock;
+    private View mGuardLockOverlayView;
+    private WindowManager mWindowManager;
 
     @Override
     public void onCreate() {
@@ -67,26 +78,43 @@ public class BashLockGuardService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (intent != null && intent.getBooleanExtra("CHECK_NOW", false)) {
-            Executors.newSingleThreadExecutor().execute(this::checkLockStatus);
+        if (intent != null) {
+            if (intent.getBooleanExtra("CHECK_NOW", false)) {
+                Executors.newSingleThreadExecutor().execute(this::checkLockStatus);
+            }
+            if (intent.getBooleanExtra("DISMISS_GUARD_OVERLAY", false)) {
+                removeGuardLockOverlay();
+            }
         }
         return START_STICKY;
     }
 
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(
-                    CHANNEL_ID,
+            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm == null) return;
+
+            // 1. Silent channel for permanent 24/7 background guard notification
+            NotificationChannel serviceChannel = new NotificationChannel(
+                    SERVICE_CHANNEL_ID,
                     "BashLock 24/7 Security Guard",
                     NotificationManager.IMPORTANCE_LOW
             );
-            channel.setDescription("Maintains continuous background device security");
-            channel.setShowBadge(false);
+            serviceChannel.setDescription("Maintains continuous background device security");
+            serviceChannel.setShowBadge(false);
+            nm.createNotificationChannel(serviceChannel);
 
-            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-            if (nm != null) {
-                nm.createNotificationChannel(channel);
-            }
+            // 2. High-priority channel for urgent compliance & lock screen popups
+            NotificationChannel lockChannel = new NotificationChannel(
+                    LOCK_CHANNEL_ID,
+                    "BashLock Kiosk Lock Alerts",
+                    NotificationManager.IMPORTANCE_HIGH
+            );
+            lockChannel.setDescription("Urgent lock pop-up and installment compliance screen");
+            lockChannel.setShowBadge(true);
+            lockChannel.setBypassDnd(true);
+            lockChannel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+            nm.createNotificationChannel(lockChannel);
         }
     }
 
@@ -100,7 +128,7 @@ public class BashLockGuardService extends Service {
         }
         PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, openAppIntent, flags);
 
-        return new NotificationCompat.Builder(this, CHANNEL_ID)
+        return new NotificationCompat.Builder(this, SERVICE_CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_secure)
                 .setContentTitle(title)
                 .setContentText(message)
@@ -320,11 +348,15 @@ public class BashLockGuardService extends Service {
             } catch (Exception ignored) {}
         }
 
-        // Wake device screen up if turned off
+        // 1. Wake device screen up if turned off
         wakeUpScreen();
 
-        // Intent to launch/bring MainActivity to front
+        // 2. Display System Overlay Guard immediately over all apps (SYSTEM_ALERT_WINDOW)
+        showGuardLockOverlay();
+
+        // 3. Prepare high-priority Intent & FullScreen PendingIntent to pop MainActivity
         Intent lockIntent = new Intent(this, MainActivity.class);
+        lockIntent.setAction("com.bashlock.apk.FORCE_LOCK");
         lockIntent.addFlags(
                 Intent.FLAG_ACTIVITY_NEW_TASK
                 | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
@@ -339,20 +371,26 @@ public class BashLockGuardService extends Service {
         }
         PendingIntent fullScreenPendingIntent = PendingIntent.getActivity(this, 100, lockIntent, flags);
 
-        // 1. Direct Start (Works with SYSTEM_ALERT_WINDOW permission & Device Admin)
+        // A. Direct Intent Execution
         try {
             startActivity(lockIntent);
         } catch (Exception e) {
             Log.w(TAG, "Direct startActivity warning: " + e.getMessage());
         }
 
-        // 2. High-Priority FullScreen Notification (Guaranteed Android 10+ background popup override)
-        Notification highPriorityNotification = new NotificationCompat.Builder(this, CHANNEL_ID)
+        // B. Elevated PendingIntent Send (bypasses background activity restrictions)
+        try {
+            fullScreenPendingIntent.send();
+        } catch (Exception ignored) {}
+
+        // C. High-Priority FullScreen Notification on IMPORTANCE_HIGH channel
+        Notification highPriorityNotification = new NotificationCompat.Builder(this, LOCK_CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_secure)
                 .setContentTitle("⚠️ DEVICE IS LOCKED")
                 .setContentText("Installment overdue. Enter Master PIN to unlock.")
                 .setPriority(NotificationCompat.PRIORITY_MAX)
                 .setCategory(NotificationCompat.CATEGORY_ALARM)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setFullScreenIntent(fullScreenPendingIntent, true)
                 .setAutoCancel(false)
                 .setOngoing(true)
@@ -372,6 +410,8 @@ public class BashLockGuardService extends Service {
                         .edit().putBoolean("is_locked", false).apply();
             } catch (Exception ignored) {}
         }
+
+        removeGuardLockOverlay();
 
         Intent unlockIntent = new Intent(this, MainActivity.class);
         unlockIntent.addFlags(
@@ -410,6 +450,7 @@ public class BashLockGuardService extends Service {
         wakeUpScreen();
 
         Intent intent = new Intent(this, MainActivity.class);
+        intent.setAction("com.bashlock.apk.OPEN_APP");
         intent.addFlags(
                 Intent.FLAG_ACTIVITY_NEW_TASK
                 | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
@@ -423,18 +464,22 @@ public class BashLockGuardService extends Service {
             Log.w(TAG, "Direct startActivity in wakeUpDeviceAndOpenApp warning: " + e.getMessage());
         }
 
-        // FullScreen Intent for guaranteed foreground popup on Android 10+
         int flags = PendingIntent.FLAG_UPDATE_CURRENT;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             flags |= PendingIntent.FLAG_IMMUTABLE;
         }
         PendingIntent fullScreenPendingIntent = PendingIntent.getActivity(this, 101, intent, flags);
-        Notification wakeNotification = new NotificationCompat.Builder(this, CHANNEL_ID)
+        try {
+            fullScreenPendingIntent.send();
+        } catch (Exception ignored) {}
+
+        Notification wakeNotification = new NotificationCompat.Builder(this, LOCK_CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_secure)
                 .setContentTitle("BashLock Security")
                 .setContentText("Opening device dashboard...")
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setCategory(NotificationCompat.CATEGORY_ALARM)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setFullScreenIntent(fullScreenPendingIntent, true)
                 .setAutoCancel(true)
                 .build();
@@ -443,6 +488,88 @@ public class BashLockGuardService extends Service {
         if (nm != null) {
             nm.notify(1003, wakeNotification);
         }
+    }
+
+    /**
+     * Attaches SYSTEM_ALERT_WINDOW full-screen kiosk guard overlay over any running app.
+     */
+    private void showGuardLockOverlay() {
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+                return;
+            }
+            if (mGuardLockOverlayView != null) {
+                return;
+            }
+
+            try {
+                mWindowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
+                if (mWindowManager == null) return;
+
+                int layoutType;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    layoutType = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
+                } else {
+                    layoutType = WindowManager.LayoutParams.TYPE_SYSTEM_ALERT;
+                }
+
+                WindowManager.LayoutParams params = new WindowManager.LayoutParams(
+                        WindowManager.LayoutParams.MATCH_PARENT,
+                        WindowManager.LayoutParams.MATCH_PARENT,
+                        layoutType,
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                        | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
+                        PixelFormat.TRANSLUCENT
+                );
+                params.gravity = Gravity.CENTER;
+
+                FrameLayout overlay = new FrameLayout(this);
+                overlay.setBackgroundColor(Color.parseColor("#EE05070C"));
+
+                TextView tv = new TextView(this);
+                tv.setText("🔒 BashLock Protection Active\nOpening Lock Screen...");
+                tv.setTextColor(Color.WHITE);
+                tv.setTextSize(16);
+                tv.setGravity(Gravity.CENTER);
+                FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.WRAP_CONTENT,
+                        FrameLayout.LayoutParams.WRAP_CONTENT,
+                        Gravity.CENTER
+                );
+                overlay.addView(tv, lp);
+
+                overlay.setOnClickListener(v -> {
+                    wakeUpScreen();
+                    Intent lockIntent = new Intent(this, MainActivity.class);
+                    lockIntent.setAction("com.bashlock.apk.FORCE_LOCK");
+                    lockIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                    lockIntent.putExtra("FORCE_KIOSK_LOCK", true);
+                    startActivity(lockIntent);
+                });
+
+                mGuardLockOverlayView = overlay;
+                mWindowManager.addView(mGuardLockOverlayView, params);
+                Log.i(TAG, "Guard SYSTEM_ALERT_WINDOW overlay attached successfully");
+            } catch (Exception e) {
+                Log.w(TAG, "showGuardLockOverlay warning: " + e.getMessage());
+            }
+        });
+    }
+
+    /**
+     * Removes the SYSTEM_ALERT_WINDOW kiosk overlay when unlocked or when MainActivity is in foreground.
+     */
+    private void removeGuardLockOverlay() {
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+            if (mGuardLockOverlayView != null && mWindowManager != null) {
+                try {
+                    mWindowManager.removeView(mGuardLockOverlayView);
+                    Log.i(TAG, "Guard SYSTEM_ALERT_WINDOW overlay removed");
+                } catch (Exception ignored) {}
+                mGuardLockOverlayView = null;
+            }
+        });
     }
 
     /**
@@ -467,7 +594,8 @@ public class BashLockGuardService extends Service {
                 mWakeLock.release();
             }
 
-            // 3. Cancel all notifications
+            // 3. Cancel all notifications & overlays
+            removeGuardLockOverlay();
             NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
             if (nm != null) {
                 nm.cancel(NOTIFICATION_ID);
