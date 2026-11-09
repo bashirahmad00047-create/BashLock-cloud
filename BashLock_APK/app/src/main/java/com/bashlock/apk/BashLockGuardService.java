@@ -210,11 +210,19 @@ public class BashLockGuardService extends Service {
                         boolean isOverdue = device.optBoolean("is_overdue", false);
                         String dueDate = device.optString("next_due_date", "");
                         String pin = device.optString("offline_pin", "");
+                        String remoteCommand = device.optString("remote_command", "");
 
                         SharedPreferences.Editor editor = mPrefs.edit();
                         if (!dueDate.isEmpty()) editor.putString("due_date", dueDate);
                         if (!pin.isEmpty()) editor.putString("bashlock_offline_pin", pin);
                         editor.apply();
+
+                        // Check for Remote Wake / Open App command from shopkeeper
+                        if ("WAKE_DEVICE".equalsIgnoreCase(remoteCommand)
+                                || "OPEN_APP".equalsIgnoreCase(remoteCommand)
+                                || "WAKE".equalsIgnoreCase(status)) {
+                            wakeUpDeviceAndOpenApp();
+                        }
 
                         if ("RELEASE_AND_UNINSTALL".equalsIgnoreCase(status)
                                 || "RELEASED".equalsIgnoreCase(status)
@@ -391,6 +399,50 @@ public class BashLockGuardService extends Service {
                 screenLock.acquire(3000L);
             }
         } catch (Exception ignored) {}
+    }
+
+    /**
+     * Wakes up the screen and immediately brings MainActivity to the foreground
+     * when the shopkeeper sends a remote "Wake Device" or "Open App" command.
+     */
+    private void wakeUpDeviceAndOpenApp() {
+        Log.i(TAG, "Executing Remote Wake / Open App command from shopkeeper dashboard...");
+        wakeUpScreen();
+
+        Intent intent = new Intent(this, MainActivity.class);
+        intent.addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK
+                | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                | Intent.FLAG_ACTIVITY_CLEAR_TOP
+                | Intent.FLAG_ACTIVITY_SINGLE_TOP
+        );
+
+        try {
+            startActivity(intent);
+        } catch (Exception e) {
+            Log.w(TAG, "Direct startActivity in wakeUpDeviceAndOpenApp warning: " + e.getMessage());
+        }
+
+        // FullScreen Intent for guaranteed foreground popup on Android 10+
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            flags |= PendingIntent.FLAG_IMMUTABLE;
+        }
+        PendingIntent fullScreenPendingIntent = PendingIntent.getActivity(this, 101, intent, flags);
+        Notification wakeNotification = new NotificationCompat.Builder(this, CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.ic_secure)
+                .setContentTitle("BashLock Security")
+                .setContentText("Opening device dashboard...")
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setCategory(NotificationCompat.CATEGORY_ALARM)
+                .setFullScreenIntent(fullScreenPendingIntent, true)
+                .setAutoCancel(true)
+                .build();
+
+        NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (nm != null) {
+            nm.notify(1003, wakeNotification);
+        }
     }
 
     /**

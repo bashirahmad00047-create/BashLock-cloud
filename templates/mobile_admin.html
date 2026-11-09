@@ -552,6 +552,9 @@
               }
             </div>
             <div class="flex items-center gap-3">
+              <button onclick="toggleMobileLock('${d.id}', 'WAKE')" class="text-amber-400 hover:text-amber-300 font-bold flex items-center gap-1 active:scale-95 transition" title="Wake phone & bring BashLock to foreground">
+                <i class="fa-solid fa-bell"></i> Wake
+              </button>
               <a href="/lock-app/${d.setup_code || ''}" target="_blank" class="text-cyan-400 font-bold flex items-center gap-1">
                 <i class="fa-solid fa-mobile-screen"></i> View
               </a>

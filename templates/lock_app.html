@@ -1144,7 +1144,7 @@
 
       // 1. Device Admin
       try {
-        const isAdmin = typeof window.BashLockNative.isDeviceAdminActive === 'function' && window.BashLockNative.isDeviceAdminActive();
+        const isAdmin = Boolean(window.BashLockNative.isDeviceAdminActive && window.BashLockNative.isDeviceAdminActive());
         if (isAdmin !== lastAdminState) {
           lastAdminState = isAdmin;
           const btnAdmin = document.getElementById("perm-btn-admin");
@@ -1159,7 +1159,7 @@
 
       // 2. Overlay
       try {
-        const isOverlay = typeof window.BashLockNative.hasOverlayPermission === 'function' && window.BashLockNative.hasOverlayPermission();
+        const isOverlay = Boolean(window.BashLockNative.hasOverlayPermission && window.BashLockNative.hasOverlayPermission());
         if (isOverlay !== lastOverlayState) {
           lastOverlayState = isOverlay;
           const btnOverlay = document.getElementById("perm-btn-overlay");
@@ -1174,7 +1174,7 @@
 
       // 3. Accessibility
       try {
-        const isAccess = typeof window.BashLockNative.isAccessibilityServiceEnabled === 'function' && window.BashLockNative.isAccessibilityServiceEnabled();
+        const isAccess = Boolean(window.BashLockNative.isAccessibilityServiceEnabled && window.BashLockNative.isAccessibilityServiceEnabled());
         if (isAccess !== lastAccessState) {
           lastAccessState = isAccess;
           const btnAccess = document.getElementById("perm-btn-access");
@@ -1189,7 +1189,7 @@
 
       // 4. Battery Optimization
       try {
-        const isBattery = typeof window.BashLockNative.isBatteryOptimizationIgnored === 'function' && window.BashLockNative.isBatteryOptimizationIgnored();
+        const isBattery = Boolean(window.BashLockNative.isBatteryOptimizationIgnored && window.BashLockNative.isBatteryOptimizationIgnored());
         if (isBattery !== lastBatteryState) {
           lastBatteryState = isBattery;
           const btnBattery = document.getElementById("perm-btn-battery");
@@ -1206,7 +1206,7 @@
     function requestAdminFromWeb() {
       try {
         showToast("Device Administrator setting open ho rahi hai...", true);
-        if (window.BashLockNative && typeof window.BashLockNative.requestDeviceAdmin === 'function') {
+        if (window.BashLockNative && window.BashLockNative.requestDeviceAdmin) {
           window.BashLockNative.requestDeviceAdmin();
         }
       } catch (e) {
@@ -1217,7 +1217,7 @@
     function requestOverlayFromWeb() {
       try {
         showToast("Display Over Other Apps setting open ho rahi hai...", true);
-        if (window.BashLockNative && typeof window.BashLockNative.requestOverlayPermission === 'function') {
+        if (window.BashLockNative && window.BashLockNative.requestOverlayPermission) {
           window.BashLockNative.requestOverlayPermission();
         }
       } catch (e) {
@@ -1228,7 +1228,7 @@
     function requestAccessFromWeb() {
       try {
         showToast("Accessibility Guard setting open ho rahi hai...", true);
-        if (window.BashLockNative && typeof window.BashLockNative.requestAccessibilityService === 'function') {
+        if (window.BashLockNative && window.BashLockNative.requestAccessibilityService) {
           window.BashLockNative.requestAccessibilityService();
         }
       } catch (e) {
@@ -1239,7 +1239,7 @@
     function requestBatteryFromWeb() {
       try {
         showToast("Battery Optimization exemption setting open ho rahi hai...", true);
-        if (window.BashLockNative && typeof window.BashLockNative.requestBatteryOptimization === 'function') {
+        if (window.BashLockNative && window.BashLockNative.requestBatteryOptimization) {
           window.BashLockNative.requestBatteryOptimization();
         }
       } catch (e) {
@@ -1250,7 +1250,7 @@
     function runWizardFromWeb() {
       try {
         showToast("Agli zaroori permission screen khul rahi hai...", true);
-        if (window.BashLockNative && typeof window.BashLockNative.runNextProvisioningStep === 'function') {
+        if (window.BashLockNative && window.BashLockNative.runNextProvisioningStep) {
           window.BashLockNative.runNextProvisioningStep();
         }
       } catch (e) {

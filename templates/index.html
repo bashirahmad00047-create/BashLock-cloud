@@ -1832,6 +1832,11 @@
                    </button>`
               }
 
+              <!-- Wake Device / Open App Remote Button -->
+              <button onclick="toggleLock('${d.id}', 'WAKE')" title="Wake phone screen & bring BashLock to foreground" class="px-2 py-1.5 rounded-xl bg-amber-950/70 hover:bg-amber-900 border border-amber-600/70 text-amber-300 hover:text-white font-bold text-xs transition flex items-center gap-1 shadow-sm">
+                <i class="fa-solid fa-bell text-amber-400"></i> Wake
+              </button>
+
               <!-- Remote Release / NOC Clearance Button -->
               ${d.status === 'RELEASED'
                 ? `<span class="px-2.5 py-1.5 rounded-xl bg-purple-950/60 border border-purple-800 text-purple-300 text-xs font-bold inline-flex items-center gap-1"><i class="fa-solid fa-check-double text-purple-400"></i> NOC</span>`
@@ -1972,6 +1977,9 @@
                 }
               </div>
               <div class="flex items-center gap-3">
+                <button onclick="toggleLock('${d.id}', 'WAKE')" class="text-amber-400 hover:text-amber-300 font-bold flex items-center gap-1 active:scale-95 transition" title="Wake phone & bring BashLock to foreground">
+                  <i class="fa-solid fa-bell"></i> Wake
+                </button>
                 <button onclick="openLiveMobileDrawer('${d.setup_code || d.imei}', '${(d.customer_name || '').replace(/'/g, "\\'")}', '${(d.phone_model || '').replace(/'/g, "\\'")}')" class="text-cyan-400 hover:text-cyan-300 font-bold flex items-center gap-1 active:scale-95 transition">
                   <i class="fa-solid fa-mobile-screen"></i> Screen
                 </button>

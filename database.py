@@ -90,6 +90,12 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
+    # Ensure remote_command column exists
+    try:
+        cursor.execute("ALTER TABLE devices ADD COLUMN remote_command TEXT")
+    except sqlite3.OperationalError:
+        pass
+
     # Ensure counter_pin column exists in shops table
     try:
         cursor.execute("ALTER TABLE shops ADD COLUMN counter_pin TEXT DEFAULT '1234'")

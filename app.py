@@ -338,6 +338,16 @@ def get_device_by_code_status(code_or_imei):
         d["is_released"] = False
     d["offline_pin"] = calculate_offline_pin(d["id"])
 
+    # If a remote_command was queued (such as WAKE_DEVICE / OPEN_APP), deliver it and clear from DB
+    if d.get("remote_command"):
+        try:
+            c_update = get_db_connection()
+            c_update.execute("UPDATE devices SET remote_command = NULL WHERE id = ?", (d["id"],))
+            c_update.commit()
+            c_update.close()
+        except Exception:
+            pass
+
     return jsonify({"success": True, "device": d})
 
 @app.route("/download/apk")
@@ -717,6 +727,31 @@ def toggle_device_lock():
     device_id = data.get("device_id")
     action = data.get("action")
 
+    now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Direct Remote Wake / Open App command
+    if action in ["WAKE", "WAKE_DEVICE", "OPEN_APP"]:
+        conn = get_db_connection()
+        device = conn.execute("SELECT * FROM devices WHERE id = ? AND shop_id = ?", (device_id, shop_id)).fetchone()
+        if not device:
+            conn.close()
+            return jsonify({"success": False, "error": "Device nahi mili"}), 404
+
+        conn.execute("UPDATE devices SET remote_command = 'WAKE_DEVICE', last_seen = ? WHERE id = ? AND shop_id = ?",
+                     (f"Wake signal sent at {now_str}", device_id, shop_id))
+        conn.execute("""
+            INSERT INTO audit_logs (shop_id, event_type, message, created_at)
+            VALUES (?, 'WAKE_DEVICE', ?, ?)
+        """, (shop_id, f"Device [{device['phone_model']} - {device['imei']}] ko Wake / Open App signal bheja gaya.", now_str))
+        conn.commit()
+        conn.close()
+        return jsonify({
+            "success": True,
+            "device_id": device_id,
+            "status": "WAKE_SENT",
+            "message": "Wake Device command sent! The customer phone screen will turn ON and open BashLock automatically."
+        })
+
     if action in ["RELEASE", "RELEASE_AND_UNINSTALL"]:
         new_status = "RELEASE_AND_UNINSTALL" if action == "RELEASE_AND_UNINSTALL" else "RELEASED"
         new_policy = "bashlock_released"
@@ -726,7 +761,6 @@ def toggle_device_lock():
     else:
         new_status = "UNLOCKED"
         new_policy = "bashlock_unlocked"
-    now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
     conn = get_db_connection()
     device = conn.execute("SELECT * FROM devices WHERE id = ? AND shop_id = ?", (device_id, shop_id)).fetchone()
@@ -757,6 +791,48 @@ def toggle_device_lock():
         "device_id": device_id,
         "status": new_status,
         "message": f"Device kamyabi se {new_status} ho gayi!"
+    })
+
+@app.route("/api/device/wake", methods=["POST"])
+def wake_device():
+    """Shopkeeper command: Wakes customer phone screen and brings MainActivity to the foreground."""
+    shop_id = get_current_shop_id()
+    data = request.get_json(force=True, silent=True) or {}
+    device_id = data.get("device_id")
+    code = data.get("code")
+
+    conn = get_db_connection()
+    now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+
+    if device_id:
+        device = conn.execute("SELECT * FROM devices WHERE id = ? AND shop_id = ?", (device_id, shop_id)).fetchone()
+        if not device:
+            conn.close()
+            return jsonify({"success": False, "error": "Device nahi mili"}), 404
+        conn.execute("UPDATE devices SET remote_command = 'WAKE_DEVICE', last_seen = ? WHERE id = ? AND shop_id = ?",
+                     (f"Wake signal sent at {now_str}", device_id, shop_id))
+    elif code:
+        device = conn.execute("SELECT * FROM devices WHERE setup_code = ? AND shop_id = ?", (code, shop_id)).fetchone()
+        if not device:
+            conn.close()
+            return jsonify({"success": False, "error": "Code wali device nahi mili"}), 404
+        conn.execute("UPDATE devices SET remote_command = 'WAKE_DEVICE', last_seen = ? WHERE setup_code = ? AND shop_id = ?",
+                     (f"Wake signal sent at {now_str}", code, shop_id))
+    else:
+        conn.close()
+        return jsonify({"success": False, "error": "Device ID ya Setup Code lazmi hai"}), 400
+
+    conn.execute("""
+        INSERT INTO audit_logs (shop_id, event_type, message, created_at)
+        VALUES (?, 'WAKE_DEVICE', ?, ?)
+    """, (shop_id, f"Device [{device['phone_model']} - {device['imei']}] ko Wake / Open App signal bheja gaya.", now_str))
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        "success": True,
+        "message": "Wake Device command sent! The customer phone screen will turn ON and open BashLock automatically."
     })
 
 # ----------------- CASH PAYMENT (WASOOLI) & AUTO-UNLOCK ROUTE ----------------- #
