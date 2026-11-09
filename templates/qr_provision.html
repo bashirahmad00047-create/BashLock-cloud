@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ur" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>BashLock — Zero-Cable QR Provisioning</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    body {
+      background-color: #05070c;
+      color: #f1f5f9;
+      font-family: system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+    }
+    .glow-amber { box-shadow: 0 0 30px rgba(245, 158, 11, 0.25); }
+    .glow-emerald { box-shadow: 0 0 30px rgba(16, 185, 129, 0.25); }
+  </style>
+</head>
+<body class="p-4 md:p-8 flex flex-col items-center justify-start min-h-screen">
+
+  <div class="w-full max-w-md space-y-5">
+
+    <!-- Top Header -->
+    <div class="flex items-center justify-between border-b border-white/10 pb-3">
+      <div class="flex items-center gap-2.5">
+        <div class="w-10 h-10 rounded-2xl bg-amber-950/80 border border-amber-500/50 flex items-center justify-center text-amber-400 text-lg shadow-lg">
+          <i class="fa-solid fa-qrcode"></i>
+        </div>
+        <div>
+          <h1 class="text-base font-black text-white">QR Code Provisioning</h1>
+          <p class="text-[11px] text-slate-400">Zero Laptop • Zero USB Cables Setup</p>
+        </div>
+      </div>
+      <a href="/mobile" class="px-3 py-1.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-slate-300 font-bold hover:bg-slate-800">
+        <i class="fa-solid fa-arrow-left mr-1"></i> Dashboard
+      </a>
+    </div>
+
+    <!-- Mode Selector Tabs -->
+    <div class="grid grid-cols-3 gap-1.5 p-1 bg-slate-900/90 rounded-2xl border border-white/10 text-xs font-bold">
+      <button onclick="setMode('do')" id="tab-do" class="py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 text-white shadow-md text-center">
+        Device Owner (6-Tap)
+      </button>
+      <button onclick="setMode('download')" id="tab-download" class="py-2.5 rounded-xl text-slate-400 hover:text-white text-center">
+        APK Download
+      </button>
+      <button onclick="setMode('pair')" id="tab-pair" class="py-2.5 rounded-xl text-slate-400 hover:text-white text-center">
+        Instant Pair
+      </button>
+    </div>
+
+    <!-- Live Dynamic QR Code Card -->
+    <div class="p-6 bg-slate-950 rounded-3xl border border-white/10 flex flex-col items-center justify-center space-y-3.5 shadow-2xl relative overflow-hidden">
+      <div id="badge-mode" class="px-3 py-1 rounded-full bg-amber-950/80 border border-amber-500/40 text-[10px] font-black uppercase text-amber-300 tracking-wider">
+        Android Enterprise 6-Tap QR
+      </div>
+
+      <div class="p-3 bg-white rounded-2xl shadow-2xl">
+        <img id="qr-img" src="/api/provisioning/qr.png?type=do" alt="Provisioning QR" class="w-56 h-56 object-contain">
+      </div>
+
+      <p id="qr-instruction" class="text-xs text-slate-300 text-center font-medium max-w-xs leading-relaxed">
+        Naye ya factory-reset phone ke <strong>"Welcome" / "Hi there"</strong> screen par <strong>6 martaba lagataar tap</strong> karein, camera khulega aur yeh QR scan karein!
+      </p>
+    </div>
+
+    <!-- Optional Customization Options -->
+    <div class="p-4 bg-slate-900/80 rounded-2xl border border-white/10 space-y-3 text-xs">
+      <div class="font-bold text-slate-300 flex items-center justify-between border-b border-white/5 pb-1.5">
+        <span><i class="fa-solid fa-sliders text-cyan-400 mr-1.5"></i> Custom Options (Optional)</span>
+        <span class="text-[10px] text-slate-500">Auto Updates QR</span>
+      </div>
+
+      <!-- 4-Digit Pairing Code -->
+      <div>
+        <label class="block text-slate-400 text-[11px] font-bold mb-1">Customer 4-Digit Code (e.g. 4819):</label>
+        <input 
+          type="text" 
+          id="opt-code" 
+          maxlength="15" 
+          placeholder="Code darj karein..." 
+          oninput="updateQR()"
+          class="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-white font-mono font-bold text-sm focus:border-cyan-400 outline-none"
+        >
+      </div>
+
+      <!-- Wi-Fi Pre-Configuration -->
+      <div id="wifi-container" class="space-y-2 pt-1 border-t border-white/5">
+        <label class="block text-slate-400 text-[11px] font-bold">Auto-Connect Shop Wi-Fi (Optional):</label>
+        <div class="grid grid-cols-2 gap-2">
+          <input 
+            type="text" 
+            id="opt-wifi-ssid" 
+            placeholder="Wi-Fi Name (SSID)" 
+            oninput="updateQR()"
+            class="px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-white text-xs outline-none focus:border-cyan-400"
+          >
+          <input 
+            type="text" 
+            id="opt-wifi-pass" 
+            placeholder="Wi-Fi Password" 
+            oninput="updateQR()"
+            class="px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-white text-xs outline-none focus:border-cyan-400"
+          >
+        </div>
+      </div>
+    </div>
+
+    <!-- Direct Download & Action Buttons -->
+    <div class="grid grid-cols-2 gap-2.5">
+      <a href="/download/bashlock.apk" class="py-3 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-1.5 border border-white/10 shadow-md">
+        <i class="fa-solid fa-download text-emerald-400"></i> Download APK
+      </a>
+      <button onclick="shareLink()" class="py-3 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-1.5 border border-white/10 shadow-md">
+        <i class="fa-solid fa-share-nodes text-cyan-400"></i> Copy / Share Link
+      </button>
+    </div>
+
+  </div>
+
+  <script>
+    let currentMode = 'do';
+
+    function setMode(mode) {
+      currentMode = mode;
+      
+      const tabDo = document.getElementById('tab-do');
+      const tabDown = document.getElementById('tab-download');
+      const tabPair = document.getElementById('tab-pair');
+      const badge = document.getElementById('badge-mode');
+      const instruction = document.getElementById('qr-instruction');
+      const wifiContainer = document.getElementById('wifi-container');
+
+      [tabDo, tabDown, tabPair].forEach(t => {
+        t.className = 'py-2.5 rounded-xl text-slate-400 hover:text-white text-center';
+      });
+
+      if (mode === 'do') {
+        tabDo.className = 'py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 text-white shadow-md text-center';
+        badge.innerText = 'Android Enterprise 6-Tap QR';
+        badge.className = 'px-3 py-1 rounded-full bg-amber-950/80 border border-amber-500/40 text-[10px] font-black uppercase text-amber-300 tracking-wider';
+        instruction.innerHTML = 'Naye ya factory-reset phone ke <strong>"Welcome" / "Hi there"</strong> screen par <strong>6 martaba lagataar tap</strong> karein, camera khulega aur yeh QR scan karein!';
+        if (wifiContainer) wifiContainer.classList.remove('hidden');
+      } else if (mode === 'download') {
+        tabDown.className = 'py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-md text-center';
+        badge.innerText = 'Direct APK Download QR';
+        badge.className = 'px-3 py-1 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-[10px] font-black uppercase text-emerald-300 tracking-wider';
+        instruction.innerHTML = 'Kisi bhi aam Android mobile ke camera se yeh QR scan karein ➔ BashLock APK foran download shuru ho jayegi!';
+        if (wifiContainer) wifiContainer.classList.add('hidden');
+      } else if (mode === 'pair') {
+        tabPair.className = 'py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-cyan-500 text-white shadow-md text-center';
+        badge.innerText = 'Customer Pairing QR';
+        badge.className = 'px-3 py-1 rounded-full bg-cyan-950/80 border border-cyan-500/40 text-[10px] font-black uppercase text-cyan-300 tracking-wider';
+        instruction.innerHTML = 'Customer ke phone par yeh QR scan karwayein ➔ Seedha customer ka account aur installment status screen open hogi!';
+        if (wifiContainer) wifiContainer.classList.add('hidden');
+      }
+
+      updateQR();
+    }
+
+    function updateQR() {
+      const code = document.getElementById('opt-code').value.trim();
+      const ssid = document.getElementById('opt-wifi-ssid').value.trim();
+      const pass = document.getElementById('opt-wifi-pass').value.trim();
+
+      let url = `/api/provisioning/qr.png?type=${encodeURIComponent(currentMode)}`;
+      if (code) url += `&code=${encodeURIComponent(code)}`;
+      if (ssid) url += `&wifi_ssid=${encodeURIComponent(ssid)}`;
+      if (pass) url += `&wifi_password=${encodeURIComponent(pass)}`;
+
+      document.getElementById('qr-img').src = url;
+    }
+
+    function shareLink() {
+      const currentUrl = window.location.origin + '/download/bashlock.apk';
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(currentUrl);
+        alert('APK Download Link copy ho gaya hai:\n' + currentUrl);
+      } else {
+        alert(currentUrl);
+      }
+    }
+  </script>
+</body>
+</html>

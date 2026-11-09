@@ -1110,8 +1110,11 @@
       </div>
 
       <div class="flex gap-2 pt-1">
-        <button onclick="shareApkViaWhatsApp()" class="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-xs font-bold text-white shadow flex items-center justify-center gap-1.5 active:scale-95 transition">
-          <i class="fa-brands fa-whatsapp text-sm"></i> Share APK on WhatsApp
+        <a href="/qr-setup" target="_blank" class="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 text-xs font-bold text-white shadow flex items-center justify-center gap-1.5 active:scale-95 transition">
+          <i class="fa-solid fa-qrcode text-sm"></i> Full QR Generator & Wi-Fi Options
+        </a>
+        <button onclick="shareApkViaWhatsApp()" class="py-2.5 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-xs font-bold text-white shadow flex items-center justify-center gap-1.5 active:scale-95 transition">
+          <i class="fa-brands fa-whatsapp text-sm"></i> WhatsApp
         </button>
         <button onclick="closeModal('zero-cable-qr-modal')" class="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300">
           Theek Hai

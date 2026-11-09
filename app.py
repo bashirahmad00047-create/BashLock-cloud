@@ -12,7 +12,7 @@ import requests
 import subprocess
 import threading
 from datetime import datetime, timedelta
-from flask import Flask, render_template, request, jsonify, session, Response, redirect
+from flask import Flask, render_template, request, jsonify, session, Response, redirect, send_file
 import qrcode
 from database import get_db_connection, hash_password, init_db, wipe_all_demo_data
 
@@ -340,19 +340,67 @@ def get_device_by_code_status(code_or_imei):
 
     return jsonify({"success": True, "device": d})
 
+@app.route("/download/apk")
+@app.route("/download/bashlock.apk")
+def download_apk():
+    """Serves the latest compiled BashLock APK for 1-tap download and QR provisioning."""
+    possible_paths = [
+        os.path.join(BASE_DIR, "BashLock_APK", "app", "build", "outputs", "apk", "debug", "app-debug.apk"),
+        os.path.join(BASE_DIR, "BashLock_APK", "app", "build", "outputs", "apk", "release", "app-release.apk"),
+        os.path.join(BASE_DIR, "app-debug.apk"),
+        os.path.join(BASE_DIR, "BashLock.apk")
+    ]
+    for p in possible_paths:
+        if os.path.exists(p):
+            return send_file(p, as_attachment=True, download_name="BashLock_Guard.apk", mimetype="application/vnd.android.package-archive")
+
+    # If no local file, redirect to latest GitHub Actions artifacts
+    return redirect("https://github.com/bashirahmad00047-create/BashLock-cloud/actions")
+
+@app.route("/qr-setup")
+@app.route("/provision")
+def qr_provision_page():
+    """Shopkeeper Mobile QR Provisioning Screen."""
+    lan_ip = get_lan_ip()
+    tunnel_url = get_public_tunnel_url()
+    return render_template("qr_provision.html", lan_ip=lan_ip, public_tunnel_url=tunnel_url)
+
 @app.route("/api/provisioning/qr.png")
 def get_provisioning_qr():
-    """Generates Zero-Cable Android Enterprise Device Owner Provisioning QR Code."""
+    """Generates Zero-Cable Android Enterprise Device Owner or APK Download Provisioning QR Code."""
     tunnel_url = get_public_tunnel_url()
-    payload = {
-        "android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME": "com.bashlock.apk/com.bashlock.apk.BashLockDeviceAdminReceiver",
-        "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION": "https://github.com/bashirahmad00047-create/BashLock-cloud/raw/main/BashLock_APK/app/build/outputs/apk/debug/app-debug.apk",
-        "android.app.extra.PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED": True,
-        "android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE": {
+    qr_type = request.args.get("type", "do").lower()
+    code = request.args.get("code", "").strip()
+    wifi_ssid = request.args.get("wifi_ssid", "").strip()
+    wifi_password = request.args.get("wifi_password", "").strip()
+    wifi_security = request.args.get("wifi_security", "WPA").strip()
+
+    if qr_type == "download":
+        qr_content = f"{tunnel_url}/download/bashlock.apk"
+    elif qr_type == "pair" and code:
+        qr_content = f"{tunnel_url}/lock-app/{code}"
+    else:
+        apk_download_url = f"{tunnel_url}/download/bashlock.apk"
+        admin_extras = {
             "server_url": f"{tunnel_url}/lock-app"
         }
-    }
-    img = qrcode.make(json.dumps(payload))
+        if code:
+            admin_extras["setup_code"] = code
+
+        payload = {
+            "android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME": "com.bashlock.apk/com.bashlock.apk.BashLockDeviceAdminReceiver",
+            "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION": apk_download_url,
+            "android.app.extra.PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED": True,
+            "android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE": admin_extras
+        }
+        if wifi_ssid:
+            payload["android.app.extra.PROVISIONING_WIFI_SSID"] = wifi_ssid
+            payload["android.app.extra.PROVISIONING_WIFI_PASSWORD"] = wifi_password
+            payload["android.app.extra.PROVISIONING_WIFI_SECURITY_TYPE"] = wifi_security
+
+        qr_content = json.dumps(payload)
+
+    img = qrcode.make(qr_content)
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     buf.seek(0)
