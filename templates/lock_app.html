@@ -510,27 +510,33 @@
         </div>
 
         <!-- Zero-Cable 1-Tap Permission Status Badges (No PC / No Cable Needed) -->
-        <div id="native-permission-card" class="hidden p-3 bg-slate-900/90 rounded-2xl border border-white/10 text-left space-y-2 text-xs max-w-xs mx-auto w-full">
-          <div class="flex items-center justify-between text-slate-300 font-bold border-b border-white/5 pb-1.5">
-            <span class="flex items-center gap-1.5"><i class="fa-solid fa-mobile-screen text-cyan-400"></i> Zero-Cable Permission Badges:</span>
-            <span class="text-[9px] text-cyan-400 font-mono">No PC Needed</span>
+        <div id="native-permission-card" class="p-3.5 bg-slate-900/95 rounded-2xl border border-white/10 text-left space-y-2.5 text-xs max-w-xs mx-auto w-full shadow-lg">
+          <div class="flex items-center justify-between text-slate-300 font-bold border-b border-white/5 pb-2">
+            <span class="flex items-center gap-1.5"><i class="fa-solid fa-shield-halved text-cyan-400"></i> Zero-Cable Permission Badges:</span>
+            <span class="text-[9px] text-cyan-400 font-mono font-bold">1-Tap Grant</span>
           </div>
 
-          <div class="flex items-center justify-between">
-            <span class="text-slate-400">1. Device Admin (Uninstall Lock):</span>
-            <button id="perm-btn-admin" onclick="requestAdminFromWeb()" class="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-slate-800 text-slate-300 hover:bg-slate-700">Checking...</button>
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-slate-300 font-medium text-xs">1. Device Admin:</span>
+            <button id="perm-btn-admin" onclick="requestAdminFromWeb()" class="px-3 py-1.5 rounded-xl text-xs font-black bg-rose-600 hover:bg-rose-500 active:scale-95 text-white shadow-md shadow-rose-600/30 transition">Grant (1-Tap)</button>
           </div>
-          <div class="flex items-center justify-between">
-            <span class="text-slate-400">2. Overlay (Screen Guard):</span>
-            <button id="perm-btn-overlay" onclick="requestOverlayFromWeb()" class="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-slate-800 text-slate-300 hover:bg-slate-700">Checking...</button>
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-slate-300 font-medium text-xs">2. Overlay Guard:</span>
+            <button id="perm-btn-overlay" onclick="requestOverlayFromWeb()" class="px-3 py-1.5 rounded-xl text-xs font-black bg-amber-600 hover:bg-amber-500 active:scale-95 text-white shadow-md shadow-amber-600/30 transition">Grant (1-Tap)</button>
           </div>
-          <div class="flex items-center justify-between">
-            <span class="text-slate-400">3. Accessibility (Settings Block):</span>
-            <button id="perm-btn-access" onclick="requestAccessFromWeb()" class="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-slate-800 text-slate-300 hover:bg-slate-700">Checking...</button>
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-slate-300 font-medium text-xs">3. Accessibility:</span>
+            <button id="perm-btn-access" onclick="requestAccessFromWeb()" class="px-3 py-1.5 rounded-xl text-xs font-black bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white shadow-md shadow-indigo-600/30 transition">Grant (1-Tap)</button>
           </div>
-          <div class="flex items-center justify-between">
-            <span class="text-slate-400">4. Battery (24/7 Guard):</span>
-            <button id="perm-btn-battery" onclick="requestBatteryFromWeb()" class="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-slate-800 text-cyan-300 hover:bg-slate-700">Set (1-Tap)</button>
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-slate-300 font-medium text-xs">4. Battery 24/7:</span>
+            <button id="perm-btn-battery" onclick="requestBatteryFromWeb()" class="px-3 py-1.5 rounded-xl text-xs font-black bg-cyan-600 hover:bg-cyan-500 active:scale-95 text-white shadow-md shadow-cyan-600/30 transition">Set (1-Tap)</button>
+          </div>
+
+          <div class="pt-1 border-t border-white/5">
+            <button onclick="runWizardFromWeb()" class="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-cyan-300 font-bold text-[11px] flex items-center justify-center gap-1.5 border border-cyan-500/20 shadow">
+              <i class="fa-solid fa-wand-magic-sparkles"></i> Auto-Grant Wizard (Next Step)
+            </button>
           </div>
         </div>
 
@@ -1126,41 +1132,82 @@
       }
     }
 
+    let lastAdminState = null;
+    let lastOverlayState = null;
+    let lastAccessState = null;
+    let lastBatteryState = null;
+
     function checkNativePermissions() {
-      if (window.BashLockNative) {
-        const card = document.getElementById("native-permission-card");
-        if (card) card.classList.remove("hidden");
+      if (!window.BashLockNative) return;
+      const card = document.getElementById("native-permission-card");
+      if (card) card.classList.remove("hidden");
 
+      // 1. Device Admin
+      try {
         const isAdmin = typeof window.BashLockNative.isDeviceAdminActive === 'function' && window.BashLockNative.isDeviceAdminActive();
-        const btnAdmin = document.getElementById("perm-btn-admin");
-        if (btnAdmin) {
-          btnAdmin.className = isAdmin ? "px-2 py-0.5 rounded-lg text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-500/40" : "px-2 py-0.5 rounded-lg text-[10px] font-bold bg-rose-600 text-white animate-pulse";
-          btnAdmin.innerHTML = isAdmin ? '<i class="fa-solid fa-check"></i> Active' : 'Grant (1-Tap)';
+        if (isAdmin !== lastAdminState) {
+          lastAdminState = isAdmin;
+          const btnAdmin = document.getElementById("perm-btn-admin");
+          if (btnAdmin) {
+            btnAdmin.className = isAdmin 
+              ? "px-3 py-1.5 rounded-xl text-xs font-black bg-emerald-950 text-emerald-300 border border-emerald-500/50 shadow" 
+              : "px-3 py-1.5 rounded-xl text-xs font-black bg-rose-600 hover:bg-rose-500 text-white shadow-md shadow-rose-600/30 active:scale-95 transition animate-pulse";
+            btnAdmin.innerHTML = isAdmin ? '<i class="fa-solid fa-check"></i> Active' : 'Grant (1-Tap)';
+          }
         }
+      } catch (e) {}
 
+      // 2. Overlay
+      try {
         const isOverlay = typeof window.BashLockNative.hasOverlayPermission === 'function' && window.BashLockNative.hasOverlayPermission();
-        const btnOverlay = document.getElementById("perm-btn-overlay");
-        if (btnOverlay) {
-          btnOverlay.className = isOverlay ? "px-2 py-0.5 rounded-lg text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-500/40" : "px-2 py-0.5 rounded-lg text-[10px] font-bold bg-amber-600 text-white animate-pulse";
-          btnOverlay.innerHTML = isOverlay ? '<i class="fa-solid fa-check"></i> Allowed' : 'Grant (1-Tap)';
+        if (isOverlay !== lastOverlayState) {
+          lastOverlayState = isOverlay;
+          const btnOverlay = document.getElementById("perm-btn-overlay");
+          if (btnOverlay) {
+            btnOverlay.className = isOverlay 
+              ? "px-3 py-1.5 rounded-xl text-xs font-black bg-emerald-950 text-emerald-300 border border-emerald-500/50 shadow" 
+              : "px-3 py-1.5 rounded-xl text-xs font-black bg-amber-600 hover:bg-amber-500 text-white shadow-md shadow-amber-600/30 active:scale-95 transition animate-pulse";
+            btnOverlay.innerHTML = isOverlay ? '<i class="fa-solid fa-check"></i> Allowed' : 'Grant (1-Tap)';
+          }
         }
+      } catch (e) {}
 
+      // 3. Accessibility
+      try {
         const isAccess = typeof window.BashLockNative.isAccessibilityServiceEnabled === 'function' && window.BashLockNative.isAccessibilityServiceEnabled();
-        const btnAccess = document.getElementById("perm-btn-access");
-        if (btnAccess) {
-          btnAccess.className = isAccess ? "px-2 py-0.5 rounded-lg text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-500/40" : "px-2 py-0.5 rounded-lg text-[10px] font-bold bg-indigo-600 text-white animate-pulse";
-          btnAccess.innerHTML = isAccess ? '<i class="fa-solid fa-check"></i> Guard Active' : 'Grant (1-Tap)';
+        if (isAccess !== lastAccessState) {
+          lastAccessState = isAccess;
+          const btnAccess = document.getElementById("perm-btn-access");
+          if (btnAccess) {
+            btnAccess.className = isAccess 
+              ? "px-3 py-1.5 rounded-xl text-xs font-black bg-emerald-950 text-emerald-300 border border-emerald-500/50 shadow" 
+              : "px-3 py-1.5 rounded-xl text-xs font-black bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/30 active:scale-95 transition animate-pulse";
+            btnAccess.innerHTML = isAccess ? '<i class="fa-solid fa-check"></i> Guard Active' : 'Grant (1-Tap)';
+          }
         }
-      }
+      } catch (e) {}
+
+      // 4. Battery Optimization
+      try {
+        const isBattery = typeof window.BashLockNative.isBatteryOptimizationIgnored === 'function' && window.BashLockNative.isBatteryOptimizationIgnored();
+        if (isBattery !== lastBatteryState) {
+          lastBatteryState = isBattery;
+          const btnBattery = document.getElementById("perm-btn-battery");
+          if (btnBattery) {
+            btnBattery.className = isBattery 
+              ? "px-3 py-1.5 rounded-xl text-xs font-black bg-emerald-950 text-emerald-300 border border-emerald-500/50 shadow" 
+              : "px-3 py-1.5 rounded-xl text-xs font-black bg-cyan-600 hover:bg-cyan-500 text-white shadow-md shadow-cyan-600/30 active:scale-95 transition animate-pulse";
+            btnBattery.innerHTML = isBattery ? '<i class="fa-solid fa-check"></i> Unrestricted' : 'Set (1-Tap)';
+          }
+        }
+      } catch (e) {}
     }
+
     function requestAdminFromWeb() {
       try {
-        const btn = document.getElementById("perm-btn-admin");
-        if (btn) btn.innerText = "Opening...";
+        showToast("Device Administrator setting open ho rahi hai...", true);
         if (window.BashLockNative && typeof window.BashLockNative.requestDeviceAdmin === 'function') {
           window.BashLockNative.requestDeviceAdmin();
-        } else {
-          showToast("Android Device Admin settings open ho rahi hain...", true);
         }
       } catch (e) {
         console.error("Admin request error:", e);
@@ -1169,12 +1216,9 @@
 
     function requestOverlayFromWeb() {
       try {
-        const btn = document.getElementById("perm-btn-overlay");
-        if (btn) btn.innerText = "Opening...";
+        showToast("Display Over Other Apps setting open ho rahi hai...", true);
         if (window.BashLockNative && typeof window.BashLockNative.requestOverlayPermission === 'function') {
           window.BashLockNative.requestOverlayPermission();
-        } else {
-          showToast("Display Over Other Apps setting open ho rahi hai...", true);
         }
       } catch (e) {
         console.error("Overlay request error:", e);
@@ -1183,12 +1227,9 @@
 
     function requestAccessFromWeb() {
       try {
-        const btn = document.getElementById("perm-btn-access");
-        if (btn) btn.innerText = "Opening...";
+        showToast("Accessibility Guard setting open ho rahi hai...", true);
         if (window.BashLockNative && typeof window.BashLockNative.requestAccessibilityService === 'function') {
           window.BashLockNative.requestAccessibilityService();
-        } else {
-          showToast("Accessibility Guard settings open ho rahi hain...", true);
         }
       } catch (e) {
         console.error("Access request error:", e);
@@ -1197,15 +1238,23 @@
 
     function requestBatteryFromWeb() {
       try {
-        const btn = document.getElementById("perm-btn-battery");
-        if (btn) btn.innerText = "Opening...";
+        showToast("Battery Optimization exemption setting open ho rahi hai...", true);
         if (window.BashLockNative && typeof window.BashLockNative.requestBatteryOptimization === 'function') {
           window.BashLockNative.requestBatteryOptimization();
-        } else {
-          showToast("Battery Optimization exemption setting open ho rahi hai...", true);
         }
       } catch (e) {
         console.error("Battery request error:", e);
+      }
+    }
+
+    function runWizardFromWeb() {
+      try {
+        showToast("Agli zaroori permission screen khul rahi hai...", true);
+        if (window.BashLockNative && typeof window.BashLockNative.runNextProvisioningStep === 'function') {
+          window.BashLockNative.runNextProvisioningStep();
+        }
+      } catch (e) {
+        console.error("Wizard error:", e);
       }
     }
 
@@ -1227,7 +1276,6 @@
       }
 
       document.body.addEventListener("click", () => {
-        tryEnableFullscreen();
         if (isLockedState && audioCtx && audioCtx.state === 'suspended') {
           audioCtx.resume().catch(() => {});
         }

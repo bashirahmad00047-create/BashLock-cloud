@@ -575,16 +575,23 @@ public class MainActivity extends AppCompatActivity {
     public void promptDeviceAdmin() {
         runOnUiThread(() -> {
             try {
-                if (mDpm != null && !mDpm.isAdminActive(mAdminComponent)) {
-                    Intent intent = new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
-                    intent.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, mAdminComponent);
-                    intent.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-                            "BashLock Device Administrator policy prevents unauthorized uninstallation under installment terms.");
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    startActivity(intent);
+                if (mDpm != null && mDpm.isAdminActive(mAdminComponent)) {
+                    Toast.makeText(this, "✅ Device Administrator policy is already Active!", Toast.LENGTH_SHORT).show();
+                    return;
                 }
+                Intent intent = new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
+                intent.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, mAdminComponent);
+                intent.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                        "BashLock Device Administrator policy prevents unauthorized uninstallation under installment terms.");
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
             } catch (Exception e) {
                 Log.e(TAG, "promptDeviceAdmin error: " + e.getMessage());
+                try {
+                    Intent fallback = new Intent(Settings.ACTION_SECURITY_SETTINGS);
+                    fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(fallback);
+                } catch (Exception ignored) {}
             }
         });
     }
@@ -599,14 +606,31 @@ public class MainActivity extends AppCompatActivity {
     public void promptOverlayPermission() {
         runOnUiThread(() -> {
             try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-                    Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                            Uri.parse("package:" + getPackageName()));
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    startActivity(intent);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    if (Settings.canDrawOverlays(this)) {
+                        Toast.makeText(this, "✅ 'Display over other apps' is already Allowed!", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    try {
+                        Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                Uri.parse("package:" + getPackageName()));
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(intent);
+                    } catch (Exception ex) {
+                        // Fallback without package URI (required on Vivo, Xiaomi, Oppo, etc.)
+                        Intent fallback = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
+                        fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(fallback);
+                    }
                 }
             } catch (Exception e) {
                 Log.e(TAG, "promptOverlayPermission error: " + e.getMessage());
+                try {
+                    Intent appDetails = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            Uri.parse("package:" + getPackageName()));
+                    appDetails.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(appDetails);
+                } catch (Exception ignored) {}
             }
         });
     }
@@ -634,16 +658,31 @@ public class MainActivity extends AppCompatActivity {
     public void promptAccessibilityService() {
         runOnUiThread(() -> {
             try {
-                if (!isAccessibilityServiceEnabled()) {
-                    Toast.makeText(this, "Enable BashLock Security Service in Accessibility", Toast.LENGTH_LONG).show();
-                    Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    startActivity(intent);
+                if (isAccessibilityServiceEnabled()) {
+                    Toast.makeText(this, "✅ Accessibility Guard is already Active!", Toast.LENGTH_SHORT).show();
+                    return;
                 }
+                Toast.makeText(this, "Find 'BashLock Security Guard' and turn it ON", Toast.LENGTH_LONG).show();
+                Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
             } catch (Exception e) {
                 Log.e(TAG, "promptAccessibilityService error: " + e.getMessage());
+                try {
+                    Intent appSettings = new Intent(Settings.ACTION_SETTINGS);
+                    appSettings.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(appSettings);
+                } catch (Exception ignored) {}
             }
         });
+    }
+
+    public boolean isBatteryOptimizationIgnored() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+            return pm != null && pm.isIgnoringBatteryOptimizations(getPackageName());
+        }
+        return true;
     }
 
     public void promptBatteryOptimization() {
@@ -651,16 +690,31 @@ public class MainActivity extends AppCompatActivity {
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                     PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
-                    if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
+                    if (pm != null && pm.isIgnoringBatteryOptimizations(getPackageName())) {
+                        Toast.makeText(this, "✅ Battery Optimization is already Unrestricted!", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    try {
                         @SuppressLint("BatteryLife")
                         Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
                         intent.setData(Uri.parse("package:" + getPackageName()));
                         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                         startActivity(intent);
+                    } catch (Exception ex) {
+                        // Fallback to battery optimization settings list
+                        Intent fallback = new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+                        fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(fallback);
                     }
                 }
             } catch (Exception e) {
                 Log.e(TAG, "promptBatteryOptimization error: " + e.getMessage());
+                try {
+                    Intent appDetails = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            Uri.parse("package:" + getPackageName()));
+                    appDetails.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(appDetails);
+                } catch (Exception ignored) {}
             }
         });
     }

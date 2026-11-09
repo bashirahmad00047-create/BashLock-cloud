@@ -134,6 +134,15 @@ public class WebBridge {
     }
 
     @JavascriptInterface
+    public boolean isBatteryOptimizationIgnored() {
+        try {
+            return mActivity.isBatteryOptimizationIgnored();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    @JavascriptInterface
     public void requestBatteryOptimization() {
         try {
             mActivity.runOnUiThread(mActivity::promptBatteryOptimization);
