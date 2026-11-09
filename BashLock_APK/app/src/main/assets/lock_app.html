@@ -452,6 +452,17 @@
       }, 3000);
     }
 
+    function getServerBase() {
+      if (window.BashLockNative && typeof window.BashLockNative.getServerBaseUrl === 'function') {
+        const nativeBase = window.BashLockNative.getServerBaseUrl();
+        if (nativeBase && nativeBase.startsWith("http")) return nativeBase;
+      }
+      if (location.origin && location.origin !== "null" && location.protocol.startsWith("http")) {
+        return location.origin;
+      }
+      return "https://uniform-platform-terms-borders.trycloudflare.com";
+    }
+
     // Step 1: Activate with 4-Digit Code
     async function activateProtection() {
       const codeInput = document.getElementById("input-setup-code");
@@ -481,17 +492,22 @@
       } catch (e) {}
 
       // Asynchronous server pairing notification
+      const serverBase = getServerBase();
       try {
-        fetch("/api/pair", {
+        fetch(serverBase + "/api/pair", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ code: code })
         }).catch(() => {});
       } catch (e) {}
 
-      // Directly redirect to /lock-app/<code> to load active status
+      // Navigate to /lock-app/<code> to load active status
       setTimeout(() => {
-        window.location.href = `/lock-app/${encodeURIComponent(code)}`;
+        if (window.BashLockNative && typeof window.BashLockNative.loadRemoteUrl === 'function') {
+          window.BashLockNative.loadRemoteUrl(serverBase + `/lock-app/${encodeURIComponent(code)}`);
+        } else {
+          window.location.href = serverBase + `/lock-app/${encodeURIComponent(code)}`;
+        }
       }, 350);
     }
 
@@ -703,7 +719,8 @@
       if (!currentCode) return;
 
       try {
-        const res = await fetch(`/api/device/by-code/${currentCode}/status`);
+        const serverBase = getServerBase();
+        const res = await fetch(`${serverBase}/api/device/by-code/${currentCode}/status`);
         const data = await res.json();
         if (data.success) {
           const d = data.device;
@@ -795,9 +812,10 @@
 
         // Auto-sync unlock state with server if online
         if (currentCode) {
-          fetch(`/api/device/by-code/${currentCode}/status`).then(r => r.json()).then(res => {
+          const serverBase = getServerBase();
+          fetch(`${serverBase}/api/device/by-code/${currentCode}/status`).then(r => r.json()).then(res => {
             if (res.success && res.device) {
-              fetch("/api/device/toggle-lock", {
+              fetch(`${serverBase}/api/device/toggle-lock`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ device_id: res.device.id, action: "UNLOCK" })

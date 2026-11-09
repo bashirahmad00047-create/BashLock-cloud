@@ -10,6 +10,8 @@ import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -109,6 +111,11 @@ public class MainActivity extends AppCompatActivity {
         mSwipeRefresh = findViewById(R.id.swipeRefresh);
         mSplashLoadingView = findViewById(R.id.splashLoadingView);
         mSplashStatusText = findViewById(R.id.splashStatusText);
+
+        android.widget.ImageView splashIcon = findViewById(R.id.splashIcon);
+        if (splashIcon != null) {
+            splashIcon.setColorFilter(Color.parseColor("#10B981"));
+        }
 
         setupWebView();
         setupSwipeRefresh();
@@ -324,6 +331,35 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    public boolean isNetworkAvailable() {
+        try {
+            ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (cm != null) {
+                NetworkInfo netInfo = cm.getActiveNetworkInfo();
+                return netInfo != null && netInfo.isConnected();
+            }
+        } catch (Exception ignored) {}
+        return false;
+    }
+
+    public String getServerBaseUrl() {
+        String cached = mPrefs.getString("cached_live_url", "").trim();
+        if (cached.startsWith("https://") && !cached.contains("10.")) {
+            if (cached.endsWith("/lock-app")) {
+                return cached.substring(0, cached.length() - "/lock-app".length());
+            }
+            return cached;
+        }
+        return "https://uniform-platform-terms-borders.trycloudflare.com";
+    }
+
+    public void loadUrlExplicit(String url) {
+        if (mWebView != null && url != null && !url.isEmpty()) {
+            Log.i(TAG, "Explicitly loading URL: " + url);
+            mWebView.loadUrl(url);
+        }
+    }
+
     private String getActiveBaseUrl() {
         String cached = mPrefs.getString("cached_live_url", "").trim();
         if (cached.startsWith("https://") && !cached.contains("10.")) {
@@ -333,19 +369,26 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void loadLockAppUrl() {
+        // If offline on launch, immediately load embedded asset in 0.05s (Zero wait, Zero black screen)
+        if (!isNetworkAvailable()) {
+            Log.i(TAG, "No active network on launch; immediately rendering embedded asset UI");
+            loadOfflineFallback();
+            return;
+        }
+
         // 1. Immediately load currently saved / default URL (no blank screen lag)
         loadUrlInternal(getActiveBaseUrl());
         // 2. Concurrently fetch the latest live URL from GitHub raw
         fetchLiveUrlFromGitHub(false);
 
-        // 3. Fallback Watchdog: if remote URL takes more than 4.5 seconds or is unreachable,
+        // 3. Fallback Watchdog: if remote URL takes more than 3.5 seconds or is unreachable,
         // load the local bundled offline asset so the user NEVER sees a blank/black screen!
         mMainHandler.postDelayed(() -> {
             if (!mPageLoadedSuccessfully && !isFinishing()) {
-                Log.w(TAG, "Remote connection timeout (4.5s); engaging embedded offline asset guard");
+                Log.w(TAG, "Remote connection timeout (3.5s); engaging embedded offline asset guard");
                 loadOfflineFallback();
             }
-        }, 4500);
+        }, 3500);
     }
 
     private void fetchLiveUrlFromGitHub(boolean forceReloadOnSuccess) {

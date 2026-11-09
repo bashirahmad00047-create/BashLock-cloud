@@ -165,6 +165,16 @@ public class WebBridge {
     }
 
     @JavascriptInterface
+    public String getServerBaseUrl() {
+        return mActivity.getServerBaseUrl();
+    }
+
+    @JavascriptInterface
+    public void loadRemoteUrl(String url) {
+        mActivity.runOnUiThread(() -> mActivity.loadUrlExplicit(url));
+    }
+
+    @JavascriptInterface
     public void showNativeToast(String message) {
         mActivity.runOnUiThread(() -> Toast.makeText(mActivity, message, Toast.LENGTH_SHORT).show());
     }
