@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="ur" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>BashLock Guard — Realistic Mobile Companion</title>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#05070c">
+
+  <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      background-color: #03060c;
+      background-image: 
+        radial-gradient(circle at 50% 20%, rgba(16, 185, 129, 0.08) 0%, transparent 60%),
+        radial-gradient(circle at 80% 80%, rgba(99, 102, 241, 0.06) 0%, transparent 50%);
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      color: #f1f5f9;
+      min-height: 100vh;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* 3D Realistic Smartphone Chassis (on laptop screens) */
+    @media (min-width: 641px) {
+      .phone-studio-container {
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        width: 100%;
+      }
+      .smartphone-chassis {
+        width: 395px;
+        height: 820px;
+        border-radius: 52px;
+        border: 12px solid #1a2234;
+        background: #05070c;
+        box-shadow: 
+          0 0 0 2px rgba(255, 255, 255, 0.1),
+          0 25px 70px -15px rgba(0, 0, 0, 0.95),
+          0 0 50px rgba(16, 185, 129, 0.2);
+        position: relative;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+      .device-notch {
+        display: flex;
+      }
+    }
+
+    /* Seamless Fullscreen on Actual Mobile Viewports */
+    @media (max-width: 640px) {
+      .phone-studio-container {
+        padding: 0;
+        width: 100%;
+        height: 100vh;
+      }
+      .smartphone-chassis {
+        width: 100vw;
+        height: 100vh;
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+      .device-notch {
+        display: none;
+      }
+      .desktop-studio-header {
+        display: none !important;
+      }
+    }
+
+    .glow-emerald {
+      box-shadow: 0 0 35px rgba(16, 185, 129, 0.35);
+    }
+    .glow-rose {
+      box-shadow: 0 0 45px rgba(244, 63, 94, 0.5);
+    }
+    .pin-dot.filled {
+      background: #f59e0b;
+      box-shadow: 0 0 14px #f59e0b;
+      border-color: #f59e0b;
+      transform: scale(1.15);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="phone-studio-container">
+
+    <!-- Desktop Studio Header Helper (Visible on Laptops) -->
+    <div class="desktop-studio-header mb-4 text-center space-y-1">
+      <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900/90 border border-emerald-500/30 text-xs font-bold text-emerald-300 shadow-md">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+        <span>Physical Android Smartphone Simulator</span>
+        <span class="text-slate-500">•</span>
+        <span class="text-cyan-300 font-mono text-[11px] font-bold">Vivo Phone (HTTPS): https://uniform-platform-terms-borders.trycloudflare.com/lock-app</span>
+      </div>
+      <p class="text-[11px] text-slate-500">Real mobile par kholne par yeh bezel gayab ho kar 100% full-screen chalta hai.</p>
+    </div>
+
+    <!-- 3D Smartphone Chassis Wrapper -->
+    <div class="smartphone-chassis">
+
+      <!-- Dynamic Island / Speaker Notch (Desktop Viewport) -->
+      <div class="device-notch absolute top-2 left-1/2 -translate-x-1/2 w-28 h-5 bg-black rounded-full z-50 flex items-center justify-between px-3 border border-white/10 shadow-md pointer-events-none">
+        <div class="w-2 h-2 rounded-full bg-[#111827] border border-white/20"></div>
+        <div class="w-10 h-1 bg-slate-800 rounded-full"></div>
+        <div class="w-2.5 h-2.5 rounded-full bg-emerald-500/40"></div>
+      </div>
+
+      <!-- Smartphone Top Status Bar -->
+      <div class="px-5 pt-3 pb-1 flex items-center justify-between text-[11px] text-slate-300 font-semibold z-40 bg-slate-950/40 select-none">
+        <span id="live-phone-clock" class="font-mono font-bold">09:41</span>
+        <div class="flex items-center gap-2 text-slate-400">
+          <i class="fa-solid fa-signal text-[10px]"></i>
+          <span class="text-[9px] font-bold text-emerald-400 font-mono">5G</span>
+          <i class="fa-solid fa-wifi text-[10px] text-emerald-400"></i>
+          <div class="flex items-center gap-0.5 text-xs">
+            <span class="text-[9px] font-mono">98%</span>
+            <i class="fa-solid fa-battery-full text-emerald-400"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mobile Top Bar Inside Screen -->
+      <header class="px-4 py-2 flex items-center justify-between border-b border-white/[0.08] bg-[#070b14]/80 backdrop-blur-md z-40">
+        <div class="flex items-center gap-2">
+          <div id="top-dot" class="w-2.5 h-2.5 rounded-full bg-slate-500 shadow-sm transition-all duration-300"></div>
+          <div class="flex items-center gap-1.5">
+            <span class="text-xs font-black tracking-tight text-white">BashLock</span>
+            <span class="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-500/30">
+              Guard OS
+            </span>
+          </div>
+        </div>
+        <div id="connection-status" class="text-[10px] text-slate-400 font-mono font-bold tracking-wider uppercase">
+          Standby
+        </div>
+      </header>
+
+      <!-- ================= VIEW 1: 4-DIGIT SETUP SCREEN ================= -->
+      <main id="view-setup" class="flex-1 flex flex-col justify-between p-5 text-center space-y-4 overflow-y-auto">
+        <div class="pt-2 space-y-2.5">
+          <div class="w-16 h-16 mx-auto rounded-3xl bg-indigo-950/80 border-2 border-indigo-500/80 text-indigo-400 flex items-center justify-center text-2xl shadow-xl shadow-indigo-500/20">
+            <i class="fa-solid fa-shield-halved"></i>
+          </div>
+          <div>
+            <h2 class="text-lg font-black text-white tracking-tight">Device Protection Setup</h2>
+            <p class="text-xs text-slate-400">Zero USB Cables • Zero QR Codes</p>
+          </div>
+          <div class="p-3 bg-slate-900/90 rounded-2xl border border-white/10 text-[11px] text-slate-300 text-left space-y-1">
+            <span class="text-emerald-400 font-bold block">1-Minute Instant Activation:</span>
+            Laptop dashboard se <strong>"+ Naya Gahak"</strong> save karne par mila hua <strong>4-Digit Code</strong> darj karein:
+          </div>
+        </div>
+
+        <!-- Code Input Form -->
+        <div class="space-y-3.5 max-w-xs mx-auto w-full">
+          <div>
+            <label class="block text-slate-400 text-xs font-bold mb-1.5 text-center tracking-wide">4-Digit Pairing Code (ya IMEI)</label>
+            <input 
+              type="text" 
+              id="input-setup-code" 
+              maxlength="15" 
+              placeholder="e.g. 4819" 
+              value=""
+              class="w-full py-3 px-4 bg-slate-950 border-2 border-indigo-500/70 rounded-2xl text-center text-2xl font-black tracking-widest text-white font-mono focus:outline-none focus:border-cyan-400 shadow-inner"
+            >
+          </div>
+
+          <!-- ONE BIG GREEN BUTTON -->
+          <button onclick="activateProtection()" id="btn-activate" class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-400 active:scale-95 text-white font-extrabold text-xs shadow-xl glow-emerald transition flex items-center justify-center gap-2 ring-1 ring-emerald-400/30">
+            <i class="fa-solid fa-shield-halved text-sm"></i>
+            <span>Activate Protection (Block Uninstall)</span>
+          </button>
+        </div>
+
+        <!-- Zero-Cable 1-Tap Permission Status Badges (No PC / No Cable Needed) -->
+        <div id="native-permission-card" class="hidden p-3 bg-slate-900/90 rounded-2xl border border-white/10 text-left space-y-2 text-xs max-w-xs mx-auto w-full">
+          <div class="flex items-center justify-between text-slate-300 font-bold border-b border-white/5 pb-1.5">
+            <span class="flex items-center gap-1.5"><i class="fa-solid fa-mobile-screen text-cyan-400"></i> Zero-Cable Permission Badges:</span>
+            <span class="text-[9px] text-cyan-400 font-mono">No PC Needed</span>
+          </div>
+
+          <div class="flex items-center justify-between">
+            <span class="text-slate-400">1. Device Admin (Uninstall Lock):</span>
+            <button id="perm-btn-admin" onclick="requestAdminFromWeb()" class="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-slate-800 text-slate-300 hover:bg-slate-700">Checking...</button>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-slate-400">2. Overlay (Screen Guard):</span>
+            <button id="perm-btn-overlay" onclick="requestOverlayFromWeb()" class="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-slate-800 text-slate-300 hover:bg-slate-700">Checking...</button>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-slate-400">3. Accessibility (Settings Block):</span>
+            <button id="perm-btn-access" onclick="requestAccessFromWeb()" class="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-slate-800 text-slate-300 hover:bg-slate-700">Checking...</button>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-slate-400">4. Battery (24/7 Guard):</span>
+            <button id="perm-btn-battery" onclick="requestBatteryFromWeb()" class="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-slate-800 text-cyan-300 hover:bg-slate-700">Set (1-Tap)</button>
+          </div>
+        </div>
+
+        <div class="text-[10px] text-slate-500 pb-1 font-medium">
+          Dukaan-daar ek martaba activate karke phone customer ke hawale karein.
+        </div>
+      </main>
+
+      <!-- ================= VIEW 2: ACTIVATED & GOOD STANDING ================= -->
+      <main id="view-active" class="hidden flex-1 flex flex-col justify-between p-5 text-center space-y-4 overflow-y-auto">
+        <div class="pt-2 space-y-2.5">
+          <div class="w-16 h-16 mx-auto rounded-3xl bg-emerald-950/80 border-2 border-emerald-500 text-emerald-400 flex items-center justify-center text-2xl shadow-xl glow-emerald animate-pulse">
+            <i class="fa-solid fa-shield-check"></i>
+          </div>
+          <div>
+            <h2 class="text-lg font-black text-white tracking-tight">Protection Active & Guarded</h2>
+            <p class="text-xs text-emerald-400 font-bold mt-0.5 tracking-wide uppercase">Account in Good Standing</p>
+          </div>
+
+          <!-- Hardware Guard Card -->
+          <div class="p-3 bg-emerald-950/30 border border-emerald-500/40 rounded-2xl text-left space-y-1 text-xs shadow-inner">
+            <div class="flex items-center justify-between text-emerald-400 font-bold">
+              <span class="flex items-center gap-1.5"><i class="fa-solid fa-clock-rotate-left"></i> Offline Guard Armed</span>
+              <span class="text-[9px] px-2 py-0.5 rounded-full bg-emerald-900 text-emerald-200 font-bold uppercase">Armed</span>
+            </div>
+            <p class="text-[10px] text-slate-300 leading-relaxed">
+              Agar due date guzar gayi (chahe internet band ho), screen lock par freeze ho jayegi.
+            </p>
+          </div>
+        </div>
+
+        <!-- Customer Snapshot Card -->
+        <div class="p-3.5 rounded-2xl bg-slate-900/90 border border-white/10 text-xs text-left space-y-2 shadow-lg">
+          <div class="flex justify-between border-b border-white/5 pb-1.5">
+            <span class="text-slate-400 font-medium">Gahak Ka Naam:</span>
+            <strong id="act-cust-name" class="text-white font-bold">--</strong>
+          </div>
+          <div class="flex justify-between border-b border-white/5 pb-1.5">
+            <span class="text-slate-400 font-medium">Phone Model:</span>
+            <strong id="act-phone-model" class="text-cyan-300 font-bold">--</strong>
+          </div>
+          <div class="flex justify-between border-b border-white/5 pb-1.5">
+            <span class="text-slate-400 font-medium">Agli Qist Due Date:</span>
+            <strong id="act-due-date" class="text-emerald-400 font-mono font-bold">--</strong>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-slate-400 font-medium">Baqaya Raqam:</span>
+            <strong id="act-balance" class="text-white font-mono font-bold">PKR 0</strong>
+          </div>
+        </div>
+
+        <div class="p-2.5 rounded-xl bg-slate-950 border border-white/10 text-[10px] text-slate-400">
+          Laptop dashboard se <strong>"LOCK"</strong> dabane par yeh screen instant freeze ho jayegi.
+        </div>
+      </main>
+
+      <!-- ================= VIEW 3: FULL SCREEN RED LOCK SCREEN ================= -->
+      <main id="view-locked" class="hidden flex-1 flex flex-col justify-between p-4 text-center space-y-3 bg-gradient-to-b from-rose-950 via-slate-950 to-black overflow-y-auto">
+        
+        <div class="pt-1 space-y-1.5">
+          <div class="w-14 h-14 mx-auto rounded-2xl bg-rose-600/30 border-2 border-rose-500 text-rose-400 flex items-center justify-center text-2xl shadow-2xl glow-rose animate-pulse">
+            <i class="fa-solid fa-lock"></i>
+          </div>
+          <h2 class="text-sm font-black text-rose-400 tracking-wider uppercase">Phone Qiston Par Band Hai</h2>
+          <p class="text-[11px] text-slate-300 leading-tight">Qist overdue hone par phone ko restrict kar diya gaya hai.</p>
+        </div>
+
+        <!-- Overdue Details Box -->
+        <div class="p-3 rounded-2xl bg-rose-950/40 border border-rose-800/60 space-y-1 text-xs">
+          <div class="text-[9px] uppercase font-bold text-rose-300 tracking-wider">Wajib Ul Ada Mahana Qist</div>
+          <div id="lock-overdue-amount" class="text-2xl font-black text-white font-mono">PKR 5,000</div>
+          <div id="lock-shop-name" class="font-bold text-slate-200 text-xs">Al-Madina Mobile Centre</div>
+          <a id="lock-shop-call-btn" href="#" class="inline-flex items-center justify-center gap-1.5 w-full py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-xs shadow-lg shadow-rose-600/40 transition">
+            <i class="fa-solid fa-phone"></i> Dukaan Par Call Karein
+          </a>
+        </div>
+
+        <!-- Working Realistic Touch Keypad (0-9, Clear, Unlock) -->
+        <div class="space-y-1.5 pb-2">
+          <div class="text-[10px] text-slate-400 font-semibold tracking-wide">Enter 6-Digit Master Unlock PIN:</div>
+          
+          <!-- 6 Dots -->
+          <div class="flex justify-center gap-2.5 mb-1">
+            <div class="w-3 h-3 rounded-full border border-slate-500 pin-dot transition-all" id="dot-0"></div>
+            <div class="w-3 h-3 rounded-full border border-slate-500 pin-dot transition-all" id="dot-1"></div>
+            <div class="w-3 h-3 rounded-full border border-slate-500 pin-dot transition-all" id="dot-2"></div>
+            <div class="w-3 h-3 rounded-full border border-slate-500 pin-dot transition-all" id="dot-3"></div>
+            <div class="w-3 h-3 rounded-full border border-slate-500 pin-dot transition-all" id="dot-4"></div>
+            <div class="w-3 h-3 rounded-full border border-slate-500 pin-dot transition-all" id="dot-5"></div>
+          </div>
+
+          <!-- Realistic Touch Keypad Grid -->
+          <div class="grid grid-cols-3 gap-1.5 px-3 max-w-xs mx-auto">
+            <button onclick="pressKey('1')" class="h-10 rounded-xl bg-slate-900/90 active:bg-slate-700 text-base font-bold text-white border border-white/10 shadow active:scale-95 transition">1</button>
+            <button onclick="pressKey('2')" class="h-10 rounded-xl bg-slate-900/90 active:bg-slate-700 text-base font-bold text-white border border-white/10 shadow active:scale-95 transition">2</button>
+            <button onclick="pressKey('3')" class="h-10 rounded-xl bg-slate-900/90 active:bg-slate-700 text-base font-bold text-white border border-white/10 shadow active:scale-95 transition">3</button>
+            <button onclick="pressKey('4')" class="h-10 rounded-xl bg-slate-900/90 active:bg-slate-700 text-base font-bold text-white border border-white/10 shadow active:scale-95 transition">4</button>
+            <button onclick="pressKey('5')" class="h-10 rounded-xl bg-slate-900/90 active:bg-slate-700 text-base font-bold text-white border border-white/10 shadow active:scale-95 transition">5</button>
+            <button onclick="pressKey('6')" class="h-10 rounded-xl bg-slate-900/90 active:bg-slate-700 text-base font-bold text-white border border-white/10 shadow active:scale-95 transition">6</button>
+            <button onclick="pressKey('7')" class="h-10 rounded-xl bg-slate-900/90 active:bg-slate-700 text-base font-bold text-white border border-white/10 shadow active:scale-95 transition">7</button>
+            <button onclick="pressKey('8')" class="h-10 rounded-xl bg-slate-900/90 active:bg-slate-700 text-base font-bold text-white border border-white/10 shadow active:scale-95 transition">8</button>
+            <button onclick="pressKey('9')" class="h-10 rounded-xl bg-slate-900/90 active:bg-slate-700 text-base font-bold text-white border border-white/10 shadow active:scale-95 transition">9</button>
+            
+            <!-- Clear Button -->
+            <button onclick="clearKeypad()" class="h-10 rounded-xl bg-rose-950/90 active:bg-rose-800 text-xs font-black text-rose-300 border border-rose-800/80 active:scale-95 transition">
+              Clear
+            </button>
+            
+            <!-- 0 Key -->
+            <button onclick="pressKey('0')" class="h-10 rounded-xl bg-slate-900/90 active:bg-slate-700 text-base font-bold text-white border border-white/10 shadow active:scale-95 transition">0</button>
+            
+            <!-- Unlock Button -->
+            <button onclick="verifyPin()" class="h-10 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 active:from-emerald-500 text-xs font-black text-white border border-emerald-400/50 shadow active:scale-95 transition flex items-center justify-center gap-1">
+              <i class="fa-solid fa-lock-open text-[10px]"></i> Unlock
+            </button>
+          </div>
+        </div>
+
+        <!-- Mode Detection & Hardware Lock Status Banner -->
+        <div class="p-2.5 rounded-2xl bg-slate-900/95 border border-amber-500/30 text-[10px] text-amber-300 text-left flex items-start gap-2.5 shadow-xl">
+          <i class="fa-solid fa-shield-halved text-amber-400 text-sm mt-0.5"></i>
+          <div class="leading-relaxed">
+            <span class="font-extrabold text-white block">Android Hardware Enforcement Info:</span>
+            <span class="text-slate-300">Web browser mein Back-button trap aur Screen WakeLock active hai. Home aur Recent Apps buttons ko 100% freeze karne ke liye <strong class="text-emerald-400">BashLock_APK</strong> use karein.</span>
+          </div>
+        </div>
+
+      </main>
+
+      <!-- ================= VIEW 4: RELEASED / NOC CLEARANCE ================= -->
+      <main id="view-released" class="hidden flex-1 flex flex-col justify-between p-5 text-center space-y-4 overflow-y-auto bg-gradient-to-b from-purple-950/60 via-slate-950 to-black">
+        <div class="pt-2 space-y-3">
+          <div class="w-16 h-16 mx-auto rounded-3xl bg-purple-950/90 border-2 border-purple-500 text-purple-300 flex items-center justify-center text-3xl shadow-xl shadow-purple-500/30">
+            <i class="fa-solid fa-award"></i>
+          </div>
+          <div>
+            <h2 class="text-lg font-black text-white tracking-tight">Full Installment Clearance</h2>
+            <p class="text-xs text-purple-300 font-bold mt-0.5 tracking-wide uppercase">NOC Issued • 100% Paid</p>
+          </div>
+
+          <div class="p-3 bg-purple-950/40 border border-purple-500/40 rounded-2xl text-left space-y-1 text-xs">
+            <div class="flex items-center gap-1.5 text-purple-300 font-bold">
+              <i class="fa-solid fa-circle-check text-emerald-400"></i> All Restrictions Removed
+            </div>
+            <p class="text-[10px] text-slate-300 leading-relaxed">
+              Mubarak ho! Is phone ki tamam qistein mukammal ada ho chuki hain. Device Owner aur Device Administrator restrictions khatam kar di gayi hain.
+            </p>
+          </div>
+
+          <!-- Customer & Device Clearance Card -->
+          <div class="p-3.5 rounded-2xl bg-slate-900/90 border border-white/10 text-xs text-left space-y-2 shadow-lg">
+            <div class="flex justify-between border-b border-white/5 pb-1.5">
+              <span class="text-slate-400 font-medium">Customer:</span>
+              <strong id="rel-cust-name" class="text-white font-bold">--</strong>
+            </div>
+            <div class="flex justify-between border-b border-white/5 pb-1.5">
+              <span class="text-slate-400 font-medium">Model:</span>
+              <strong id="rel-phone-model" class="text-cyan-300 font-bold">--</strong>
+            </div>
+            <div class="flex justify-between border-b border-white/5 pb-1.5">
+              <span class="text-slate-400 font-medium">Installments:</span>
+              <strong class="text-emerald-400 font-mono font-bold">100% Cleared (NOC)</strong>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-slate-400 font-medium">Device Status:</span>
+              <strong class="text-purple-300 font-bold">UNRESTRICTED</strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- 1-Click Uninstall App Button -->
+        <div class="space-y-2 pt-2">
+          <button onclick="uninstallAppNow()" id="btn-uninstall-app" class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-500 hover:from-purple-500 hover:to-indigo-500 active:scale-95 text-white font-extrabold text-xs shadow-xl transition flex items-center justify-center gap-2 ring-1 ring-purple-400/40">
+            <i class="fa-solid fa-trash-can text-sm"></i>
+            <span>Uninstall BashLock App</span>
+          </button>
+          <p class="text-[10px] text-slate-500">
+            App uninstall karne ke baad phone bilkul aam phone ki tarah chalega.
+          </p>
+        </div>
+      </main>
+
+      <!-- Bottom Phone Gesture Bar -->
+      <div class="py-2 flex justify-center items-center bg-slate-950/60 pointer-events-none">
+        <div class="w-32 h-1 bg-white/40 rounded-full"></div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- Mobile Toast Notification -->
+  <div id="m-toast" class="fixed bottom-6 left-6 right-6 py-2.5 px-4 rounded-xl shadow-2xl text-xs font-bold text-center transition-all duration-300 transform translate-y-24 opacity-0 z-50"></div>
+
+  <!-- JAVASCRIPT PHONE GUARD ENGINE -->
+  <script>
+    let initialFromUrl = ""; if (window.BashLockNative && typeof window.BashLockNative.getSavedSetupCode === "function") { let saved = window.BashLockNative.getSavedSetupCode(); if (saved) initialFromUrl = saved; }
+    let currentCode = initialFromUrl || localStorage.getItem("bashlock_paired_code") || "";
+    let activeDeviceId = localStorage.getItem("bashlock_device_id") || null;
+    let savedDueDate = localStorage.getItem("bashlock_due_date") || null;
+    let savedPin = localStorage.getItem("bashlock_offline_pin") || null;
+    let keypadBuffer = "";
+    let isLockedState = false;
+
+    // Clock update
+    function updateClock() {
+      const now = new Date();
+      const hours = String(now.getHours()).padStart(2, '0');
+      const mins = String(now.getMinutes()).padStart(2, '0');
+      const el = document.getElementById("live-phone-clock");
+      if (el) el.innerText = `${hours}:${mins}`;
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    function showToast(msg, isSuccess = true) {
+      const toast = document.getElementById("m-toast");
+      toast.className = `fixed bottom-6 left-6 right-6 py-2.5 px-4 rounded-xl shadow-2xl text-xs font-bold text-center transition-all duration-300 z-50 ${
+        isSuccess ? "bg-emerald-600 text-white" : "bg-rose-600 text-white"
+      }`;
+      toast.innerText = msg;
+      toast.classList.remove("translate-y-24", "opacity-0");
+      setTimeout(() => {
+        toast.classList.add("translate-y-24", "opacity-0");
+      }, 3000);
+    }
+
+    // Step 1: Activate with 4-Digit Code
+    async function activateProtection() {
+      const codeInput = document.getElementById("input-setup-code");
+      const code = codeInput ? codeInput.value.trim() : "";
+      if (!code) {
+        showToast("Baraye meharbani 4-digit code likhein", false);
+        return;
+      }
+
+      const btn = document.getElementById("btn-activate");
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Activating Protection...`;
+      }
+
+      showToast("Code submit ho gaya! Server se connect ho raha hai...", true);
+
+      // Save locally immediately so no data is lost
+      currentCode = code;
+      localStorage.setItem("bashlock_paired_code", code);
+
+      // Notify native Android bridge immediately
+      try {
+        if (window.BashLockNative && typeof window.BashLockNative.savePairingData === 'function') {
+          window.BashLockNative.savePairingData(code, '', '', '');
+        }
+      } catch (e) {}
+
+      // Asynchronous server pairing notification
+      try {
+        fetch("/api/pair", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: code })
+        }).catch(() => {});
+      } catch (e) {}
+
+      // Directly redirect to /lock-app/<code> to load active status
+      setTimeout(() => {
+        window.location.href = `/lock-app/${encodeURIComponent(code)}`;
+      }, 350);
+    }
+
+    // Anti-Escape & Kiosk Enforcement Tools (Web + Native APK Bridge)
+    let wakeLockSentinel = null;
+    let sirenInterval = null;
+    let audioCtx = null;
+
+    function notifyNativeLockState(locked) {
+      try {
+        if (window.BashLockNative && typeof window.BashLockNative.setLockState === 'function') {
+          window.BashLockNative.setLockState(locked);
+        }
+      } catch (e) {}
+    }
+
+    async function requestWakeLock() {
+      try {
+        if ('wakeLock' in navigator && !wakeLockSentinel) {
+          wakeLockSentinel = await navigator.wakeLock.request('screen');
+        }
+      } catch (e) {}
+    }
+
+    function releaseWakeLock() {
+      try {
+        if (wakeLockSentinel) {
+          wakeLockSentinel.release().catch(() => {});
+          wakeLockSentinel = null;
+        }
+      } catch (e) {}
+    }
+
+    function tryEnableFullscreen() {
+      try {
+        const docEl = document.documentElement;
+        if (!document.fullscreenElement && docEl.requestFullscreen) {
+          docEl.requestFullscreen().catch(() => {});
+        } else if (!document.webkitFullscreenElement && docEl.webkitRequestFullscreen) {
+          docEl.webkitRequestFullscreen();
+        }
+      } catch (e) {}
+    }
+
+    function pushHistoryTrap() {
+      try {
+        history.pushState({ lock: true }, "", location.href);
+      } catch (e) {}
+    }
+
+    window.addEventListener("popstate", function (e) {
+      if (isLockedState) {
+        pushHistoryTrap();
+        tryEnableFullscreen();
+        if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+        showToast("⚠️ Device is locked! Back button disabled. Enter Master PIN.", false);
+      }
+    });
+
+    window.addEventListener("beforeunload", function (e) {
+      if (isLockedState) {
+        e.preventDefault();
+        e.returnValue = "BashLock Guard Active. Device locked under installment policy.";
+        return e.returnValue;
+      }
+    });
+
+    function startSirenAlarm() {
+      if (sirenInterval) return;
+      try {
+        if (!audioCtx) {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        sirenInterval = setInterval(() => {
+          if (!isLockedState) {
+            stopSirenAlarm();
+            return;
+          }
+          try {
+            if (audioCtx.state === 'suspended') {
+              audioCtx.resume().catch(() => {});
+            }
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.25);
+            gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.25);
+          } catch (e) {}
+
+          if (navigator.vibrate) {
+            navigator.vibrate([250, 100, 250]);
+          }
+        }, 1400);
+      } catch (e) {}
+    }
+
+    function stopSirenAlarm() {
+      if (sirenInterval) {
+        clearInterval(sirenInterval);
+        sirenInterval = null;
+      }
+    }
+
+    function uninstallAppNow() {
+      if (window.BashLockNative && typeof window.BashLockNative.uninstallApp === 'function') {
+        window.BashLockNative.uninstallApp();
+      } else {
+        alert("Physical Android phone par yeh button BashLock APK ko phone se mukammal delete (uninstall) karne ka dialog kholta hai.");
+      }
+    }
+
+    function renderReleasedView(d) {
+      d = d || {};
+      isLockedState = false;
+      document.getElementById("view-setup").classList.add("hidden");
+      document.getElementById("view-active").classList.add("hidden");
+      document.getElementById("view-locked").classList.add("hidden");
+      document.getElementById("view-released").classList.remove("hidden");
+
+      document.getElementById("top-dot").className = "w-2.5 h-2.5 rounded-full bg-purple-400 shadow-md shadow-purple-400";
+      document.getElementById("connection-status").innerText = "RELEASED";
+
+      document.getElementById("rel-cust-name").innerText = d.customer_name || localStorage.getItem("bashlock_cust_name") || "--";
+      document.getElementById("rel-phone-model").innerText = d.phone_model || localStorage.getItem("bashlock_phone_model") || "--";
+
+      notifyNativeLockState(false);
+      releaseWakeLock();
+      stopSirenAlarm();
+    }
+
+    function renderActiveView(d) {
+      document.getElementById("view-setup").classList.add("hidden");
+      document.getElementById("view-locked").classList.add("hidden");
+      document.getElementById("view-active").classList.remove("hidden");
+
+      document.getElementById("top-dot").className = "w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-md shadow-emerald-400 animate-pulse";
+      document.getElementById("connection-status").innerText = "Protected";
+
+      document.getElementById("act-cust-name").innerText = d.customer_name || localStorage.getItem("bashlock_cust_name") || "--";
+      document.getElementById("act-phone-model").innerText = d.phone_model || localStorage.getItem("bashlock_phone_model") || "--";
+      document.getElementById("act-due-date").innerText = d.next_due_date || localStorage.getItem("bashlock_due_date") || "--";
+      document.getElementById("act-balance").innerText = "PKR " + Math.round(d.remaining_balance || localStorage.getItem("bashlock_balance") || 0).toLocaleString();
+
+      // Disengage Native LockTask & Audio Alarms
+      notifyNativeLockState(false);
+      releaseWakeLock();
+      stopSirenAlarm();
+    }
+
+    function renderLockedView(d) {
+      document.getElementById("view-setup").classList.add("hidden");
+      document.getElementById("view-active").classList.add("hidden");
+      document.getElementById("view-locked").classList.remove("hidden");
+
+      document.getElementById("top-dot").className = "w-2.5 h-2.5 rounded-full bg-rose-500 shadow-md shadow-rose-500 animate-pulse";
+      document.getElementById("connection-status").innerText = "LOCKED";
+
+      const monthly = d.monthly_installment || localStorage.getItem("bashlock_monthly") || 5000;
+      const shopName = d.shop_name || localStorage.getItem("bashlock_shop_name") || "Al-Madina Mobile Centre";
+      const shopPhone = d.shop_phone || localStorage.getItem("bashlock_shop_phone") || "0300-8451234";
+
+      document.getElementById("lock-overdue-amount").innerText = "PKR " + Math.round(monthly).toLocaleString();
+      document.getElementById("lock-shop-name").innerText = shopName;
+      document.getElementById("lock-shop-call-btn").href = "tel:" + shopPhone;
+
+      // 1. Engage Native APK Kiosk Mode (LockTask & System Overlay)
+      notifyNativeLockState(true);
+
+      // 2. Engage Browser-Level Anti-Tamper Mechanisms
+      pushHistoryTrap();
+      requestWakeLock();
+      startSirenAlarm();
+    }
+
+    // Enforcement Check (Offline + Online)
+    async function checkEnforcementStatus() {
+      // 0. Check if device is already released / cleared
+      if (localStorage.getItem("bashlock_is_released") === "true") {
+        renderReleasedView({
+          customer_name: localStorage.getItem("bashlock_cust_name"),
+          phone_model: localStorage.getItem("bashlock_phone_model")
+        });
+        return;
+      }
+
+      // 1. Offline due date check
+      const offlineDueDate = localStorage.getItem("bashlock_due_date");
+      if (offlineDueDate) {
+        const todayStr = new Date().toISOString().split("T")[0];
+        if (todayStr > offlineDueDate) {
+          isLockedState = true;
+          renderLockedView({
+            monthly_installment: localStorage.getItem("bashlock_monthly"),
+            shop_name: localStorage.getItem("bashlock_shop_name"),
+            shop_phone: localStorage.getItem("bashlock_shop_phone"),
+            offline_pin: localStorage.getItem("bashlock_offline_pin")
+          });
+          return;
+        }
+      }
+
+      // 2. Online real-time poll
+      if (!currentCode) return;
+
+      try {
+        const res = await fetch(`/api/device/by-code/${currentCode}/status`);
+        const data = await res.json();
+        if (data.success) {
+          const d = data.device;
+          savedPin = d.offline_pin;
+          localStorage.setItem("bashlock_offline_pin", d.offline_pin);
+          localStorage.setItem("bashlock_due_date", d.next_due_date);
+          localStorage.setItem("bashlock_balance", d.remaining_balance);
+          localStorage.setItem("bashlock_cust_name", d.customer_name);
+          localStorage.setItem("bashlock_phone_model", d.phone_model);
+          localStorage.setItem("bashlock_monthly", d.monthly_installment);
+          localStorage.setItem("bashlock_shop_name", d.shop_name);
+          localStorage.setItem("bashlock_shop_phone", d.shop_phone);
+
+          if (window.BashLockNative && typeof window.BashLockNative.savePairingData === 'function') {
+            window.BashLockNative.savePairingData(currentCode, d.offline_pin || '', d.id || '', d.next_due_date || '');
+          }
+
+          if (d.status === "RELEASE_AND_UNINSTALL" || d.status === "RELEASED" || d.is_released) {
+            localStorage.setItem("bashlock_is_released", "true");
+            renderReleasedView(d);
+            if (d.status === "RELEASE_AND_UNINSTALL") {
+              setTimeout(() => {
+                uninstallAppNow();
+              }, 600);
+            }
+            return;
+          }
+
+          if (d.status === "LOCKED" || d.is_overdue) {
+            isLockedState = true;
+            renderLockedView(d);
+          } else {
+            isLockedState = false;
+            renderActiveView(d);
+          }
+        }
+      } catch (err) {}
+    }
+
+    // Touch Keypad Handling
+    function pressKey(k) {
+      tryEnableFullscreen();
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume().catch(() => {});
+      }
+      if (navigator.vibrate) navigator.vibrate(25);
+      if (keypadBuffer.length < 6) {
+        keypadBuffer += k;
+        updateDots();
+        if (keypadBuffer.length === 6) {
+          verifyPin();
+        }
+      }
+    }
+
+    function clearKeypad() {
+      keypadBuffer = "";
+      updateDots();
+    }
+
+    function updateDots() {
+      for (let i = 0; i < 6; i++) {
+        const dot = document.getElementById(`dot-${i}`);
+        if (i < keypadBuffer.length) {
+          dot.classList.add("filled");
+        } else {
+          dot.classList.remove("filled");
+        }
+      }
+    }
+
+    function verifyPin() {
+      const correctPin = savedPin || localStorage.getItem("bashlock_offline_pin");
+      if (keypadBuffer.length === 0) {
+        showToast("Pehle 6-digit PIN enter karein", false);
+        return;
+      }
+      if (keypadBuffer === correctPin) {
+        showToast("Master PIN Verified! Phone Unlocked.", true);
+        isLockedState = false;
+        notifyNativeLockState(false);
+        releaseWakeLock();
+        stopSirenAlarm();
+        
+        // Extend offline due date by 30 days
+        const futureDate = new Date();
+        futureDate.setDate(futureDate.getDate() + 30);
+        localStorage.setItem("bashlock_due_date", futureDate.toISOString().split("T")[0]);
+
+        // Auto-sync unlock state with server if online
+        if (currentCode) {
+          fetch(`/api/device/by-code/${currentCode}/status`).then(r => r.json()).then(res => {
+            if (res.success && res.device) {
+              fetch("/api/device/toggle-lock", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ device_id: res.device.id, action: "UNLOCK" })
+              });
+            }
+          }).catch(() => {});
+        }
+
+        clearKeypad();
+        renderActiveView({
+          customer_name: localStorage.getItem("bashlock_cust_name"),
+          phone_model: localStorage.getItem("bashlock_phone_model"),
+          next_due_date: localStorage.getItem("bashlock_due_date"),
+          remaining_balance: localStorage.getItem("bashlock_balance")
+        });
+      } else {
+        if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+        showToast("Ghalat PIN! Dobara try karein.", false);
+        clearKeypad();
+      }
+    }
+
+    function checkNativePermissions() {
+      if (window.BashLockNative) {
+        const card = document.getElementById("native-permission-card");
+        if (card) card.classList.remove("hidden");
+
+        const isAdmin = typeof window.BashLockNative.isDeviceAdminActive === 'function' && window.BashLockNative.isDeviceAdminActive();
+        const btnAdmin = document.getElementById("perm-btn-admin");
+        if (btnAdmin) {
+          btnAdmin.className = isAdmin ? "px-2 py-0.5 rounded-lg text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-500/40" : "px-2 py-0.5 rounded-lg text-[10px] font-bold bg-rose-600 text-white animate-pulse";
+          btnAdmin.innerHTML = isAdmin ? '<i class="fa-solid fa-check"></i> Active' : 'Grant (1-Tap)';
+        }
+
+        const isOverlay = typeof window.BashLockNative.hasOverlayPermission === 'function' && window.BashLockNative.hasOverlayPermission();
+        const btnOverlay = document.getElementById("perm-btn-overlay");
+        if (btnOverlay) {
+          btnOverlay.className = isOverlay ? "px-2 py-0.5 rounded-lg text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-500/40" : "px-2 py-0.5 rounded-lg text-[10px] font-bold bg-amber-600 text-white animate-pulse";
+          btnOverlay.innerHTML = isOverlay ? '<i class="fa-solid fa-check"></i> Allowed' : 'Grant (1-Tap)';
+        }
+
+        const isAccess = typeof window.BashLockNative.isAccessibilityServiceEnabled === 'function' && window.BashLockNative.isAccessibilityServiceEnabled();
+        const btnAccess = document.getElementById("perm-btn-access");
+        if (btnAccess) {
+          btnAccess.className = isAccess ? "px-2 py-0.5 rounded-lg text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-500/40" : "px-2 py-0.5 rounded-lg text-[10px] font-bold bg-indigo-600 text-white animate-pulse";
+          btnAccess.innerHTML = isAccess ? '<i class="fa-solid fa-check"></i> Guard Active' : 'Grant (1-Tap)';
+        }
+      }
+    }
+    function requestAdminFromWeb() {
+      try {
+        const btn = document.getElementById("perm-btn-admin");
+        if (btn) btn.innerText = "Opening...";
+        if (window.BashLockNative && typeof window.BashLockNative.requestDeviceAdmin === 'function') {
+          window.BashLockNative.requestDeviceAdmin();
+        } else {
+          showToast("Android Device Admin settings open ho rahi hain...", true);
+        }
+      } catch (e) {
+        console.error("Admin request error:", e);
+      }
+    }
+
+    function requestOverlayFromWeb() {
+      try {
+        const btn = document.getElementById("perm-btn-overlay");
+        if (btn) btn.innerText = "Opening...";
+        if (window.BashLockNative && typeof window.BashLockNative.requestOverlayPermission === 'function') {
+          window.BashLockNative.requestOverlayPermission();
+        } else {
+          showToast("Display Over Other Apps setting open ho rahi hai...", true);
+        }
+      } catch (e) {
+        console.error("Overlay request error:", e);
+      }
+    }
+
+    function requestAccessFromWeb() {
+      try {
+        const btn = document.getElementById("perm-btn-access");
+        if (btn) btn.innerText = "Opening...";
+        if (window.BashLockNative && typeof window.BashLockNative.requestAccessibilityService === 'function') {
+          window.BashLockNative.requestAccessibilityService();
+        } else {
+          showToast("Accessibility Guard settings open ho rahi hain...", true);
+        }
+      } catch (e) {
+        console.error("Access request error:", e);
+      }
+    }
+
+    function requestBatteryFromWeb() {
+      try {
+        const btn = document.getElementById("perm-btn-battery");
+        if (btn) btn.innerText = "Opening...";
+        if (window.BashLockNative && typeof window.BashLockNative.requestBatteryOptimization === 'function') {
+          window.BashLockNative.requestBatteryOptimization();
+        } else {
+          showToast("Battery Optimization exemption setting open ho rahi hai...", true);
+        }
+      } catch (e) {
+        console.error("Battery request error:", e);
+      }
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      // Setup initial back trap
+      pushHistoryTrap();
+
+      // Enter key trigger for 4-digit setup code
+      const codeInput = document.getElementById("input-setup-code");
+      if (codeInput) {
+        codeInput.addEventListener("keypress", function(e) {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            activateProtection();
+          }
+        });
+      }
+
+      document.body.addEventListener("click", () => {
+        tryEnableFullscreen();
+        if (isLockedState && audioCtx && audioCtx.state === 'suspended') {
+          audioCtx.resume().catch(() => {});
+        }
+      }, { once: false });
+
+      if (initialFromUrl) {
+        currentCode = initialFromUrl;
+        localStorage.setItem("bashlock_paired_code", initialFromUrl);
+      }
+      if (currentCode) {
+        checkEnforcementStatus();
+      }
+      setInterval(checkEnforcementStatus, 1500);
+      checkNativePermissions();
+      setInterval(checkNativePermissions, 2000);
+
+      // Offline Service Worker & Resilient PWA Caching to prevent Error 1033
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js', { scope: '/' })
+          .then(reg => console.log('BashLock Offline Guard Active:', reg.scope))
+          .catch(err => console.warn('SW registration skipped:', err));
+      }
+    });
+  </script>
+</body>
+</html>

