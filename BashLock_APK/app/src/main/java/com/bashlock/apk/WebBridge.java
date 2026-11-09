@@ -73,8 +73,34 @@ public class WebBridge {
     }
 
     @JavascriptInterface
+    public boolean hasOverlayPermission() {
+        return mActivity.hasOverlayPermission();
+    }
+
+    @JavascriptInterface
     public void requestOverlayPermission() {
         mActivity.runOnUiThread(mActivity::promptOverlayPermission);
+    }
+
+    @JavascriptInterface
+    public boolean isAccessibilityServiceEnabled() {
+        return mActivity.isAccessibilityServiceEnabled();
+    }
+
+    @JavascriptInterface
+    public void requestAccessibilityService() {
+        mActivity.runOnUiThread(mActivity::promptAccessibilityService);
+    }
+
+    @JavascriptInterface
+    public void requestBatteryOptimization() {
+        mActivity.runOnUiThread(mActivity::promptBatteryOptimization);
+    }
+
+    @JavascriptInterface
+    public boolean isDeviceOwner() {
+        android.app.admin.DevicePolicyManager dpm = (android.app.admin.DevicePolicyManager) mActivity.getSystemService(Context.DEVICE_POLICY_SERVICE);
+        return dpm != null && dpm.isDeviceOwnerApp(mActivity.getPackageName());
     }
 
     @JavascriptInterface

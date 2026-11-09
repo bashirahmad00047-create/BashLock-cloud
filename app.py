@@ -340,6 +340,24 @@ def get_device_by_code_status(code_or_imei):
 
     return jsonify({"success": True, "device": d})
 
+@app.route("/api/provisioning/qr.png")
+def get_provisioning_qr():
+    """Generates Zero-Cable Android Enterprise Device Owner Provisioning QR Code."""
+    tunnel_url = get_public_tunnel_url()
+    payload = {
+        "android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME": "com.bashlock.apk/com.bashlock.apk.BashLockDeviceAdminReceiver",
+        "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION": "https://github.com/bashirahmad00047-create/BashLock-cloud/raw/main/BashLock_APK/app/build/outputs/apk/debug/app-debug.apk",
+        "android.app.extra.PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED": True,
+        "android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE": {
+            "server_url": f"{tunnel_url}/lock-app"
+        }
+    }
+    img = qrcode.make(json.dumps(payload))
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    return Response(buf.getvalue(), mimetype="image/png")
+
 @app.route("/api/device/by-code/<code_or_imei>/activate", methods=["POST"])
 def activate_device_by_code(code_or_imei):
     """Activates mobile phone protection without USB and without QR."""
@@ -555,13 +573,15 @@ def enroll_device():
     conn.commit()
     conn.close()
 
-    lock_app_url = f"http://{lan_ip}:5000/lock-app/{setup_code}"
+    tunnel_url = get_public_tunnel_url()
+    lock_app_url = f"{tunnel_url}/lock-app/{setup_code}"
 
     return jsonify({
         "success": True,
         "device_id": device_id,
         "setup_code": setup_code,
         "lock_app_url": lock_app_url,
+        "public_tunnel_url": tunnel_url,
         "lan_ip": lan_ip,
         "customer_name": customer_name,
         "phone_model": phone_model

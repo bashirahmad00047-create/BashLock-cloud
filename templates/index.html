@@ -252,11 +252,19 @@
         </div>
       </div>
 
-      <!-- Right side: Quick Action Buttons -->
-      <div class="flex items-center gap-2">
-        <a id="top-open-tunnel-btn" href="{{ public_tunnel_url or 'https://performs-ipod-paper-etc.trycloudflare.com' }}/lock-app" target="_blank" class="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 active:scale-95 text-white font-extrabold text-xs shadow-md shadow-cyan-500/25 transition flex items-center gap-2 ring-1 ring-cyan-400/30">
-          <i class="fa-solid fa-mobile-screen text-sm"></i>
-          <span>Test on Vivo Phone</span>
+      <!-- Right side: Quick Action Buttons (Zero-Cable & Share) -->
+      <div class="flex items-center gap-2 flex-wrap">
+        <button onclick="openModal('zero-cable-qr-modal')" title="Bina Laptop / Bina USB Cable Ke Phone Lock Karein" class="px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 active:scale-95 text-white font-extrabold text-xs shadow-md shadow-amber-500/25 transition flex items-center gap-1.5 ring-1 ring-amber-400/40">
+          <i class="fa-solid fa-bolt text-sm animate-pulse"></i>
+          <span>Zero-Cable Phone Setup (QR)</span>
+        </button>
+        <button onclick="shareApkViaWhatsApp()" title="Customer Ko WhatsApp Par APK Link Bhejein" class="px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-95 text-white font-extrabold text-xs shadow-md shadow-emerald-500/25 transition flex items-center gap-1.5 ring-1 ring-emerald-400/30">
+          <i class="fa-brands fa-whatsapp text-sm"></i>
+          <span>Share APK</span>
+        </button>
+        <a id="top-open-tunnel-btn" href="{{ public_tunnel_url or 'https://performs-ipod-paper-etc.trycloudflare.com' }}/lock-app" target="_blank" class="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-cyan-500/40 text-cyan-300 font-extrabold text-xs shadow transition flex items-center gap-1.5">
+          <i class="fa-solid fa-mobile-screen text-xs"></i>
+          <span>Mobile View</span>
         </a>
       </div>
 
@@ -264,7 +272,7 @@
   </div>
 
   <!-- ================= MAIN DASHBOARD CONTAINER ================= -->
-  <main class="max-w-7xl mx-auto px-6 py-7 flex-1 w-full space-y-6">
+  <main class="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-7 pb-28 flex-1 w-full space-y-6">
 
     <!-- MONTH FILTER CARD WITH VISUAL PROGRESS BAR & MINI REVENUE CHART (Requirement 1) -->
     <div class="p-5 rounded-3xl luxury-glass border border-white/10 space-y-4 shadow-xl">
@@ -492,8 +500,8 @@
         </div>
       </div>
 
-      <!-- Responsive Table Grid -->
-      <div class="overflow-x-auto">
+      <!-- Desktop Table Grid (Hidden on Mobile) -->
+      <div class="overflow-x-auto hidden md:block">
         <table class="w-full text-left text-xs">
           <thead class="text-slate-400 uppercase bg-[#070b14]/90 border-b border-white/[0.08] text-[10px] tracking-wider font-extrabold">
             <tr>
@@ -516,6 +524,14 @@
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <!-- Mobile Touch-Optimized Customer Cards (Visible on Smartphones) -->
+      <div id="devices-mobile-cards" class="md:hidden space-y-3 p-1">
+        <div class="py-10 text-center text-slate-500">
+          <i class="fa-solid fa-circle-notch fa-spin text-2xl text-emerald-400 mb-2 block"></i>
+          <span class="text-xs font-bold text-slate-400">Loading Khata Records...</span>
+        </div>
       </div>
 
     </div>
@@ -1048,6 +1064,59 @@
         </button>
       </div>
 
+    </div>
+  </div>
+
+  <!-- ================= ZERO-CABLE PHONE ENROLLMENT QR MODAL ================= -->
+  <div id="zero-cable-qr-modal" class="fixed inset-0 bg-black/90 backdrop-blur-xl z-50 flex items-center justify-center p-4 hidden">
+    <div class="luxury-glass p-6 rounded-3xl border border-amber-500/40 w-full max-w-md shadow-2xl relative space-y-4 text-center max-h-[90vh] overflow-y-auto">
+      
+      <div class="flex items-center justify-between border-b border-white/10 pb-3">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-amber-950 border border-amber-500/50 text-amber-400 flex items-center justify-center text-sm shadow">
+            <i class="fa-solid fa-bolt animate-pulse"></i>
+          </div>
+          <div class="text-left">
+            <h3 class="text-sm font-black text-white">Zero-Cable Phone Enrollment</h3>
+            <p class="text-[10px] text-amber-400 font-mono">Zero Laptop • Zero USB Cables</p>
+          </div>
+        </div>
+        <button onclick="closeModal('zero-cable-qr-modal')" class="w-8 h-8 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-white/10 flex items-center justify-center text-xs transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Live Generated Android Enterprise DO QR -->
+      <div class="p-4 bg-slate-950 rounded-2xl border border-amber-500/30 flex flex-col items-center justify-center space-y-2.5">
+        <img src="/api/provisioning/qr.png" alt="Device Owner Enrollment QR" class="w-56 h-56 rounded-xl border-4 border-white shadow-xl bg-white p-2">
+        <div class="flex items-center gap-2 text-[10px] text-amber-300 font-mono font-bold uppercase tracking-wider">
+          <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+          <span>Android Device Owner QR</span>
+        </div>
+      </div>
+
+      <!-- 3-Step Simple Instructions in Urdu -->
+      <div class="p-3.5 bg-amber-950/30 rounded-2xl border border-amber-500/30 text-[11px] text-left text-slate-300 space-y-2 leading-relaxed">
+        <strong class="text-amber-300 block font-bold text-xs"><i class="fa-solid fa-mobile-screen"></i> Naye Ya Reset Phone Ko 30 Second Mein Lock Karein:</strong>
+        <p><strong>1.</strong> Phone start karein ("Hi there / Welcome" pehli screen par).</p>
+        <p><strong>2.</strong> Screen ki khali jagah par lagataar <strong>6 martaba (6 taps)</strong> tap karein ➔ Camera khul jayega.</p>
+        <p><strong>3.</strong> Apne mobile screen se yeh QR Code scan karein! Phone khud Wi-Fi se connect hoga aur bina PC/Cable ke Device Owner ban jayega!</p>
+      </div>
+
+      <!-- Alternative: Already-setup phone guide -->
+      <div class="p-3 bg-slate-900/90 rounded-2xl border border-white/10 text-[10px] text-left text-slate-400 space-y-1">
+        <strong class="text-cyan-300 block">Agar phone pehle se chalu hai (Factory reset nahi karna):</strong>
+        <p>Phone par APK install karein ya link kholein, 4-Digit code darj karein aur app ke andar 4 permissions 30 seconds mein ON karein.</p>
+      </div>
+
+      <div class="flex gap-2 pt-1">
+        <button onclick="shareApkViaWhatsApp()" class="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-xs font-bold text-white shadow flex items-center justify-center gap-1.5 active:scale-95 transition">
+          <i class="fa-brands fa-whatsapp text-sm"></i> Share APK on WhatsApp
+        </button>
+        <button onclick="closeModal('zero-cable-qr-modal')" class="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300">
+          Theek Hai
+        </button>
+      </div>
     </div>
   </div>
 
@@ -1614,7 +1683,10 @@
 
     function renderDevicesTable(devices) {
       const tbody = document.getElementById("devices-tbody");
+      const mobileContainer = document.getElementById("devices-mobile-cards");
       document.getElementById("record-count-badge").innerText = `${devices.length} Records`;
+
+      if (mobileContainer) mobileContainer.innerHTML = "";
 
       if (!devices || devices.length === 0) {
         tbody.innerHTML = `
@@ -1626,6 +1698,15 @@
             </td>
           </tr>
         `;
+        if (mobileContainer) {
+          mobileContainer.innerHTML = `
+            <div class="py-12 text-center text-slate-500 space-y-2">
+              <i class="fa-solid fa-folder-open text-3xl block text-slate-600 mb-2"></i>
+              <p class="text-sm font-bold text-slate-400">Is Filter Ka Koi Record Mojood Nahi Hai.</p>
+              <p class="text-xs text-slate-500">Pehla phone add karne ke liye "+ Naya Gahak" dabayein.</p>
+            </div>
+          `;
+        }
         return;
       }
 
@@ -1777,6 +1858,128 @@
           </td>
         `;
         tbody.appendChild(tr);
+
+        // Generate Mobile-First Touch Card (For smartphones)
+        if (mobileContainer) {
+          const card = document.createElement("div");
+          card.className = `luxury-glass p-4 rounded-2xl border ${isLocked ? 'border-rose-500/50 bg-rose-950/25' : (d.is_overdue ? 'border-amber-500/40 bg-amber-950/10' : 'border-white/10')} space-y-3 shadow-lg`;
+          card.innerHTML = `
+            <!-- Top Row: Customer Name, Phone, and Status Badge -->
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <div class="font-extrabold text-white text-sm flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full ${isLocked ? 'bg-rose-500 animate-ping' : (d.status === 'RELEASED' ? 'bg-purple-400' : 'bg-emerald-400')}"></span>
+                  <span>${d.customer_name}</span>
+                </div>
+                <div class="text-[11px] text-slate-400 font-mono mt-0.5 flex items-center gap-2">
+                  ${d.customer_phone ? `<a href="tel:${d.customer_phone}" class="text-slate-300 hover:text-emerald-400 font-bold"><i class="fa-solid fa-phone text-[10px] text-emerald-400"></i> ${d.customer_phone}</a>` : 'Phone: --'}
+                  ${d.guarantor_name ? `<span class="text-slate-500 text-[10px]">• Zamin: ${d.guarantor_name}</span>` : ''}
+                </div>
+              </div>
+
+              <div>
+                ${d.status === 'RELEASED'
+                  ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-950 text-purple-300 border border-purple-800"><i class="fa-solid fa-award"></i> RELEASED</span>`
+                  : (isLocked
+                    ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-950 text-rose-300 border border-rose-800 animate-pulse"><i class="fa-solid fa-lock text-[9px]"></i> BAND</span>`
+                    : `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-950 text-emerald-300 border border-emerald-800"><i class="fa-solid fa-shield-check text-[9px]"></i> ACTIVE</span>`
+                  )
+                }
+              </div>
+            </div>
+
+            <!-- Model, IMEI & 4-Digit Code Badge -->
+            <div class="flex items-center justify-between text-xs p-2.5 rounded-xl bg-slate-950/70 border border-white/5">
+              <div class="flex items-center gap-1.5 font-bold text-slate-200">
+                <i class="${brandIcon} ${brandColor}"></i>
+                <span>${d.phone_model}</span>
+                <span class="text-[10px] text-slate-500 font-mono">(${d.imei ? d.imei.slice(-6) : 'IMEI'})</span>
+              </div>
+              <div class="flex items-center gap-1">
+                <span class="text-[10px] text-slate-400 font-medium">Code:</span>
+                <button onclick="navigator.clipboard.writeText('${d.setup_code || ''}'); showToast('Code ${d.setup_code} copied!', true);" title="Click to copy setup code" class="px-2.5 py-1 rounded-lg bg-indigo-950/90 hover:bg-indigo-900 text-indigo-300 font-mono font-black text-xs border border-indigo-500/40 active:scale-95 transition">
+                  #${d.setup_code || '----'}
+                </button>
+              </div>
+            </div>
+
+            <!-- Financials Progress Bar -->
+            <div class="space-y-1">
+              <div class="flex justify-between text-xs">
+                <span class="text-slate-400">Baqaya: <strong class="text-rose-400 font-mono font-bold">PKR ${Math.round(d.remaining_balance).toLocaleString()}</strong></span>
+                <span class="text-slate-400">Mahana: <strong class="text-slate-200 font-mono font-bold">PKR ${Math.round(d.monthly_installment).toLocaleString()}</strong></span>
+              </div>
+              <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                <div class="bg-gradient-to-r from-emerald-500 to-teal-400 h-1.5 rounded-full" style="width: ${percentPaid}%"></div>
+              </div>
+              <div class="flex justify-between text-[10px] text-slate-500">
+                <span>${percentPaid}% Paid (Kul: ${Math.round(d.total_price).toLocaleString()})</span>
+                <span class="${d.is_overdue ? 'text-rose-400 font-bold' : 'text-slate-400'}">Due: ${d.next_due_date} ${d.is_overdue ? '⚠️ OVERDUE' : ''}</span>
+              </div>
+            </div>
+
+            <!-- Primary Touch Buttons Grid (4 Columns) -->
+            <div class="grid grid-cols-4 gap-1.5 pt-1">
+              <!-- Wasooli -->
+              <button onclick="openWasooliModal('${d.id}')" class="py-2.5 px-1 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-extrabold text-[11px] flex flex-col items-center justify-center gap-0.5 shadow active:scale-95 transition">
+                <i class="fa-solid fa-hand-holding-dollar text-xs"></i>
+                <span>Wasooli</span>
+              </button>
+
+              <!-- Remote Lock / Unlock Toggle -->
+              ${isLocked
+                ? `<button onclick="toggleLock('${d.id}', 'UNLOCK')" class="py-2.5 px-1 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-extrabold text-[11px] flex flex-col items-center justify-center gap-0.5 shadow active:scale-95 transition">
+                     <i class="fa-solid fa-unlock text-xs"></i>
+                     <span>Kholein</span>
+                   </button>`
+                : `<button onclick="toggleLock('${d.id}', 'LOCK')" class="py-2.5 px-1 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-[11px] flex flex-col items-center justify-center gap-0.5 shadow active:scale-95 transition">
+                     <i class="fa-solid fa-lock text-xs"></i>
+                     <span>Band</span>
+                   </button>`
+              }
+
+              <!-- Master PIN -->
+              <button onclick="openPinModal('${d.id}')" class="py-2.5 px-1 rounded-xl bg-amber-950 hover:bg-amber-900 border border-amber-800 text-amber-300 font-bold text-[11px] flex flex-col items-center justify-center gap-0.5 shadow active:scale-95 transition">
+                <i class="fa-solid fa-key text-xs"></i>
+                <span>PIN</span>
+              </button>
+
+              <!-- WhatsApp Chat -->
+              ${d.customer_phone ? `
+                <button onclick="sendDirectWhatsAppReminder('${d.id}', '${(d.customer_name || '').replace(/'/g, "\\'")}', '${waLink}')" class="py-2.5 px-1 rounded-xl bg-slate-900 hover:bg-slate-800 border border-emerald-500/40 text-emerald-400 font-bold text-[11px] flex flex-col items-center justify-center gap-0.5 shadow active:scale-95 transition">
+                  <i class="fa-brands fa-whatsapp text-xs"></i>
+                  <span>Chat</span>
+                </button>
+              ` : `
+                <button onclick="openAgreementModal('${d.id}')" class="py-2.5 px-1 rounded-xl bg-slate-900 border border-slate-700 text-slate-300 font-bold text-[11px] flex flex-col items-center justify-center gap-0.5 shadow active:scale-95 transition">
+                  <i class="fa-solid fa-file-contract text-xs"></i>
+                  <span>Print</span>
+                </button>
+              `}
+            </div>
+
+            <!-- Bottom Row: NOC & Trash Delete -->
+            <div class="flex items-center justify-between pt-1 border-t border-white/5 text-[11px]">
+              <div>
+                ${d.status === 'RELEASED'
+                  ? `<span class="text-purple-300 font-bold text-xs"><i class="fa-solid fa-check-double text-purple-400"></i> NOC Issued</span>`
+                  : `<button onclick="confirmReleaseDevice('${d.id}', '${(d.customer_name || '').replace(/'/g, "\\'")}')" class="text-purple-300 hover:text-purple-200 font-bold flex items-center gap-1 active:scale-95 transition">
+                       <i class="fa-solid fa-award text-purple-400"></i> NOC Release
+                     </button>`
+                }
+              </div>
+              <div class="flex items-center gap-3">
+                <button onclick="openLiveMobileDrawer('${d.setup_code || d.imei}', '${(d.customer_name || '').replace(/'/g, "\\'")}', '${(d.phone_model || '').replace(/'/g, "\\'")}')" class="text-cyan-400 hover:text-cyan-300 font-bold flex items-center gap-1 active:scale-95 transition">
+                  <i class="fa-solid fa-mobile-screen"></i> Screen
+                </button>
+                <button onclick="deleteDevice('${d.id}', '${(d.customer_name || '').replace(/'/g, "\\'")}')" class="text-rose-400 hover:text-rose-300 font-bold flex items-center gap-1 active:scale-95 transition">
+                  <i class="fa-solid fa-trash-can"></i> Delete
+                </button>
+              </div>
+            </div>
+          `;
+          mobileContainer.appendChild(card);
+        }
       });
     }
 
@@ -1977,11 +2180,45 @@
       }
     });
 
+    function shareApkViaWhatsApp() {
+      const liveLink = document.getElementById("top-tunnel-url-text") ? document.getElementById("top-tunnel-url-text").innerText.replace("/lock-app", "") : window.location.origin;
+      const msg = encodeURIComponent(`Assalam-o-Alaikum! BashLock Installment Protection APK download karne ke liye is link par click karein:\n\nhttps://github.com/bashirahmad00047-create/BashLock-cloud/raw/main/BashLock_APK/app/build/outputs/apk/debug/app-debug.apk\n\nDirect Web Lock Link: ${liveLink}/lock-app\n\nInstall karne ke baad dukan-daar se mila hua 4-digit code lagayein.`);
+      window.open(`https://wa.me/?text=${msg}`, '_blank');
+    }
+
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
         closeLiveMobileDrawer();
       }
     });
   </script>
+
+  <!-- ================= MOBILE STICKY BOTTOM NAVIGATION BAR ================= -->
+  <nav class="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 border-t border-white/10 backdrop-blur-2xl px-3 py-2 flex items-center justify-around shadow-2xl">
+    <button onclick="window.scrollTo({top: 0, behavior: 'smooth'}); fetchDashboardData();" class="flex flex-col items-center gap-0.5 text-slate-400 hover:text-emerald-400 active:text-emerald-400 transition">
+      <i class="fa-solid fa-house text-sm"></i>
+      <span class="text-[9px] font-bold">Khata</span>
+    </button>
+
+    <button onclick="openModal('enroll-modal')" class="flex flex-col items-center gap-0.5 px-3 py-1 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-500/30 active:scale-95 transition">
+      <i class="fa-solid fa-user-plus text-sm"></i>
+      <span class="text-[9px] font-black">+ Naya Gahak</span>
+    </button>
+
+    <button onclick="openModal('zero-cable-qr-modal')" class="flex flex-col items-center gap-0.5 text-amber-400 hover:text-amber-300 transition">
+      <i class="fa-solid fa-bolt text-sm animate-pulse"></i>
+      <span class="text-[9px] font-bold">Zero-Cable</span>
+    </button>
+
+    <button onclick="openWhatsAppQrModal()" class="flex flex-col items-center gap-0.5 text-slate-400 hover:text-emerald-400 transition">
+      <i class="fa-brands fa-whatsapp text-sm"></i>
+      <span class="text-[9px] font-bold">WhatsApp</span>
+    </button>
+
+    <button onclick="openShopSettings()" class="flex flex-col items-center gap-0.5 text-slate-400 hover:text-white transition">
+      <i class="fa-solid fa-gear text-sm"></i>
+      <span class="text-[9px] font-bold">Settings</span>
+    </button>
+  </nav>
 </body>
 </html>
