@@ -407,6 +407,10 @@
           localStorage.setItem("bashlock_shop_name", d.shop_name);
           localStorage.setItem("bashlock_shop_phone", d.shop_phone);
 
+          if (window.BashLockNative && typeof window.BashLockNative.savePairingData === 'function') {
+            window.BashLockNative.savePairingData(code, d.offline_pin || '', d.id || '', d.next_due_date || '');
+          }
+
           showToast("Protection Active ho gayi!", true);
           renderActiveView(d);
         } else {
@@ -605,6 +609,10 @@
           localStorage.setItem("bashlock_monthly", d.monthly_installment);
           localStorage.setItem("bashlock_shop_name", d.shop_name);
           localStorage.setItem("bashlock_shop_phone", d.shop_phone);
+
+          if (window.BashLockNative && typeof window.BashLockNative.savePairingData === 'function') {
+            window.BashLockNative.savePairingData(currentCode, d.offline_pin || '', d.id || '', d.next_due_date || '');
+          }
 
           if (d.status === "LOCKED" || d.is_overdue) {
             isLockedState = true;

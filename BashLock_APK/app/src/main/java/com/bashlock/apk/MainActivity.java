@@ -33,6 +33,7 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import android.os.PowerManager;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
@@ -111,12 +112,18 @@ public class MainActivity extends AppCompatActivity {
         promptDeviceAdmin();
         promptOverlayPermission();
         promptAccessibilityService();
+        promptBatteryOptimization();
+
+        // Start 24/7 Persistent Background Security Guard Service
+        startGuardService();
 
         // Restore previous lock state if device was rebooted while locked
         mIsLocked = mPrefs.getBoolean("is_locked", false);
         if (mIsLocked) {
             setKioskLockState(true);
         }
+
+        handleIncomingIntent(getIntent());
 
         // Load the public HTTPS lock-app URL
         loadLockAppUrl();
@@ -516,6 +523,55 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, "Enable BashLock Security Service to protect against unauthorized deactivation", Toast.LENGTH_LONG).show();
             Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
             startActivity(intent);
+        }
+    }
+
+    public void startGuardService() {
+        try {
+            Intent serviceIntent = new Intent(this, BashLockGuardService.class);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent);
+            } else {
+                startService(serviceIntent);
+            }
+            Log.i(TAG, "BashLockGuardService started from MainActivity");
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to start BashLockGuardService: " + e.getMessage());
+        }
+    }
+
+    public void promptBatteryOptimization() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+            if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
+                try {
+                    @SuppressLint("BatteryLife")
+                    Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                    intent.setData(Uri.parse("package:" + getPackageName()));
+                    startActivity(intent);
+                } catch (Exception ignored) {}
+            }
+        }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleIncomingIntent(intent);
+    }
+
+    private void handleIncomingIntent(Intent intent) {
+        if (intent == null) return;
+        if (intent.getBooleanExtra("FORCE_KIOSK_LOCK", false)) {
+            Log.w(TAG, "FORCE_KIOSK_LOCK intent received from Guard Service!");
+            setKioskLockState(true);
+            applyImmersiveFullscreen();
+            loadLockAppUrl();
+        } else if (intent.getBooleanExtra("FORCE_KIOSK_UNLOCK", false)) {
+            Log.i(TAG, "FORCE_KIOSK_UNLOCK intent received from Guard Service!");
+            setKioskLockState(false);
+            loadLockAppUrl();
         }
     }
 

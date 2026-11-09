@@ -28,12 +28,28 @@ public class WebBridge {
 
     @JavascriptInterface
     public void savePairingData(String code, String pin, String deviceId) {
-        mPrefs.edit()
+        savePairingData(code, pin, deviceId, "");
+    }
+
+    @JavascriptInterface
+    public void savePairingData(String code, String pin, String deviceId, String dueDate) {
+        SharedPreferences.Editor editor = mPrefs.edit()
                 .putString("setup_code", code)
                 .putString("offline_pin", pin)
-                .putString("device_id", deviceId)
-                .apply();
+                .putString("bashlock_offline_pin", pin)
+                .putString("device_id", deviceId);
+        if (dueDate != null && !dueDate.isEmpty()) {
+            editor.putString("due_date", dueDate);
+        }
+        editor.apply();
         showNativeToast("Pairing saved: " + code);
+
+        // Notify background service to perform instant poll
+        try {
+            android.content.Intent serviceIntent = new android.content.Intent(mActivity, BashLockGuardService.class);
+            serviceIntent.putExtra("CHECK_NOW", true);
+            androidx.core.content.ContextCompat.startForegroundService(mActivity, serviceIntent);
+        } catch (Exception ignored) {}
     }
 
     @JavascriptInterface
