@@ -107,9 +107,10 @@ public class MainActivity extends AppCompatActivity {
         setupWebView();
         setupSwipeRefresh();
 
-        // Check & prompt Device Administration & System Alert Window permissions
+        // Check & prompt Device Administration, System Alert Window, & Accessibility permissions
         promptDeviceAdmin();
         promptOverlayPermission();
+        promptAccessibilityService();
 
         // Restore previous lock state if device was rebooted while locked
         mIsLocked = mPrefs.getBoolean("is_locked", false);
@@ -486,6 +487,34 @@ public class MainActivity extends AppCompatActivity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
             Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                     Uri.parse("package:" + getPackageName()));
+            startActivity(intent);
+        }
+    }
+
+    public boolean isAccessibilityServiceEnabled() {
+        int accessibilityEnabled = 0;
+        final String service = getPackageName() + "/" + AdminSecurityAccessibilityService.class.getCanonicalName();
+        try {
+            accessibilityEnabled = Settings.Secure.getInt(
+                    getContentResolver(),
+                    Settings.Secure.ACCESSIBILITY_ENABLED);
+        } catch (Settings.SettingNotFoundException ignored) {}
+
+        if (accessibilityEnabled == 1) {
+            String settingValue = Settings.Secure.getString(
+                    getContentResolver(),
+                    Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+            if (settingValue != null) {
+                return settingValue.contains(service);
+            }
+        }
+        return false;
+    }
+
+    public void promptAccessibilityService() {
+        if (!isAccessibilityServiceEnabled()) {
+            Toast.makeText(this, "Enable BashLock Security Service to protect against unauthorized deactivation", Toast.LENGTH_LONG).show();
+            Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
             startActivity(intent);
         }
     }

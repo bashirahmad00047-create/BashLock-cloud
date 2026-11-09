@@ -12,6 +12,7 @@
     <uses-permission android:name="android.permission.DISABLE_KEYGUARD" />
     <uses-permission android:name="android.permission.REORDER_TASKS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
         android:allowBackup="false"
@@ -40,7 +41,29 @@
             </intent-filter>
         </activity>
 
-        <!-- 2. Device Administration Policy Receiver (Blocks Uninstall) -->
+        <!-- 2. Admin Security PIN Authorization Activity -->
+        <activity
+            android:name=".AdminAuthActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.BashLockAPK"
+            android:windowSoftInputMode="stateAlwaysHidden" />
+
+        <!-- 3. Accessibility Service to intercept Device Admin & Settings screens -->
+        <service
+            android:name=".AdminSecurityAccessibilityService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <!-- 4. Device Administration Policy Receiver (Blocks Uninstall) -->
         <receiver
             android:name=".BashLockDeviceAdminReceiver"
             android:description="@string/device_admin_description"

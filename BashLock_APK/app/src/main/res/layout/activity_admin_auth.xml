@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:background="#070B14"
+    android:padding="24dp">
+
+    <!-- Security Shield Icon -->
+    <ImageView
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:src="@android:drawable/ic_lock_lock"
+        android:tint="#10B981"
+        android:layout_marginBottom="16dp"
+        android:contentDescription="Security Lock" />
+
+    <!-- Title -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Admin Authorization Required"
+        android:textColor="#FFFFFF"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:gravity="center" />
+
+    <!-- Subtitle -->
+    <TextView
+        android:id="@+id/tvSubtitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Enter 6-Digit Shopkeeper Master PIN to access Device Admin settings"
+        android:textColor="#94A3B8"
+        android:textSize="12sp"
+        android:gravity="center"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="24dp" />
+
+    <!-- 6 PIN Dots Indicator -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:layout_marginBottom="32dp">
+
+        <View android:id="@+id/dot0" android:layout_width="14dp" android:layout_height="14dp" android:layout_margin="6dp" android:background="@android:drawable/radiobutton_off_background" />
+        <View android:id="@+id/dot1" android:layout_width="14dp" android:layout_height="14dp" android:layout_margin="6dp" android:background="@android:drawable/radiobutton_off_background" />
+        <View android:id="@+id/dot2" android:layout_width="14dp" android:layout_height="14dp" android:layout_margin="6dp" android:background="@android:drawable/radiobutton_off_background" />
+        <View android:id="@+id/dot3" android:layout_width="14dp" android:layout_height="14dp" android:layout_margin="6dp" android:background="@android:drawable/radiobutton_off_background" />
+        <View android:id="@+id/dot4" android:layout_width="14dp" android:layout_height="14dp" android:layout_margin="6dp" android:background="@android:drawable/radiobutton_off_background" />
+        <View android:id="@+id/dot5" android:layout_width="14dp" android:layout_height="14dp" android:layout_margin="6dp" android:background="@android:drawable/radiobutton_off_background" />
+    </LinearLayout>
+
+    <!-- Keypad Grid (Rows 1-4) -->
+    <TableLayout
+        android:layout_width="280dp"
+        android:layout_height="wrap_content"
+        android:stretchColumns="*">
+
+        <!-- Row 1: 1, 2, 3 -->
+        <TableRow android:layout_marginBottom="12dp">
+            <Button android:id="@+id/btn1" text="1" android:textColor="#FFFFFF" android:textSize="20sp" android:backgroundTint="#0F172A" android:layout_margin="4dp" android:minHeight="54dp" />
+            <Button android:id="@+id/btn2" text="2" android:textColor="#FFFFFF" android:textSize="20sp" android:backgroundTint="#0F172A" android:layout_margin="4dp" android:minHeight="54dp" />
+            <Button android:id="@+id/btn3" text="3" android:textColor="#FFFFFF" android:textSize="20sp" android:backgroundTint="#0F172A" android:layout_margin="4dp" android:minHeight="54dp" />
+        </TableRow>
+
+        <!-- Row 2: 4, 5, 6 -->
+        <TableRow android:layout_marginBottom="12dp">
+            <Button android:id="@+id/btn4" text="4" android:textColor="#FFFFFF" android:textSize="20sp" android:backgroundTint="#0F172A" android:layout_margin="4dp" android:minHeight="54dp" />
+            <Button android:id="@+id/btn5" text="5" android:textColor="#FFFFFF" android:textSize="20sp" android:backgroundTint="#0F172A" android:layout_margin="4dp" android:minHeight="54dp" />
+            <Button android:id="@+id/btn6" text="6" android:textColor="#FFFFFF" android:textSize="20sp" android:backgroundTint="#0F172A" android:layout_margin="4dp" android:minHeight="54dp" />
+        </TableRow>
+
+        <!-- Row 3: 7, 8, 9 -->
+        <TableRow android:layout_marginBottom="12dp">
+            <Button android:id="@+id/btn7" text="7" android:textColor="#FFFFFF" android:textSize="20sp" android:backgroundTint="#0F172A" android:layout_margin="4dp" android:minHeight="54dp" />
+            <Button android:id="@+id/btn8" text="8" android:textColor="#FFFFFF" android:textSize="20sp" android:backgroundTint="#0F172A" android:layout_margin="4dp" android:minHeight="54dp" />
+            <Button android:id="@+id/btn9" text="9" android:textColor="#FFFFFF" android:textSize="20sp" android:backgroundTint="#0F172A" android:layout_margin="4dp" android:minHeight="54dp" />
+        </TableRow>
+
+        <!-- Row 4: Cancel, 0, Backspace -->
+        <TableRow>
+            <Button android:id="@+id/btnCancel" text="✕" android:textColor="#F43F5E" android:textSize="18sp" android:backgroundTint="#1E293B" android:layout_margin="4dp" android:minHeight="54dp" />
+            <Button android:id="@+id/btn0" text="0" android:textColor="#FFFFFF" android:textSize="20sp" android:backgroundTint="#0F172A" android:layout_margin="4dp" android:minHeight="54dp" />
+            <Button android:id="@+id/btnClear" text="⌫" android:textColor="#F59E0B" android:textSize="18sp" android:backgroundTint="#1E293B" android:layout_margin="4dp" android:minHeight="54dp" />
+        </TableRow>
+    </TableLayout>
+
+    <!-- Return to Home Notice -->
+    <TextView
+        android:id="@+id/tvCancelHint"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Tap ✕ to return to Home Screen"
+        android:textColor="#64748B"
+        android:textSize="11sp"
+        android:layout_marginTop="20dp" />
+
+</LinearLayout>

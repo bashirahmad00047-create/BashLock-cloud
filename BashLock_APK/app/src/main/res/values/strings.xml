@@ -2,4 +2,7 @@
     <string name="app_name">BashLock Guard</string>
     <string name="device_admin_description">BashLock Device Administration protects retail installment compliance, blocks uninstallation by unauthorized users, and executes remote locking.</string>
     <string name="admin_warning">Uninstalling or disabling BashLock Device Administration is strictly prohibited under your mobile installment contract.</string>
+    <string name="accessibility_service_description">BashLock Security Service protects device admin settings and prevents unauthorized deactivation or uninstallation without the Shopkeeper Master PIN.</string>
+    <string name="admin_auth_title">Admin Security Check</string>
+    <string name="admin_auth_subtitle">Enter 6-digit Master PIN to access Device Admin settings</string>
 </resources>
