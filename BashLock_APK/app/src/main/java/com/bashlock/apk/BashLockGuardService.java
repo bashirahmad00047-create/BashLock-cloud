@@ -143,6 +143,12 @@ public class BashLockGuardService extends Service {
      * If 'LOCKED' or overdue, immediately forces MainActivity to front.
      */
     private void checkLockStatus() {
+        if (mPrefs.getBoolean("is_released", false)) {
+            Log.i(TAG, "Device is marked as RELEASED. Guard service shutting down.");
+            stopSelf();
+            return;
+        }
+
         // 1. Offline due date enforcement check
         String offlineDueDate = mPrefs.getString("due_date", "").trim();
         if (!offlineDueDate.isEmpty()) {
@@ -204,7 +210,12 @@ public class BashLockGuardService extends Service {
                         if (!pin.isEmpty()) editor.putString("bashlock_offline_pin", pin);
                         editor.apply();
 
-                        if ("LOCKED".equalsIgnoreCase(status) || isOverdue) {
+                        if ("RELEASED".equalsIgnoreCase(status) || "UNENROLLED".equalsIgnoreCase(status)) {
+                            Log.i(TAG, "Server returned status: " + status + " -> COMMENCING FULL REMOTE RELEASE SEQUENCE");
+                            mPrefs.edit().putBoolean("is_released", true).putBoolean("is_locked", false).apply();
+                            triggerRemoteReleaseSequence();
+                            return;
+                        } else if ("LOCKED".equalsIgnoreCase(status) || isOverdue) {
                             Log.w(TAG, "Server returned status: " + status + " (overdue: " + isOverdue + ") -> ENFORCING LOCK");
                             mPrefs.edit().putBoolean("is_locked", true).apply();
                             triggerImmediateLockPopup();
@@ -373,6 +384,61 @@ public class BashLockGuardService extends Service {
         } catch (Exception ignored) {}
     }
 
+    /**
+     * Requirement: Complete Remote Device Release / Unenrollment Sequence.
+     * Executes when shopkeeper marks installment cleared (RELEASED).
+     */
+    private void triggerRemoteReleaseSequence() {
+        try {
+            Log.i(TAG, "Triggering Remote Release Sequence...");
+
+            // 1. Clear Direct Boot lock flags
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                try {
+                    Context directBootContext = createDeviceProtectedStorageContext();
+                    directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE)
+                            .edit().putBoolean("is_locked", false).putBoolean("is_released", true).apply();
+                } catch (Exception ignored) {}
+            }
+
+            // 2. Clear WakeLock
+            if (mWakeLock != null && mWakeLock.isHeld()) {
+                mWakeLock.release();
+            }
+
+            // 3. Cancel all notifications
+            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm != null) {
+                nm.cancel(NOTIFICATION_ID);
+                nm.cancel(LOCK_POPUP_NOTIFICATION_ID);
+            }
+
+            // 4. Release Device Owner & Administrator restrictions
+            BashLockDeviceAdminReceiver.releaseDeviceCompletely(this);
+
+            // 5. Wake screen & open MainActivity in released state
+            wakeUpScreen();
+            Intent releaseIntent = new Intent(this, MainActivity.class);
+            releaseIntent.addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK
+                    | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                    | Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    | Intent.FLAG_ACTIVITY_SINGLE_TOP
+            );
+            releaseIntent.putExtra("FORCE_RELEASED_VIEW", true);
+            startActivity(releaseIntent);
+
+            // 6. Stop polling & terminate foreground service
+            if (mScheduler != null) {
+                mScheduler.shutdownNow();
+            }
+            stopForeground(true);
+            stopSelf();
+        } catch (Exception e) {
+            Log.e(TAG, "Error executing triggerRemoteReleaseSequence: " + e.getMessage());
+        }
+    }
+
     @Override
     public void onDestroy() {
         if (mScheduler != null) {
@@ -380,6 +446,11 @@ public class BashLockGuardService extends Service {
         }
         if (mWakeLock != null && mWakeLock.isHeld()) {
             mWakeLock.release();
+        }
+        if (mPrefs != null && mPrefs.getBoolean("is_released", false)) {
+            Log.i(TAG, "Device is released. Guard service exiting permanently.");
+            super.onDestroy();
+            return;
         }
         Log.w(TAG, "BashLockGuardService destroyed! Sending restart broadcast.");
         // Auto-restart if killed by system

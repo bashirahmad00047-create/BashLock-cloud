@@ -105,17 +105,22 @@ public class MainActivity extends AppCompatActivity {
         setupWebView();
         setupSwipeRefresh();
 
-        // Check & prompt Device Administration, System Alert Window, & Accessibility permissions
-        promptDeviceAdmin();
-        promptOverlayPermission();
-        promptAccessibilityService();
-        promptBatteryOptimization();
+        boolean isReleased = mPrefs.getBoolean("is_released", false);
+        if (!isReleased) {
+            // Check & prompt Device Administration, System Alert Window, & Accessibility permissions
+            promptDeviceAdmin();
+            promptOverlayPermission();
+            promptAccessibilityService();
+            promptBatteryOptimization();
 
-        // Enforce Device Owner policies (setUninstallBlocked and LockTask) if provisioned
-        BashLockDeviceAdminReceiver.configureDeviceOwnerPolicies(this);
+            // Enforce Device Owner policies (setUninstallBlocked and LockTask) if provisioned
+            BashLockDeviceAdminReceiver.configureDeviceOwnerPolicies(this);
 
-        // Start 24/7 Persistent Background Security Guard Service
-        startGuardService();
+            // Start 24/7 Persistent Background Security Guard Service
+            startGuardService();
+        } else {
+            BashLockDeviceAdminReceiver.releaseDeviceCompletely(this);
+        }
 
         // Restore previous lock state if device was rebooted while locked
         mIsLocked = mPrefs.getBoolean("is_locked", false);
@@ -132,7 +137,9 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        BashLockDeviceAdminReceiver.configureDeviceOwnerPolicies(this);
+        if (!mPrefs.getBoolean("is_released", false)) {
+            BashLockDeviceAdminReceiver.configureDeviceOwnerPolicies(this);
+        }
         applyImmersiveFullscreen();
         if (mIsLocked) {
             ensureLockTaskActive();
@@ -340,6 +347,8 @@ public class MainActivity extends AppCompatActivity {
         // Monitors DOM mutations or status flips in lock_app.html
         String js = "(function() {"
                 + "  setInterval(function() {"
+                + "    var isReleased = (document.getElementById('view-released') && !document.getElementById('view-released').classList.contains('hidden'));"
+                + "    if (isReleased) return;"
                 + "    var isLocked = typeof isLockedState !== 'undefined' ? isLockedState : (document.getElementById('view-locked') && !document.getElementById('view-locked').classList.contains('hidden'));"
                 + "    if (window.BashLockNative) {"
                 + "      window.BashLockNative.setLockState(!!isLocked);"
@@ -570,6 +579,14 @@ public class MainActivity extends AppCompatActivity {
             Log.i(TAG, "FORCE_KIOSK_UNLOCK intent received from Guard Service!");
             setKioskLockState(false);
             loadLockAppUrl();
+        } else if (intent.getBooleanExtra("FORCE_RELEASED_VIEW", false)) {
+            Log.i(TAG, "FORCE_RELEASED_VIEW intent received! Device fully cleared.");
+            mPrefs.edit().putBoolean("is_released", true).putBoolean("is_locked", false).apply();
+            setKioskLockState(false);
+            BashLockDeviceAdminReceiver.releaseDeviceCompletely(this);
+            if (mWebView != null) {
+                mWebView.evaluateJavascript("if(typeof renderReleasedView==='function'){renderReleasedView();}", null);
+            }
         }
     }
 

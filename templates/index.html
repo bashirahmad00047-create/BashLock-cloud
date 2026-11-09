@@ -1709,9 +1709,12 @@
           </td>
 
           <td class="py-4 px-3 text-center">
-            ${isLocked
-              ? `<span class="px-2.5 py-1 rounded-full text-[10px] font-black bg-rose-950 text-rose-300 border border-rose-800/80 inline-flex items-center gap-1.5 shadow-sm"><span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping"></span> BAND</span>`
-              : `<span class="px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-950 text-emerald-300 border border-emerald-800/80 inline-flex items-center gap-1.5 shadow-sm"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> ACTIVE</span>`
+            ${d.status === 'RELEASED'
+              ? `<span class="px-2.5 py-1 rounded-full text-[10px] font-black bg-purple-950 text-purple-300 border border-purple-800/80 inline-flex items-center gap-1.5 shadow-sm"><i class="fa-solid fa-award text-purple-400"></i> RELEASED</span>`
+              : (isLocked
+                ? `<span class="px-2.5 py-1 rounded-full text-[10px] font-black bg-rose-950 text-rose-300 border border-rose-800/80 inline-flex items-center gap-1.5 shadow-sm"><span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping"></span> BAND</span>`
+                : `<span class="px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-950 text-emerald-300 border border-emerald-800/80 inline-flex items-center gap-1.5 shadow-sm"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> ACTIVE</span>`
+              )
             }
           </td>
 
@@ -1740,6 +1743,14 @@
                    </button>`
                 : `<button onclick="toggleLock('${d.id}', 'LOCK')" title="Phone Screen Band Karein" class="px-2.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition shadow-sm">
                     <i class="fa-solid fa-lock"></i> Band
+                   </button>`
+              }
+
+              <!-- Remote Release / NOC Clearance Button -->
+              ${d.status === 'RELEASED'
+                ? `<span class="px-2.5 py-1.5 rounded-xl bg-purple-950/60 border border-purple-800 text-purple-300 text-xs font-bold inline-flex items-center gap-1"><i class="fa-solid fa-check-double text-purple-400"></i> NOC</span>`
+                : `<button onclick="confirmReleaseDevice('${d.id}', '${(d.customer_name || '').replace(/'/g, "\\'")}')" title="Tamam Qistein Ada - Phone Release (NOC / Uninstall Clearance)" class="px-2.5 py-1.5 rounded-xl bg-purple-950 hover:bg-purple-900 border border-purple-600/70 text-purple-300 hover:text-white text-xs font-bold transition flex items-center gap-1 shadow-sm">
+                    <i class="fa-solid fa-award text-purple-400"></i> NOC
                    </button>`
               }
 
@@ -1866,6 +1877,13 @@
       document.getElementById("pin-cust-subtitle").innerText = `${d.customer_name} (${d.phone_model})`;
       document.getElementById("pin-code-display").innerText = d.offline_pin || "------";
       openModal("pin-modal");
+    }
+
+    async function confirmReleaseDevice(deviceId, customerName) {
+      if (!confirm(`Kya ${customerName} ne tamam qistein ada kar di hain?\n\nYeh karne se:\n1. Phone se Device Admin aur Device Owner khatam ho jayega.\n2. Tamam restrictions (Uninstall/Factory Reset block) remove ho jayengi.\n3. Customer ko "Full Clearance / NOC" screen dikhegi aur woh app delete kar sake ga.`)) {
+        return;
+      }
+      toggleLock(deviceId, 'RELEASE');
     }
 
     async function toggleLock(deviceId, action) {

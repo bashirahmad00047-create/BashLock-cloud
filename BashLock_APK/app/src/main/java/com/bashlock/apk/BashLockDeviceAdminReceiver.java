@@ -5,7 +5,9 @@ import android.app.admin.DevicePolicyManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Build;
+import android.os.UserManager;
 import android.util.Log;
 import android.widget.Toast;
 
@@ -14,9 +16,12 @@ import android.widget.Toast;
  * Advanced Device Administration & Device Owner Controller.
  *
  * Capabilities when granted Device Owner:
- * 1. Blocks unauthorized uninstallation via setUninstallBlocked().
- * 2. Whitelists app for LockTask (True pinned un-escapable Kiosk mode).
- * 3. Disables status bar pull-down, notifications, and keyguard when device is locked.
+ * 1. Blocks unauthorized uninstallation via setUninstallBlocked() & DISALLOW_UNINSTALL_APPS.
+ * 2. Blocks Safe Mode bypass via DISALLOW_SAFE_BOOT.
+ * 3. Blocks Recovery / Hardware Factory Reset via DISALLOW_FACTORY_RESET.
+ * 4. Whitelists app for LockTask (True pinned un-escapable Kiosk mode).
+ * 5. Disables status bar pull-down, notifications, and keyguard when device is locked.
+ * 6. Supports complete remote release & unenrollment on full installment clearance.
  */
 public class BashLockDeviceAdminReceiver extends DeviceAdminReceiver {
     private static final String TAG = "BashLock_DeviceAdmin";
@@ -39,6 +44,8 @@ public class BashLockDeviceAdminReceiver extends DeviceAdminReceiver {
     /**
      * Enforces core Device Owner protections:
      * - Blocks Uninstall in Settings & Google Play
+     * - Blocks Safe-Boot / Safe-Mode bypass
+     * - Blocks Factory Reset bypass
      * - Configures LockTask packages for Kiosk mode
      */
     public static void configureDeviceOwnerPolicies(Context context) {
@@ -53,14 +60,24 @@ public class BashLockDeviceAdminReceiver extends DeviceAdminReceiver {
                 // 1. Block Uninstall completely
                 dpm.setUninstallBlocked(admin, pkg, true);
 
-                // 2. Configure LockTask Kiosk packages
+                // 2. User & Hardware level tamper restrictions
+                try {
+                    dpm.addUserRestriction(admin, UserManager.DISALLOW_UNINSTALL_APPS);
+                    dpm.addUserRestriction(admin, UserManager.DISALLOW_SAFE_BOOT);
+                    dpm.addUserRestriction(admin, UserManager.DISALLOW_FACTORY_RESET);
+                    dpm.addUserRestriction(admin, UserManager.DISALLOW_ADD_USER);
+                } catch (Exception e) {
+                    Log.w(TAG, "User restriction warning: " + e.getMessage());
+                }
+
+                // 3. Configure LockTask Kiosk packages
                 dpm.setLockTaskPackages(admin, new String[]{pkg});
 
-                // 3. Block status bar and notifications when locked under LockTask
+                // 4. Block status bar and notifications when locked under LockTask
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                     dpm.setLockTaskFeatures(admin, DevicePolicyManager.LOCK_TASK_FEATURE_NONE);
                 }
-                Log.i(TAG, "Device Owner policies successfully applied (Uninstall blocked, LockTask configured)");
+                Log.i(TAG, "Device Owner policies successfully applied (Uninstall & Reset blocked, LockTask configured)");
             }
         } catch (Exception e) {
             Log.w(TAG, "Device Owner policy configuration warning: " + e.getMessage());
@@ -78,6 +95,13 @@ public class BashLockDeviceAdminReceiver extends DeviceAdminReceiver {
 
             if (dpm != null && dpm.isDeviceOwnerApp(pkg)) {
                 dpm.setUninstallBlocked(admin, pkg, true);
+                try {
+                    dpm.addUserRestriction(admin, UserManager.DISALLOW_UNINSTALL_APPS);
+                    dpm.addUserRestriction(admin, UserManager.DISALLOW_SAFE_BOOT);
+                    dpm.addUserRestriction(admin, UserManager.DISALLOW_FACTORY_RESET);
+                    dpm.addUserRestriction(admin, UserManager.DISALLOW_ADD_USER);
+                } catch (Exception ignored) {}
+
                 dpm.setLockTaskPackages(admin, new String[]{pkg});
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -87,6 +111,72 @@ public class BashLockDeviceAdminReceiver extends DeviceAdminReceiver {
             }
         } catch (Exception e) {
             Log.w(TAG, "setKioskEnforcement warning: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Completely releases the device when all installments are cleared (Remote NOC):
+     * 1. Clears all UserManager anti-uninstall and factory-reset restrictions.
+     * 2. Unblocks uninstallation in package manager.
+     * 3. Disengages LockTask and reenables status bar / keyguard.
+     * 4. Relinquishes Device Owner privilege (clearDeviceOwnerApp).
+     * 5. Removes Device Administrator privilege.
+     */
+    public static void releaseDeviceCompletely(Context context) {
+        try {
+            DevicePolicyManager dpm = (DevicePolicyManager) context.getSystemService(Context.DEVICE_POLICY_SERVICE);
+            ComponentName admin = new ComponentName(context, BashLockDeviceAdminReceiver.class);
+            String pkg = context.getPackageName();
+
+            if (dpm != null) {
+                Log.i(TAG, "Initiating complete device release / unenrollment for: " + pkg);
+
+                // 1. Clear user restrictions
+                try {
+                    dpm.clearUserRestriction(admin, UserManager.DISALLOW_UNINSTALL_APPS);
+                    dpm.clearUserRestriction(admin, UserManager.DISALLOW_SAFE_BOOT);
+                    dpm.clearUserRestriction(admin, UserManager.DISALLOW_FACTORY_RESET);
+                    dpm.clearUserRestriction(admin, UserManager.DISALLOW_ADD_USER);
+                } catch (Exception e) {
+                    Log.w(TAG, "clearUserRestriction: " + e.getMessage());
+                }
+
+                // 2. Unblock uninstallation
+                try {
+                    dpm.setUninstallBlocked(admin, pkg, false);
+                } catch (Exception ignored) {}
+
+                // 3. Clear LockTask & re-enable UI elements
+                try {
+                    dpm.setLockTaskPackages(admin, new String[]{});
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        dpm.setStatusBarDisabled(admin, false);
+                        dpm.setKeyguardDisabled(admin, false);
+                    }
+                } catch (Exception ignored) {}
+
+                // 4. Relinquish Device Owner privilege
+                try {
+                    if (dpm.isDeviceOwnerApp(pkg)) {
+                        dpm.clearDeviceOwnerApp(pkg);
+                        Log.i(TAG, "Device Owner privilege successfully cleared!");
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "clearDeviceOwnerApp warning: " + e.getMessage());
+                }
+
+                // 5. Remove Device Administrator
+                try {
+                    if (dpm.isAdminActive(admin)) {
+                        dpm.removeActiveAdmin(admin);
+                        Log.i(TAG, "Device Admin successfully removed!");
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "removeActiveAdmin warning: " + e.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error in releaseDeviceCompletely: " + e.getMessage());
         }
     }
 
@@ -127,9 +217,13 @@ public class BashLockDeviceAdminReceiver extends DeviceAdminReceiver {
     @Override
     public void onDisabled(Context context, Intent intent) {
         super.onDisabled(context, intent);
-        Log.w(TAG, "Device Admin disabled. Immediately re-launching MainActivity.");
-        Intent launchIntent = new Intent(context, MainActivity.class);
-        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        context.startActivity(launchIntent);
+        Log.w(TAG, "Device Admin disabled. Checking if released before relaunching.");
+        SharedPreferences prefs = context.getSharedPreferences("BashLock_Config", Context.MODE_PRIVATE);
+        boolean isReleased = prefs.getBoolean("is_released", false);
+        if (!isReleased) {
+            Intent launchIntent = new Intent(context, MainActivity.class);
+            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            context.startActivity(launchIntent);
+        }
     }
 }

@@ -330,7 +330,12 @@ def get_device_by_code_status(code_or_imei):
         return jsonify({"success": False, "error": "Yeh 4-Digit Code ya IMEI system mein registered nahi hai."}), 404
 
     d = dict(row)
-    d["is_overdue"] = (d["next_due_date"] < today_str and float(d["remaining_balance"]) > 0)
+    if d.get("status") == "RELEASED":
+        d["is_overdue"] = False
+        d["is_released"] = True
+    else:
+        d["is_overdue"] = (d["next_due_date"] < today_str and float(d["remaining_balance"]) > 0)
+        d["is_released"] = False
     d["offline_pin"] = calculate_offline_pin(d["id"])
 
     return jsonify({"success": True, "device": d})
@@ -581,8 +586,15 @@ def toggle_device_lock():
     device_id = data.get("device_id")
     action = data.get("action")
 
-    new_status = "LOCKED" if action == "LOCK" else "UNLOCKED"
-    new_policy = "bashlock_locked" if action == "LOCK" else "bashlock_unlocked"
+    if action == "RELEASE":
+        new_status = "RELEASED"
+        new_policy = "bashlock_released"
+    elif action == "LOCK":
+        new_status = "LOCKED"
+        new_policy = "bashlock_locked"
+    else:
+        new_status = "UNLOCKED"
+        new_policy = "bashlock_unlocked"
     now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
     conn = get_db_connection()
