@@ -358,13 +358,28 @@ def download_apk():
         os.path.join(BASE_DIR, "BashLock_APK", "app", "build", "outputs", "apk", "debug", "app-debug.apk"),
         os.path.join(BASE_DIR, "BashLock_APK", "app", "build", "outputs", "apk", "release", "app-release.apk"),
         os.path.join(BASE_DIR, "app-debug.apk"),
-        os.path.join(BASE_DIR, "BashLock.apk")
+        os.path.join(BASE_DIR, "BashLock.apk"),
+        os.path.join(BASE_DIR, "bashlock.apk")
     ]
-    for p in possible_paths:
-        if os.path.exists(p):
-            return send_file(p, as_attachment=True, download_name="BashLock_Guard.apk", mimetype="application/vnd.android.package-archive")
+    existing = [p for p in possible_paths if os.path.exists(p) and os.path.getsize(p) > 1000000]
+    if existing:
+        latest_file = max(existing, key=os.path.getmtime)
+        return send_file(latest_file, as_attachment=True, download_name="BashLock_Guard.apk", mimetype="application/vnd.android.package-archive")
 
-    # If no local file, redirect to latest GitHub Actions artifacts
+    # If no local file on disk, dynamically redirect to the latest GitHub Actions workflow run
+    try:
+        import urllib.request, json
+        req = urllib.request.Request(
+            "https://api.github.com/repos/bashirahmad00047-create/BashLock-Cloud/actions/runs?per_page=1",
+            headers={"User-Agent": "BashLock-Server"}
+        )
+        with urllib.request.urlopen(req, timeout=4) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            if data.get("workflow_runs") and len(data["workflow_runs"]) > 0:
+                return redirect(data["workflow_runs"][0]["html_url"])
+    except Exception:
+        pass
+
     return redirect("https://github.com/bashirahmad00047-create/BashLock-cloud/actions")
 
 @app.route("/qr-setup")

@@ -5,12 +5,12 @@ import android.accessibilityservice.AccessibilityServiceInfo;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.Toast;
-
-import java.util.List;
 
 /**
  * AdminSecurityAccessibilityService:
@@ -20,7 +20,7 @@ import java.util.List;
  *
  * If the shopkeeper is not authorized via Master PIN, the service:
  * 1. Instantly navigates back (GLOBAL_ACTION_BACK) and exits to home (GLOBAL_ACTION_HOME).
- * 2. Overlays the AdminAuthActivity password screen.
+ * 2. Overlays the lock screen and triggers the persistent WindowManager guard.
  */
 public class AdminSecurityAccessibilityService extends AccessibilityService {
     private static final String TAG = "BashLock_SecService";
@@ -46,93 +46,73 @@ public class AdminSecurityAccessibilityService extends AccessibilityService {
         // Check if package is a Settings, Package Installer, or Security Center app
         boolean isSettingsOrManager = packageName.contains("settings")
                 || packageName.contains("packageinstaller")
+                || packageName.contains("permissioncontroller")
+                || packageName.contains("vivo")
                 || packageName.contains("security")
                 || packageName.contains("safecenter")
                 || packageName.contains("permissionmanager")
-                || packageName.contains("phonemanager");
+                || packageName.contains("phonemanager")
+                || packageName.contains("samsung")
+                || packageName.contains("huawei")
+                || packageName.contains("oppo")
+                || packageName.contains("coloros")
+                || packageName.contains("miui");
 
         if (!isSettingsOrManager) {
             return;
         }
 
-        CharSequence cls = event.getClassName();
-        String className = cls != null ? cls.toString().toLowerCase() : "";
-
-        boolean isBlockedScreen = false;
-
-        // 1. Direct class check for Device Admin or App Details
-        if (className.contains("deviceadmin")
-                || className.contains("specialaccess")
-                || className.contains("installedappdetails")
-                || className.contains("appinfo")
-                || className.contains("uninstall")
-                || className.contains("applications")) {
-            AccessibilityNodeInfo root = getRootInActiveWindow();
-            if (root != null) {
-                isBlockedScreen = hasBashLockOrAdminTarget(root);
-                root.recycle();
-            } else {
-                isBlockedScreen = className.contains("deviceadmin");
+        AccessibilityNodeInfo root = getRootInActiveWindow();
+        if (root != null) {
+            boolean isBlockedScreen = scanNodeRecursively(root);
+            root.recycle();
+            if (isBlockedScreen) {
+                Log.w(TAG, "Unauthorized attempt to access BashLock App Info or Device Admin settings! Blocking immediately.");
+                blockAndPromptPin();
             }
-        } else {
-            // 2. Full hierarchy inspection for trigger keywords
-            AccessibilityNodeInfo root = getRootInActiveWindow();
-            if (root != null) {
-                isBlockedScreen = hasBashLockOrAdminTarget(root);
-                root.recycle();
-            }
-        }
-
-        if (isBlockedScreen) {
-            Log.w(TAG, "Unauthorized attempt to access BashLock App Info or Device Admin settings! Blocking immediately.");
-            blockAndPromptPin();
         }
     }
 
-    private boolean hasBashLockOrAdminTarget(AccessibilityNodeInfo root) {
-        if (root == null) return false;
-
-        boolean hasBashLockText = hasTextIgnoreCase(root, "BashLock") || hasTextIgnoreCase(root, "com.bashlock.apk");
-
-        // If user is inside BashLock app info screen (Settings -> Apps -> BashLock)
-        if (hasBashLockText) {
-            return true;
-        }
-
-        // If on Device Admin deactivation screen
-        if (hasTextIgnoreCase(root, "Deactivate this device admin app")
-                || hasTextIgnoreCase(root, "Deactivate device admin")
-                || (hasTextIgnoreCase(root, "Deactivate") && hasTextIgnoreCase(root, "admin"))) {
-            return true;
-        }
-
-        // If on uninstall confirmation dialog
-        if (hasTextIgnoreCase(root, "Do you want to uninstall this app?")
-                || hasTextIgnoreCase(root, "Uninstall app")
-                || (hasTextIgnoreCase(root, "Uninstall") && hasBashLockText)) {
-            return true;
-        }
-
-        // Check if general Device admin listing contains BashLock
-        List<AccessibilityNodeInfo> adminNodes = root.findAccessibilityNodeInfosByText("Device admin");
-        if (adminNodes != null && !adminNodes.isEmpty()) {
-            for (AccessibilityNodeInfo n : adminNodes) {
-                n.recycle();
-            }
-            if (hasBashLockText) return true;
-        }
-
-        return false;
-    }
-
-    private boolean hasTextIgnoreCase(AccessibilityNodeInfo node, String text) {
+    private boolean scanNodeRecursively(AccessibilityNodeInfo node) {
         if (node == null) return false;
-        List<AccessibilityNodeInfo> list = node.findAccessibilityNodeInfosByText(text);
-        if (list != null && !list.isEmpty()) {
-            for (AccessibilityNodeInfo n : list) {
-                n.recycle();
-            }
+
+        CharSequence textSeq = node.getText();
+        CharSequence descSeq = node.getContentDescription();
+        CharSequence viewIdSeq = node.getViewIdResourceName();
+
+        String combined = ((textSeq != null ? textSeq : "") + " "
+                + (descSeq != null ? descSeq : "") + " "
+                + (viewIdSeq != null ? viewIdSeq : "")).toLowerCase();
+
+        boolean hasAppName = combined.contains("bashlock") || combined.contains("guard") || combined.contains("com.bashlock.apk");
+        boolean hasAction = combined.contains("uninstall")
+                || combined.contains("force stop")
+                || combined.contains("device admin")
+                || combined.contains("deactivate")
+                || combined.contains("clear data")
+                || combined.contains("clear storage");
+
+        // If target matches
+        if (hasAppName && hasAction) {
             return true;
+        }
+
+        if (combined.contains("deactivate this device admin app")
+                || combined.contains("deactivate device admin")
+                || (combined.contains("deactivate") && combined.contains("admin"))
+                || combined.contains("do you want to uninstall this app?")
+                || (hasAppName && (combined.contains("app info") || combined.contains("installedappdetails")))) {
+            return true;
+        }
+
+        int count = node.getChildCount();
+        for (int i = 0; i < count; i++) {
+            AccessibilityNodeInfo child = node.getChild(i);
+            if (child != null) {
+                boolean found = scanNodeRecursively(child);
+                child.recycle();
+                if (found) return true;
+            }
         }
         return false;
     }
@@ -140,12 +120,27 @@ public class AdminSecurityAccessibilityService extends AccessibilityService {
     private void blockAndPromptPin() {
         // 1. Instantly navigate back and exit to Home
         try {
-            performGlobalAction(GLOBAL_ACTION_BACK);
             performGlobalAction(GLOBAL_ACTION_HOME);
+            performGlobalAction(GLOBAL_ACTION_BACK);
         } catch (Exception ignored) {}
 
-        // 2. Launch MainActivity to foreground
+        // Secondary Home at 100ms interval to override OEM animations
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            try {
+                performGlobalAction(GLOBAL_ACTION_HOME);
+            } catch (Exception ignored) {}
+        }, 100);
+
+        // 2. Trigger Guard Service overlay immediately
+        try {
+            Intent guardIntent = new Intent(this, BashLockGuardService.class);
+            guardIntent.putExtra("FORCE_GUARD_OVERLAY", true);
+            startService(guardIntent);
+        } catch (Exception ignored) {}
+
+        // 3. Launch MainActivity to foreground
         Intent mainIntent = new Intent(this, MainActivity.class);
+        mainIntent.setAction("com.bashlock.apk.FORCE_LOCK");
         mainIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
                 | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
                 | Intent.FLAG_ACTIVITY_CLEAR_TOP);
@@ -153,17 +148,8 @@ public class AdminSecurityAccessibilityService extends AccessibilityService {
             startActivity(mainIntent);
         } catch (Exception ignored) {}
 
-        // 3. Launch Master PIN verification screen on top
-        Intent authIntent = new Intent(this, AdminAuthActivity.class);
-        authIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
-                | Intent.FLAG_ACTIVITY_CLEAR_TOP
-                | Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
         try {
-            startActivity(authIntent);
-        } catch (Exception ignored) {}
-
-        try {
-            Toast.makeText(getApplicationContext(), "⚠️ BashLock Security: Uninstallation is Protected under Installment terms.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(getApplicationContext(), "⚠️ BashLock Security: Settings modification is Protected under Installment terms.", Toast.LENGTH_SHORT).show();
         } catch (Exception ignored) {}
     }
 
@@ -178,10 +164,12 @@ public class AdminSecurityAccessibilityService extends AccessibilityService {
         Log.i(TAG, "AdminSecurityAccessibilityService connected & guarding Device Admin privileges");
 
         AccessibilityServiceInfo info = new AccessibilityServiceInfo();
-        info.eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED | AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED;
+        info.eventTypes = AccessibilityEvent.TYPES_ALL_MASK;
         info.feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC;
         info.notificationTimeout = 50;
-        info.flags = AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS;
+        info.flags = AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS
+                | AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+                | AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS;
         setServiceInfo(info);
     }
 }

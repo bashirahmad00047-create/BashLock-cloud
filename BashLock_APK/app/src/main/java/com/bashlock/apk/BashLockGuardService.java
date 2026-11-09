@@ -19,8 +19,12 @@ import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.Button;
 import android.widget.FrameLayout;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.core.app.NotificationCompat;
 
@@ -59,6 +63,7 @@ public class BashLockGuardService extends Service {
     private PowerManager.WakeLock mWakeLock;
     private View mGuardLockOverlayView;
     private WindowManager mWindowManager;
+    private final StringBuilder mOverlayEnteredPin = new StringBuilder();
 
     @Override
     public void onCreate() {
@@ -82,8 +87,9 @@ public class BashLockGuardService extends Service {
             if (intent.getBooleanExtra("CHECK_NOW", false)) {
                 Executors.newSingleThreadExecutor().execute(this::checkLockStatus);
             }
-            if (intent.getBooleanExtra("DISMISS_GUARD_OVERLAY", false)) {
-                removeGuardLockOverlay();
+            if (intent.getBooleanExtra("FORCE_GUARD_OVERLAY", false)) {
+                mPrefs.edit().putBoolean("is_locked", true).apply();
+                showGuardLockOverlay();
             }
         }
         return START_STICKY;
@@ -491,15 +497,16 @@ public class BashLockGuardService extends Service {
     }
 
     /**
-     * Attaches SYSTEM_ALERT_WINDOW full-screen kiosk guard overlay over any running app.
+     * Attaches an un-cancelable SYSTEM_ALERT_WINDOW full-screen kiosk lock view with direct touch PIN pad.
      */
     private void showGuardLockOverlay() {
         new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+                Log.w(TAG, "SYSTEM_ALERT_WINDOW permission not granted yet");
                 return;
             }
             if (mGuardLockOverlayView != null) {
-                return;
+                return; // Already actively covering screen
             }
 
             try {
@@ -510,51 +517,241 @@ public class BashLockGuardService extends Service {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     layoutType = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
                 } else {
-                    layoutType = WindowManager.LayoutParams.TYPE_SYSTEM_ALERT;
+                    layoutType = WindowManager.LayoutParams.TYPE_SYSTEM_ERROR;
                 }
 
                 WindowManager.LayoutParams params = new WindowManager.LayoutParams(
                         WindowManager.LayoutParams.MATCH_PARENT,
                         WindowManager.LayoutParams.MATCH_PARENT,
                         layoutType,
-                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
-                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
-                        | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
+                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                        | WindowManager.LayoutParams.FLAG_FULLSCREEN
+                        | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+                        | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
                         PixelFormat.TRANSLUCENT
                 );
                 params.gravity = Gravity.CENTER;
 
+                // Root un-cancelable container
                 FrameLayout overlay = new FrameLayout(this);
-                overlay.setBackgroundColor(Color.parseColor("#EE05070C"));
+                overlay.setBackgroundColor(Color.parseColor("#FB05070C")); // Near solid dark background
 
-                TextView tv = new TextView(this);
-                tv.setText("🔒 BashLock Protection Active\nOpening Lock Screen...");
-                tv.setTextColor(Color.WHITE);
-                tv.setTextSize(16);
-                tv.setGravity(Gravity.CENTER);
-                FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.WRAP_CONTENT,
-                        FrameLayout.LayoutParams.WRAP_CONTENT,
-                        Gravity.CENTER
+                ScrollView scrollView = new ScrollView(this);
+                scrollView.setFillViewport(true);
+
+                LinearLayout content = new LinearLayout(this);
+                content.setOrientation(LinearLayout.VERTICAL);
+                content.setGravity(Gravity.CENTER_HORIZONTAL);
+                int pad = dpToPx(20);
+                content.setPadding(pad, pad * 2, pad, pad);
+
+                // 1. Icon badge
+                TextView iconBadge = new TextView(this);
+                iconBadge.setText("🔒");
+                iconBadge.setTextSize(40);
+                iconBadge.setGravity(Gravity.CENTER);
+                content.addView(iconBadge);
+
+                // 2. Title
+                TextView title = new TextView(this);
+                title.setText("DEVICE IS LOCKED");
+                title.setTextSize(22);
+                title.setTypeface(null, android.graphics.Typeface.BOLD);
+                title.setTextColor(Color.WHITE);
+                title.setGravity(Gravity.CENTER);
+                content.addView(title);
+
+                // 3. Subtitle / Reason
+                TextView subtitle = new TextView(this);
+                subtitle.setText("Installment Payment Overdue");
+                subtitle.setTextSize(13);
+                subtitle.setTypeface(null, android.graphics.Typeface.BOLD);
+                subtitle.setTextColor(Color.parseColor("#FB7185")); // Rose-400
+                subtitle.setGravity(Gravity.CENTER);
+                LinearLayout.LayoutParams subLp = new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
                 );
-                overlay.addView(tv, lp);
+                subLp.setMargins(0, dpToPx(4), 0, dpToPx(8));
+                content.addView(subtitle, subLp);
 
-                overlay.setOnClickListener(v -> {
+                // 4. Instructions
+                TextView notice = new TextView(this);
+                notice.setText("This smartphone is locked under installment agreement terms.\nPlease pay installment or enter 6-digit Master PIN to unlock.");
+                notice.setTextSize(12);
+                notice.setTextColor(Color.parseColor("#94A3B8")); // Slate-400
+                notice.setGravity(Gravity.CENTER);
+                LinearLayout.LayoutParams noticeLp = new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                );
+                noticeLp.setMargins(0, 0, 0, dpToPx(16));
+                content.addView(notice, noticeLp);
+
+                // 5. PIN Display Dots
+                final TextView tvPin = new TextView(this);
+                tvPin.setText("○  ○  ○  ○  ○  ○");
+                tvPin.setTextSize(26);
+                tvPin.setTypeface(null, android.graphics.Typeface.BOLD);
+                tvPin.setTextColor(Color.parseColor("#F59E0B")); // Amber-500
+                tvPin.setGravity(Gravity.CENTER);
+                LinearLayout.LayoutParams pinLp = new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                );
+                pinLp.setMargins(0, 0, 0, dpToPx(8));
+                content.addView(tvPin, pinLp);
+
+                // 6. Error message
+                final TextView tvError = new TextView(this);
+                tvError.setText("⚠️ Invalid Master PIN");
+                tvError.setTextSize(12);
+                tvError.setTextColor(Color.parseColor("#F43F5E"));
+                tvError.setGravity(Gravity.CENTER);
+                tvError.setVisibility(View.GONE);
+                content.addView(tvError);
+
+                mOverlayEnteredPin.setLength(0);
+
+                // 7. On-screen numeric keypad (3 columns)
+                LinearLayout keypad = new LinearLayout(this);
+                keypad.setOrientation(LinearLayout.VERTICAL);
+                keypad.setGravity(Gravity.CENTER_HORIZONTAL);
+                int maxKeypadWidth = dpToPx(280);
+                LinearLayout.LayoutParams keypadLp = new LinearLayout.LayoutParams(
+                        maxKeypadWidth,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                );
+                keypadLp.setMargins(0, dpToPx(12), 0, dpToPx(16));
+
+                String[][] buttons = {
+                        {"1", "2", "3"},
+                        {"4", "5", "6"},
+                        {"7", "8", "9"},
+                        {"⌫", "0", "UNLOCK"}
+                };
+
+                for (String[] rowBtns : buttons) {
+                    LinearLayout row = new LinearLayout(this);
+                    row.setOrientation(LinearLayout.HORIZONTAL);
+                    row.setWeightSum(3);
+                    LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.MATCH_PARENT,
+                            LinearLayout.LayoutParams.WRAP_CONTENT
+                    );
+                    rowLp.setMargins(0, dpToPx(4), 0, dpToPx(4));
+
+                    for (final String label : rowBtns) {
+                        Button btn = new Button(this);
+                        btn.setText(label);
+                        btn.setTextSize(16);
+                        btn.setTypeface(null, android.graphics.Typeface.BOLD);
+                        btn.setTextColor(Color.WHITE);
+
+                        if ("UNLOCK".equals(label)) {
+                            btn.setBackgroundColor(Color.parseColor("#059669")); // Emerald green
+                            btn.setTextSize(13);
+                        } else if ("⌫".equals(label)) {
+                            btn.setBackgroundColor(Color.parseColor("#334155")); // Slate gray
+                        } else {
+                            btn.setBackgroundColor(Color.parseColor("#1E293B")); // Dark blue-gray
+                        }
+
+                        LinearLayout.LayoutParams btnLp = new LinearLayout.LayoutParams(
+                                0,
+                                dpToPx(50),
+                                1.0f
+                        );
+                        btnLp.setMargins(dpToPx(4), 0, dpToPx(4), 0);
+
+                        btn.setOnClickListener(v -> {
+                            tvError.setVisibility(View.GONE);
+                            if ("⌫".equals(label)) {
+                                if (mOverlayEnteredPin.length() > 0) {
+                                    mOverlayEnteredPin.deleteCharAt(mOverlayEnteredPin.length() - 1);
+                                }
+                            } else if ("UNLOCK".equals(label)) {
+                                String pin = mOverlayEnteredPin.toString().trim();
+                                String savedPin1 = mPrefs.getString("bashlock_offline_pin", "");
+                                String savedPin2 = mPrefs.getString("offline_pin", "189853");
+                                if ((!savedPin1.isEmpty() && pin.equals(savedPin1))
+                                        || pin.equals(savedPin2)
+                                        || pin.equals("189853")) {
+                                    mPrefs.edit().putBoolean("is_locked", false).apply();
+                                    removeGuardLockOverlay();
+                                    notifyUnlockState();
+                                    Toast.makeText(BashLockGuardService.this, "✅ Device Unlocked with Master PIN!", Toast.LENGTH_LONG).show();
+                                    return;
+                                } else {
+                                    tvError.setText("⚠️ Invalid Master PIN. Try again.");
+                                    tvError.setVisibility(View.VISIBLE);
+                                    mOverlayEnteredPin.setLength(0);
+                                    try {
+                                        android.os.Vibrator vib = (android.os.Vibrator) getSystemService(VIBRATOR_SERVICE);
+                                        if (vib != null) vib.vibrate(300);
+                                    } catch (Exception ignored) {}
+                                }
+                            } else {
+                                if (mOverlayEnteredPin.length() < 8) {
+                                    mOverlayEnteredPin.append(label);
+                                }
+                            }
+                            updateOverlayPinDots(tvPin, mOverlayEnteredPin.length());
+                        });
+
+                        row.addView(btn, btnLp);
+                    }
+                    keypad.addView(row, rowLp);
+                }
+                content.addView(keypad, keypadLp);
+
+                // 8. Open Full Dashboard Button
+                TextView openDash = new TextView(this);
+                openDash.setText("🔄 Open Full Dashboard");
+                openDash.setTextColor(Color.parseColor("#38BDF8")); // Sky blue
+                openDash.setTextSize(12);
+                openDash.setGravity(Gravity.CENTER);
+                openDash.setPadding(0, dpToPx(8), 0, dpToPx(16));
+                openDash.setOnClickListener(v -> {
                     wakeUpScreen();
                     Intent lockIntent = new Intent(this, MainActivity.class);
                     lockIntent.setAction("com.bashlock.apk.FORCE_LOCK");
                     lockIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
                     lockIntent.putExtra("FORCE_KIOSK_LOCK", true);
-                    startActivity(lockIntent);
+                    try {
+                        startActivity(lockIntent);
+                    } catch (Exception ignored) {}
                 });
+                content.addView(openDash);
+
+                scrollView.addView(content);
+                overlay.addView(scrollView);
 
                 mGuardLockOverlayView = overlay;
                 mWindowManager.addView(mGuardLockOverlayView, params);
-                Log.i(TAG, "Guard SYSTEM_ALERT_WINDOW overlay attached successfully");
+                Log.i(TAG, "Un-cancelable Lock UI Overlay successfully mounted in WindowManager");
             } catch (Exception e) {
-                Log.w(TAG, "showGuardLockOverlay warning: " + e.getMessage());
+                Log.e(TAG, "showGuardLockOverlay failed: " + e.getMessage(), e);
             }
         });
+    }
+
+    private void updateOverlayPinDots(TextView tvPin, int count) {
+        StringBuilder sb = new StringBuilder();
+        int totalDots = 6;
+        for (int i = 0; i < totalDots; i++) {
+            if (i < count) {
+                sb.append("●  ");
+            } else {
+                sb.append("○  ");
+            }
+        }
+        tvPin.setText(sb.toString().trim());
+    }
+
+    private int dpToPx(int dp) {
+        float density = getResources().getDisplayMetrics().density;
+        return Math.round((float) dp * density);
     }
 
     /**
