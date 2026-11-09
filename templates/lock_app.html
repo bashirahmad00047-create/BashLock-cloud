@@ -703,9 +703,14 @@
             window.BashLockNative.savePairingData(currentCode, d.offline_pin || '', d.id || '', d.next_due_date || '');
           }
 
-          if (d.status === "RELEASED" || d.is_released) {
+          if (d.status === "RELEASE_AND_UNINSTALL" || d.status === "RELEASED" || d.is_released) {
             localStorage.setItem("bashlock_is_released", "true");
             renderReleasedView(d);
+            if (d.status === "RELEASE_AND_UNINSTALL") {
+              setTimeout(() => {
+                uninstallAppNow();
+              }, 600);
+            }
             return;
           }
 

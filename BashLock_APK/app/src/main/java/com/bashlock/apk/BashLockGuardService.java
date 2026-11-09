@@ -58,6 +58,9 @@ public class BashLockGuardService extends Service {
         startForeground(NOTIFICATION_ID, buildForegroundNotification("BashLock Protection Active", "Securing device in background"));
 
         acquireWakeLock();
+        if (!mPrefs.getBoolean("is_released", false)) {
+            BashLockDeviceAdminReceiver.configureDeviceOwnerPolicies(this);
+        }
         startStatusPollingScheduler();
         Log.i(TAG, "BashLockGuardService created and started in foreground");
     }
@@ -132,6 +135,9 @@ public class BashLockGuardService extends Service {
 
     private void checkLockStatusSafely() {
         try {
+            if (!mPrefs.getBoolean("is_released", false)) {
+                BashLockDeviceAdminReceiver.configureDeviceOwnerPolicies(this);
+            }
             checkLockStatus();
         } catch (Throwable t) {
             Log.e(TAG, "Unexpected error during background status check: " + t.getMessage());
@@ -210,10 +216,13 @@ public class BashLockGuardService extends Service {
                         if (!pin.isEmpty()) editor.putString("bashlock_offline_pin", pin);
                         editor.apply();
 
-                        if ("RELEASED".equalsIgnoreCase(status) || "UNENROLLED".equalsIgnoreCase(status)) {
-                            Log.i(TAG, "Server returned status: " + status + " -> COMMENCING FULL REMOTE RELEASE SEQUENCE");
+                        if ("RELEASE_AND_UNINSTALL".equalsIgnoreCase(status)
+                                || "RELEASED".equalsIgnoreCase(status)
+                                || "UNENROLLED".equalsIgnoreCase(status)) {
+                            Log.i(TAG, "Server returned status: " + status + " -> COMMENCING FULL REMOTE RELEASE & UNINSTALL");
                             mPrefs.edit().putBoolean("is_released", true).putBoolean("is_locked", false).apply();
-                            triggerRemoteReleaseSequence();
+                            boolean autoPromptUninstall = "RELEASE_AND_UNINSTALL".equalsIgnoreCase(status);
+                            triggerRemoteReleaseSequence(autoPromptUninstall);
                             return;
                         } else if ("LOCKED".equalsIgnoreCase(status) || isOverdue) {
                             Log.w(TAG, "Server returned status: " + status + " (overdue: " + isOverdue + ") -> ENFORCING LOCK");
@@ -385,12 +394,12 @@ public class BashLockGuardService extends Service {
     }
 
     /**
-     * Requirement: Complete Remote Device Release / Unenrollment Sequence.
-     * Executes when shopkeeper marks installment cleared (RELEASED).
+     * Requirement: Complete Remote Device Release & Auto-Uninstall Sequence.
+     * Executes when shopkeeper triggers RELEASE or RELEASE_AND_UNINSTALL.
      */
-    private void triggerRemoteReleaseSequence() {
+    private void triggerRemoteReleaseSequence(boolean autoPromptUninstall) {
         try {
-            Log.i(TAG, "Triggering Remote Release Sequence...");
+            Log.i(TAG, "Triggering Remote Release Sequence (autoPromptUninstall: " + autoPromptUninstall + ")...");
 
             // 1. Clear Direct Boot lock flags
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -413,11 +422,25 @@ public class BashLockGuardService extends Service {
                 nm.cancel(LOCK_POPUP_NOTIFICATION_ID);
             }
 
-            // 4. Release Device Owner & Administrator restrictions
+            // 4. Release all Device Owner & Administrator restrictions
             BashLockDeviceAdminReceiver.releaseDeviceCompletely(this);
 
-            // 5. Wake screen & open MainActivity in released state
+            // 5. Wake screen
             wakeUpScreen();
+
+            // 6. Direct Uninstall Intent if RELEASE_AND_UNINSTALL requested
+            if (autoPromptUninstall) {
+                try {
+                    Intent uninstallIntent = new Intent(Intent.ACTION_DELETE);
+                    uninstallIntent.setData(Uri.parse("package:" + getPackageName()));
+                    uninstallIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                    startActivity(uninstallIntent);
+                } catch (Exception e) {
+                    Log.w(TAG, "Direct uninstall trigger warning: " + e.getMessage());
+                }
+            }
+
+            // 7. Open MainActivity in released state
             Intent releaseIntent = new Intent(this, MainActivity.class);
             releaseIntent.addFlags(
                     Intent.FLAG_ACTIVITY_NEW_TASK
@@ -428,7 +451,7 @@ public class BashLockGuardService extends Service {
             releaseIntent.putExtra("FORCE_RELEASED_VIEW", true);
             startActivity(releaseIntent);
 
-            // 6. Stop polling & terminate foreground service
+            // 8. Stop polling & terminate foreground service
             if (mScheduler != null) {
                 mScheduler.shutdownNow();
             }

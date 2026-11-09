@@ -330,7 +330,7 @@ def get_device_by_code_status(code_or_imei):
         return jsonify({"success": False, "error": "Yeh 4-Digit Code ya IMEI system mein registered nahi hai."}), 404
 
     d = dict(row)
-    if d.get("status") == "RELEASED":
+    if d.get("status") in ["RELEASED", "RELEASE_AND_UNINSTALL"]:
         d["is_overdue"] = False
         d["is_released"] = True
     else:
@@ -586,8 +586,8 @@ def toggle_device_lock():
     device_id = data.get("device_id")
     action = data.get("action")
 
-    if action == "RELEASE":
-        new_status = "RELEASED"
+    if action in ["RELEASE", "RELEASE_AND_UNINSTALL"]:
+        new_status = "RELEASE_AND_UNINSTALL" if action == "RELEASE_AND_UNINSTALL" else "RELEASED"
         new_policy = "bashlock_released"
     elif action == "LOCK":
         new_status = "LOCKED"
@@ -885,16 +885,23 @@ def delete_device(device_id):
         conn.close()
         return jsonify({"success": False, "error": "Device record nahi mila"}), 404
 
-    cust_id = device["customer_id"]
-    conn.execute("DELETE FROM payments WHERE device_id = ? AND shop_id = ?", (device_id, shop_id))
-    conn.execute("DELETE FROM devices WHERE id = ? AND shop_id = ?", (device_id, shop_id))
-    if cust_id:
-        conn.execute("DELETE FROM customers WHERE id = ? AND shop_id = ?", (cust_id, shop_id))
+    # Trigger RELEASE_AND_UNINSTALL so the customer's phone removes all restrictions and uninstalls
+    now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    conn.execute("""
+        UPDATE devices 
+        SET status = 'RELEASE_AND_UNINSTALL', policy_name = 'bashlock_released', last_seen = ?
+        WHERE id = ? AND shop_id = ?
+    """, (f"Command: RELEASE_AND_UNINSTALL at {now_str}", device_id, shop_id))
+
+    conn.execute("""
+        INSERT INTO audit_logs (shop_id, event_type, message, created_at)
+        VALUES (?, 'RELEASE_AND_UNINSTALL', ?, ?)
+    """, (shop_id, f"Device [{device['phone_model']}] ko RELEASE_AND_UNINSTALL command bhej di gayi.", now_str))
 
     conn.commit()
     conn.close()
 
-    return jsonify({"success": True, "message": f"{device['phone_model']} ka record delete kar diya gaya."})
+    return jsonify({"success": True, "message": f"{device['phone_model']} ko RELEASE_AND_UNINSTALL command bhej di gayi hai."})
 
 @app.route("/api/cron/auto-lock", methods=["POST"])
 def run_auto_lock_check():

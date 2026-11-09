@@ -1240,25 +1240,27 @@
       }
     }
 
-    // Delete Device (Requirement 3: 1-Click Delete)
+    // Delete / Trash Button -> Triggers RELEASE_AND_UNINSTALL status command
     async function deleteDevice(deviceId, customerName) {
-      if (!confirm(`Kya aap waqai "${customerName}" ka phone aur mukammal ledger delete karna chahte hain?\n\nYeh amal wapis nahi liya ja sakta.`)) {
+      if (!confirm(`Kya aap "${customerName}" ka phone RELEASE karke mobile se BashLock App UNINSTALL karwana chahte hain?\n\nYeh karne se:\n1. Mobile par tamam pabandiyan (Anti-Uninstall, Safe-Boot, Factory-Reset) foran khatam ho jayengi.\n2. Device Owner aur Admin privileges phone se khud-ba-khud clear ho jayengi.\n3. Customer ke mobile par foran "Uninstall" pop-up khul jaye ga.`)) {
         return;
       }
 
       try {
-        const res = await fetch(`/api/device/${deviceId}`, {
-          method: "DELETE"
+        const res = await fetch("/api/device/toggle-lock", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ device_id: deviceId, action: "RELEASE_AND_UNINSTALL" })
         });
         const data = await res.json();
         if (data.success) {
-          showToast(`"${customerName}" ka record kamyabi se delete ho gaya!`, true);
+          showToast(`"${customerName}" ka phone RELEASE_AND_UNINSTALL command par set ho gaya! Mobile par foran uninstall dialog chal pare ga.`, true);
           fetchDashboardData();
         } else {
-          showToast(data.error || "Device delete nahi ho saka", false);
+          showToast(data.error || "Release & Uninstall fail hua", false);
         }
       } catch (err) {
-        showToast("Server error occurred while deleting device", false);
+        showToast("Server connection error", false);
       }
     }
 

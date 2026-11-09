@@ -2,107 +2,139 @@ package com.bashlock.apk;
 
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.AccessibilityServiceInfo;
+import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.util.Log;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.widget.Toast;
 
 import java.util.List;
 
 /**
  * AdminSecurityAccessibilityService:
  * Real-time event-driven guard that detects when the user navigates to
- * Device Admin Settings or attempts to deactivate/uninstall BashLock.
+ * Settings -> Apps -> BashLock, or Device Admin Settings, or attempts
+ * to deactivate, force stop, clear data, or uninstall BashLock.
  *
  * If the shopkeeper is not authorized via Master PIN, the service:
- * 1. Instantly kicks the user out using GLOBAL_ACTION_HOME.
+ * 1. Instantly navigates back (GLOBAL_ACTION_BACK) and exits to home (GLOBAL_ACTION_HOME).
  * 2. Overlays the AdminAuthActivity password screen.
  */
 public class AdminSecurityAccessibilityService extends AccessibilityService {
     private static final String TAG = "BashLock_SecService";
 
-    // Common Settings and Package Installer packages across Android OEMs (Samsung, Xiaomi, Vivo, Oppo, Stock)
-    private static final String PKG_SETTINGS = "com.android.settings";
-    private static final String PKG_PKG_INSTALLER_GOOGLE = "com.google.android.packageinstaller";
-    private static final String PKG_PKG_INSTALLER = "com.android.packageinstaller";
-
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
         if (event == null) return;
 
-        CharSequence pkg = event.getPackageName();
-        if (pkg == null) return;
-        String packageName = pkg.toString();
+        SharedPreferences prefs = getSharedPreferences("BashLock_Config", Context.MODE_PRIVATE);
+        if (prefs.getBoolean("is_released", false)) {
+            return; // Device released on installment clearance; do not block
+        }
 
-        // Only inspect Settings and Package Manager activities
-        if (!packageName.equals(PKG_SETTINGS)
-                && !packageName.equals(PKG_PKG_INSTALLER)
-                && !packageName.equals(PKG_PKG_INSTALLER_GOOGLE)) {
+        // If the shopkeeper authenticated in the last 60 seconds, allow access
+        if (AdminSecurityManager.isAuthorized()) {
             return;
         }
 
-        // If the admin already authenticated in the last 60 seconds, allow access
-        if (AdminSecurityManager.isAuthorized()) {
+        CharSequence pkg = event.getPackageName();
+        if (pkg == null) return;
+        String packageName = pkg.toString().toLowerCase();
+
+        // Check if package is a Settings, Package Installer, or Security Center app
+        boolean isSettingsOrManager = packageName.contains("settings")
+                || packageName.contains("packageinstaller")
+                || packageName.contains("security")
+                || packageName.contains("safecenter")
+                || packageName.contains("permissionmanager")
+                || packageName.contains("phonemanager");
+
+        if (!isSettingsOrManager) {
             return;
         }
 
         CharSequence cls = event.getClassName();
         String className = cls != null ? cls.toString().toLowerCase() : "";
 
-        boolean isDeviceAdminScreen = className.contains("deviceadmin")
-                || className.contains("specialaccess")
-                || className.contains("uninstall");
+        boolean isBlockedScreen = false;
 
-        if (!isDeviceAdminScreen) {
-            // Also inspect node hierarchy for relevant trigger keywords
+        // 1. Direct class check for Device Admin or App Details
+        if (className.contains("deviceadmin")
+                || className.contains("specialaccess")
+                || className.contains("installedappdetails")
+                || className.contains("appinfo")
+                || className.contains("uninstall")
+                || className.contains("applications")) {
             AccessibilityNodeInfo root = getRootInActiveWindow();
             if (root != null) {
-                isDeviceAdminScreen = hasTargetAdminKeywords(root);
+                isBlockedScreen = hasBashLockOrAdminTarget(root);
+                root.recycle();
+            } else {
+                isBlockedScreen = className.contains("deviceadmin");
+            }
+        } else {
+            // 2. Full hierarchy inspection for trigger keywords
+            AccessibilityNodeInfo root = getRootInActiveWindow();
+            if (root != null) {
+                isBlockedScreen = hasBashLockOrAdminTarget(root);
                 root.recycle();
             }
         }
 
-        if (isDeviceAdminScreen) {
-            Log.w(TAG, "Unauthorized attempt to access Device Admin settings detected!");
+        if (isBlockedScreen) {
+            Log.w(TAG, "Unauthorized attempt to access BashLock App Info or Device Admin settings! Blocking immediately.");
             blockAndPromptPin();
         }
     }
 
-    private boolean hasTargetAdminKeywords(AccessibilityNodeInfo node) {
-        if (node == null) return false;
+    private boolean hasBashLockOrAdminTarget(AccessibilityNodeInfo root) {
+        if (root == null) return false;
 
-        // Check if BashLock specifically is mentioned on a settings / uninstall screen
-        List<AccessibilityNodeInfo> bashlockNodes = node.findAccessibilityNodeInfosByText("BashLock");
-        if (bashlockNodes != null && !bashlockNodes.isEmpty()) {
-            for (AccessibilityNodeInfo n : bashlockNodes) {
-                n.recycle();
-            }
+        boolean hasBashLockText = hasTextIgnoreCase(root, "BashLock") || hasTextIgnoreCase(root, "com.bashlock.apk");
+
+        // If user is inside BashLock app info screen (Settings -> Apps -> BashLock)
+        if (hasBashLockText) {
             return true;
         }
 
-        // Check for general Device Admin / Deactivate triggers
-        List<AccessibilityNodeInfo> adminNodes = node.findAccessibilityNodeInfosByText("Device admin");
+        // If on Device Admin deactivation screen
+        if (hasTextIgnoreCase(root, "Deactivate this device admin app")
+                || (hasTextIgnoreCase(root, "Deactivate") && hasTextIgnoreCase(root, "admin"))) {
+            return true;
+        }
+
+        // Check if general Device admin listing contains BashLock
+        List<AccessibilityNodeInfo> adminNodes = root.findAccessibilityNodeInfosByText("Device admin");
         if (adminNodes != null && !adminNodes.isEmpty()) {
             for (AccessibilityNodeInfo n : adminNodes) {
                 n.recycle();
             }
-            return true;
-        }
-
-        List<AccessibilityNodeInfo> deactNodes = node.findAccessibilityNodeInfosByText("Deactivate");
-        if (deactNodes != null && !deactNodes.isEmpty()) {
-            for (AccessibilityNodeInfo n : deactNodes) {
-                n.recycle();
-            }
-            return true;
+            if (hasBashLockText) return true;
         }
 
         return false;
     }
 
+    private boolean hasTextIgnoreCase(AccessibilityNodeInfo node, String text) {
+        if (node == null) return false;
+        List<AccessibilityNodeInfo> list = node.findAccessibilityNodeInfosByText(text);
+        if (list != null && !list.isEmpty()) {
+            for (AccessibilityNodeInfo n : list) {
+                n.recycle();
+            }
+            return true;
+        }
+        return false;
+    }
+
     private void blockAndPromptPin() {
-        // 1. Kick user out of Settings back to Home
-        performGlobalAction(GLOBAL_ACTION_HOME);
+        // 1. Instantly navigate back and exit to Home
+        try {
+            performGlobalAction(GLOBAL_ACTION_BACK);
+            performGlobalAction(GLOBAL_ACTION_HOME);
+        } catch (Exception ignored) {}
 
         // 2. Launch Master PIN verification screen on top
         Intent authIntent = new Intent(this, AdminAuthActivity.class);
