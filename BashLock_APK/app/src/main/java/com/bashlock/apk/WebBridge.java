@@ -3,6 +3,7 @@ package com.bashlock.apk;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Vibrator;
+import android.util.Log;
 import android.webkit.JavascriptInterface;
 import android.widget.Toast;
 
