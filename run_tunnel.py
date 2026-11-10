@@ -105,6 +105,11 @@ def run_tunnel():
                         print("=" * 65 + "\n")
                         git_sync_live_url(url)
 
+                if "Unauthorized: Tunnel not found" in line_str or "failed to serve incoming request error=\"Unauthorized" in line_str:
+                    print("[!] Detected expired Cloudflare quick tunnel. Restarting cloudflared...")
+                    proc.kill()
+                    break
+
             proc.wait()
             print("[!] cloudflared process exited. Restarting in 3 seconds...")
             time.sleep(3)

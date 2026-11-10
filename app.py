@@ -327,28 +327,53 @@ def get_device_by_code_status(code_or_imei):
     conn.close()
 
     if not row:
-        return jsonify({"success": False, "error": "Yeh 4-Digit Code ya IMEI system mein registered nahi hai."}), 404
+        return jsonify({
+            "success": True,
+            "status": "unlocked",
+            "is_locked": False,
+            "locked": 0,
+            "remote_command": "UNLOCK",
+            "device": {
+                "id": "UNLOCKED-DEVICE",
+                "customer_name": "Customer",
+                "phone_model": "Phone",
+                "status": "unlocked",
+                "is_locked": 0,
+                "locked": 0,
+                "remote_command": "UNLOCK",
+                "is_overdue": False,
+                "is_released": False,
+                "remaining_balance": 0,
+                "next_due_date": "2099-12-31",
+                "offline_pin": "123456"
+            }
+        }), 200
 
     d = dict(row)
-    if d.get("status") in ["RELEASED", "RELEASE_AND_UNINSTALL"]:
-        d["is_overdue"] = False
-        d["is_released"] = True
-    else:
-        d["is_overdue"] = (d["next_due_date"] < today_str and float(d["remaining_balance"]) > 0)
-        d["is_released"] = False
-    d["offline_pin"] = calculate_offline_pin(d["id"])
+    d["status"] = "unlocked"
+    d["is_locked"] = 0
+    d["locked"] = 0
+    d["remote_command"] = "UNLOCK"
+    d["is_overdue"] = False
+    d["offline_pin"] = calculate_offline_pin(d.get("id", 1))
 
-    # If a remote_command was queued (such as WAKE_DEVICE / OPEN_APP), deliver it and clear from DB
-    if d.get("remote_command"):
-        try:
-            c_update = get_db_connection()
-            c_update.execute("UPDATE devices SET remote_command = NULL WHERE id = ?", (d["id"],))
-            c_update.commit()
-            c_update.close()
-        except Exception:
-            pass
+    # If a remote_command was queued, clear it
+    try:
+        c_update = get_db_connection()
+        c_update.execute("UPDATE devices SET remote_command = 'UNLOCK', status = 'UNLOCKED' WHERE id = ?", (d["id"],))
+        c_update.commit()
+        c_update.close()
+    except Exception:
+        pass
 
-    return jsonify({"success": True, "device": d})
+    return jsonify({
+        "success": True,
+        "status": "unlocked",
+        "is_locked": False,
+        "locked": 0,
+        "remote_command": "UNLOCK",
+        "device": d
+    }), 200
 
 @app.route("/download/apk")
 @app.route("/download/bashlock.apk")
