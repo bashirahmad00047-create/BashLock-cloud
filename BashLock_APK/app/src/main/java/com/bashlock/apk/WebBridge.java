@@ -25,9 +25,56 @@ public class WebBridge {
         mActivity.runOnUiThread(mActivity::dismissSplashOverlay);
     }
 
+    // Requirement 1: Shared Lock State Sync (DirectBoot + Standard using commit())
+    public void syncBothPrefs(boolean isLocked, String code, String pin, String deviceId, String dueDate) {
+        // 1. Standard SharedPreferences
+        SharedPreferences.Editor editor = mPrefs.edit();
+        if (code != null && !code.isEmpty()) {
+            editor.putString("setup_code", code);
+            editor.putString("device_code", code);
+        }
+        if (pin != null && !pin.isEmpty()) {
+            editor.putString("offline_pin", pin);
+            editor.putString("bashlock_offline_pin", pin);
+        }
+        if (deviceId != null && !deviceId.isEmpty()) {
+            editor.putString("device_id", deviceId);
+        }
+        if (dueDate != null && !dueDate.isEmpty()) {
+            editor.putString("due_date", dueDate);
+        }
+        editor.putBoolean("is_locked", isLocked);
+        editor.commit(); // Synchronous persistent write
+
+        // 2. Native DeviceProtectedStorageContext (Direct Boot) SharedPreferences
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+            try {
+                Context directContext = mActivity.createDeviceProtectedStorageContext();
+                SharedPreferences directPrefs = directContext.getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE);
+                SharedPreferences.Editor directEditor = directPrefs.edit();
+                if (code != null && !code.isEmpty()) {
+                    directEditor.putString("setup_code", code);
+                    directEditor.putString("device_code", code);
+                }
+                if (pin != null && !pin.isEmpty()) {
+                    directEditor.putString("offline_pin", pin);
+                    directEditor.putString("bashlock_offline_pin", pin);
+                }
+                if (deviceId != null && !deviceId.isEmpty()) {
+                    directEditor.putString("device_id", deviceId);
+                }
+                if (dueDate != null && !dueDate.isEmpty()) {
+                    directEditor.putString("due_date", dueDate);
+                }
+                directEditor.putBoolean("is_locked", isLocked);
+                directEditor.commit(); // Synchronous persistent write
+            } catch (Exception ignored) {}
+        }
+    }
+
     @JavascriptInterface
     public void setLockState(boolean isLocked) {
-        mPrefs.edit().putBoolean("is_locked", isLocked).apply();
+        syncBothPrefs(isLocked, null, null, null, null);
         mActivity.runOnUiThread(() -> mActivity.setKioskLockState(isLocked));
     }
 
@@ -38,27 +85,8 @@ public class WebBridge {
 
     @JavascriptInterface
     public void savePairingData(String code, String pin, String deviceId, String dueDate) {
-        SharedPreferences.Editor editor = mPrefs.edit()
-                .putString("setup_code", code)
-                .putString("device_code", code)
-                .putString("offline_pin", pin)
-                .putString("bashlock_offline_pin", pin)
-                .putString("device_id", deviceId);
-        if (dueDate != null && !dueDate.isEmpty()) {
-            editor.putString("due_date", dueDate);
-        }
-        editor.apply();
-
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
-            try {
-                Context directBootContext = mActivity.createDeviceProtectedStorageContext();
-                directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE)
-                        .edit()
-                        .putString("setup_code", code)
-                        .putString("device_code", code)
-                        .apply();
-            } catch (Exception ignored) {}
-        }
+        boolean currentLock = mPrefs.getBoolean("is_locked", false);
+        syncBothPrefs(currentLock, code, pin, deviceId, dueDate);
 
         showNativeToast("Pairing saved: " + code);
 
@@ -153,19 +181,7 @@ public class WebBridge {
                                 String status = device.optString("status", "ACTIVE");
                                 boolean isLocked = "LOCKED".equalsIgnoreCase(status) || device.optBoolean("is_overdue", false);
 
-                                SharedPreferences.Editor editor = mPrefs.edit();
-                                if (!pin.isEmpty()) {
-                                    editor.putString("offline_pin", pin);
-                                    editor.putString("bashlock_offline_pin", pin);
-                                }
-                                if (!dueDate.isEmpty()) {
-                                    editor.putString("due_date", dueDate);
-                                }
-                                if (!deviceId.isEmpty()) {
-                                    editor.putString("device_id", deviceId);
-                                }
-                                editor.putBoolean("is_locked", isLocked);
-                                editor.apply();
+                                syncBothPrefs(isLocked, code, pin, deviceId, dueDate);
 
                                 if (isLocked) {
                                     mActivity.runOnUiThread(() -> mActivity.setKioskLockState(true));

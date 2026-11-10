@@ -71,54 +71,76 @@ public class BashLockGuardService extends Service {
         mPrefs = getSharedPreferences("BashLock_Config", MODE_PRIVATE);
 
         createNotificationChannel();
-        startForeground(NOTIFICATION_ID, buildForegroundNotification("BashLock Protection Active", "Securing device in background"));
+        Notification foregroundNotif = buildForegroundNotification("BashLock Protection Active", "Securing device in background");
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(NOTIFICATION_ID, foregroundNotif,
+                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE | android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
+        } else {
+            startForeground(NOTIFICATION_ID, foregroundNotif);
+        }
 
         acquireWakeLock();
         if (!mPrefs.getBoolean("is_released", false)) {
             BashLockDeviceAdminReceiver.configureDeviceOwnerPolicies(this);
         }
 
-        // Restart-Proof & Offline Lock Enforcement:
-        // Even if Wi-Fi/Mobile Data is turned off after restart, immediately show the full-screen un-dismissible
-        // lock overlay if the saved state in SharedPreferences is "LOCKED".
-        boolean isLocked = mPrefs.getBoolean("is_locked", false);
-        String setupCode = mPrefs.getString("setup_code", "").trim();
-        if (setupCode.isEmpty()) {
-            setupCode = mPrefs.getString("device_code", "").trim();
-        }
-
+        // Requirement 1 & 4: Shared Lock State Sync & Auto-Lock on Boot Before Internet Connects
+        boolean isLocked = false;
+        String setupCode = "";
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             try {
                 Context directBootContext = createDeviceProtectedStorageContext();
                 SharedPreferences directPrefs = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE);
-                if (!isLocked && directPrefs.contains("is_locked")) {
+                if (directPrefs.contains("is_locked")) {
                     isLocked = directPrefs.getBoolean("is_locked", false);
                 }
-                if (setupCode.isEmpty()) {
-                    setupCode = directPrefs.getString("setup_code", directPrefs.getString("device_code", "4819")).trim();
-                }
-                if (setupCode.isEmpty()) {
-                    setupCode = "4819";
-                }
-                directPrefs.edit()
-                        .putString("setup_code", setupCode)
-                        .putString("device_code", setupCode)
-                        .apply();
+                setupCode = directPrefs.getString("setup_code", directPrefs.getString("device_code", "4819")).trim();
             } catch (Exception ignored) {}
+        }
+
+        if (!isLocked) {
+            isLocked = mPrefs.getBoolean("is_locked", false);
+        }
+        if (setupCode.isEmpty()) {
+            setupCode = mPrefs.getString("setup_code", mPrefs.getString("device_code", "4819")).trim();
         }
         if (setupCode.isEmpty()) {
             setupCode = "4819";
         }
-        mPrefs.edit().putString("setup_code", setupCode).putString("device_code", setupCode).apply();
 
+        // Commit both contexts synchronously (Requirement 1: commit() not apply())
+        syncLockState(isLocked);
+        mPrefs.edit().putString("setup_code", setupCode).putString("device_code", setupCode).commit();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            try {
+                createDeviceProtectedStorageContext().getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE)
+                        .edit().putString("setup_code", setupCode).putString("device_code", setupCode).commit();
+            } catch (Exception ignored) {}
+        }
+
+        // Requirement 4: Auto-Lock on Boot Before Internet Connects
         if (isLocked) {
-            Log.w(TAG, "BashLockGuardService started with active lock state! Enforcing lock immediately (Offline Safe).");
+            Log.w(TAG, "BashLockGuardService started with active lock state! Enforcing lock immediately on boot.");
             showGuardLockOverlay();
             triggerImmediateLockPopup();
         }
 
         startStatusPollingScheduler();
         Log.i(TAG, "BashLockGuardService created and started in foreground (isLocked: " + isLocked + ")");
+    }
+
+    // Requirement 1: Shared Lock State Sync using commit()
+    public void syncLockState(boolean isLocked) {
+        if (mPrefs != null) {
+            mPrefs.edit().putBoolean("is_locked", isLocked).commit();
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            try {
+                Context directBootContext = createDeviceProtectedStorageContext();
+                directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE)
+                        .edit().putBoolean("is_locked", isLocked).commit();
+            } catch (Exception ignored) {}
+        }
     }
 
     @Override
@@ -137,7 +159,7 @@ public class BashLockGuardService extends Service {
                 Executors.newSingleThreadExecutor().execute(this::checkLockStatus);
             }
             if (intent.getBooleanExtra("FORCE_GUARD_OVERLAY", false)) {
-                mPrefs.edit().putBoolean("is_locked", true).apply();
+                syncLockState(true);
                 showGuardLockOverlay();
             }
         }
@@ -221,6 +243,21 @@ public class BashLockGuardService extends Service {
             if (!mPrefs.getBoolean("is_released", false)) {
                 BashLockDeviceAdminReceiver.configureDeviceOwnerPolicies(this);
             }
+
+            // Continuous Offline Lock Enforcement (Requirement 4):
+            // Check lock state across DirectBoot and standard prefs
+            boolean isLocked = mPrefs.getBoolean("is_locked", false);
+            if (!isLocked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                try {
+                    Context directBootContext = createDeviceProtectedStorageContext();
+                    isLocked = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE)
+                            .getBoolean("is_locked", false);
+                } catch (Exception ignored) {}
+            }
+            if (isLocked) {
+                showGuardLockOverlay();
+            }
+
             checkLockStatus();
         } catch (Throwable t) {
             Log.e(TAG, "Unexpected error during background status check: " + t.getMessage());
@@ -314,19 +351,20 @@ public class BashLockGuardService extends Service {
                                 || "RELEASED".equalsIgnoreCase(status)
                                 || "UNENROLLED".equalsIgnoreCase(status)) {
                             Log.i(TAG, "Server returned status: " + status + " -> COMMENCING FULL REMOTE RELEASE & UNINSTALL");
-                            mPrefs.edit().putBoolean("is_released", true).putBoolean("is_locked", false).apply();
+                            syncLockState(false);
+                            mPrefs.edit().putBoolean("is_released", true).commit();
                             boolean autoPromptUninstall = "RELEASE_AND_UNINSTALL".equalsIgnoreCase(status);
                             triggerRemoteReleaseSequence(autoPromptUninstall);
                             return;
                         } else if ("LOCKED".equalsIgnoreCase(status) || isOverdue) {
                             Log.w(TAG, "Server returned status: " + status + " (overdue: " + isOverdue + ") -> ENFORCING LOCK");
-                            mPrefs.edit().putBoolean("is_locked", true).apply();
+                            syncLockState(true);
                             triggerImmediateLockPopup();
                         } else {
                             boolean wasLocked = mPrefs.getBoolean("is_locked", false);
                             if (wasLocked) {
                                 Log.i(TAG, "Device unlocked by shopkeeper -> Releasing lock");
-                                mPrefs.edit().putBoolean("is_locked", false).apply();
+                                syncLockState(false);
                                 notifyUnlockState();
                             }
                         }
@@ -396,15 +434,8 @@ public class BashLockGuardService extends Service {
      * Brings MainActivity to the front immediately regardless of what app the user is using.
      */
     private void triggerImmediateLockPopup() {
-        mPrefs.edit().putBoolean("is_locked", true).apply();
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            try {
-                Context directBootContext = createDeviceProtectedStorageContext();
-                directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE)
-                        .edit().putBoolean("is_locked", true).apply();
-            } catch (Exception ignored) {}
-        }
+        // Requirement 1: Synchronous commit() to both preferences
+        syncLockState(true);
 
         // 1. Wake device screen up if turned off
         wakeUpScreen();
@@ -461,13 +492,7 @@ public class BashLockGuardService extends Service {
     }
 
     private void notifyUnlockState() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            try {
-                Context directBootContext = createDeviceProtectedStorageContext();
-                directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE)
-                        .edit().putBoolean("is_locked", false).apply();
-            } catch (Exception ignored) {}
-        }
+        syncLockState(false);
 
         removeGuardLockOverlay();
 
@@ -572,16 +597,23 @@ public class BashLockGuardService extends Service {
                     layoutType = WindowManager.LayoutParams.TYPE_SYSTEM_ERROR;
                 }
 
+                int flags = WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                        | WindowManager.LayoutParams.FLAG_FULLSCREEN
+                        | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+                        | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
+                        | WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+                        | WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD;
+
                 WindowManager.LayoutParams params = new WindowManager.LayoutParams(
                         WindowManager.LayoutParams.MATCH_PARENT,
                         WindowManager.LayoutParams.MATCH_PARENT,
                         layoutType,
-                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
-                        | WindowManager.LayoutParams.FLAG_FULLSCREEN
-                        | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-                        | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
+                        flags,
                         PixelFormat.TRANSLUCENT
                 );
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    params.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+                }
                 params.gravity = Gravity.CENTER;
 
                 // Root un-cancelable container

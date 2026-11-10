@@ -57,25 +57,43 @@ public class BootReceiver extends BroadcastReceiver {
             setupCode = "4819";
         }
 
-        // 3. Immediately launch persistent 24/7 foreground guard service
+        // 3. Requirement 1, 2 & 4: Shared Lock State Sync & Auto-Lock on Boot Before Internet Connects
+        boolean isPaired = !setupCode.isEmpty() && !"4819".equals(setupCode);
+        boolean shouldEnforceBootLock = isLocked || isPaired;
+
+        // Synchronously commit both contexts (commit() not apply())
+        if (isLocked) {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    Context directBootContext = context.createDeviceProtectedStorageContext();
+                    directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE)
+                            .edit().putBoolean("is_locked", true).putString("setup_code", setupCode).commit();
+                }
+            } catch (Exception ignored) {}
+            try {
+                context.getSharedPreferences("BashLock_Config", Context.MODE_PRIVATE)
+                        .edit().putBoolean("is_locked", true).putString("setup_code", setupCode).commit();
+            } catch (Exception ignored) {}
+        }
+
+        // 4. Immediately launch persistent 24/7 foreground guard service with WindowManager overlay active
         try {
             Intent serviceIntent = new Intent(context, BashLockGuardService.class);
-            if (isLocked) {
-                serviceIntent.putExtra("FORCE_GUARD_OVERLAY", true);
-                serviceIntent.putExtra("CHECK_NOW", true);
-            }
+            serviceIntent.putExtra("FORCE_GUARD_OVERLAY", shouldEnforceBootLock);
+            serviceIntent.putExtra("CHECK_NOW", true);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 ContextCompat.startForegroundService(context, serviceIntent);
             } else {
                 context.startService(serviceIntent);
             }
-            Log.i(TAG, "BashLockGuardService started from BootReceiver (isLocked: " + isLocked + ")");
+            Log.i(TAG, "BashLockGuardService started from BootReceiver (shouldEnforceBootLock: " + shouldEnforceBootLock + ")");
         } catch (Exception e) {
             Log.e(TAG, "Failed to start BashLockGuardService on boot: " + e.getMessage());
         }
 
-        // 4. If device was previously in locked state, immediately bring up Kiosk Lock Screen
-        if (isLocked) {
+        // 5. Bypass Android 10+ background activity restrictions:
+        // Wake screen and launch MainActivity on top of the lockscreen
+        if (shouldEnforceBootLock) {
             Log.w(TAG, "Device rebooted while in LOCKED state! Forcing MainActivity Kiosk lock immediately.");
             try {
                 android.os.PowerManager pm = (android.os.PowerManager) context.getSystemService(Context.POWER_SERVICE);
@@ -100,7 +118,7 @@ public class BootReceiver extends BroadcastReceiver {
             try {
                 context.startActivity(lockIntent);
             } catch (Exception e) {
-                Log.e(TAG, "Failed to start MainActivity on boot: " + e.getMessage());
+                Log.w(TAG, "startActivity on boot note: " + e.getMessage());
             }
         }
     }

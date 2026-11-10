@@ -43,6 +43,39 @@ public class AdminSecurityAccessibilityService extends AccessibilityService {
         if (pkg == null) return;
         String packageName = pkg.toString().toLowerCase();
 
+        // 1. Check if device is in LOCKED state (Direct Boot + Normal prefs)
+        boolean isLocked = false;
+        String setupCode = "";
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+            try {
+                Context directBootContext = createDeviceProtectedStorageContext();
+                SharedPreferences directPrefs = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE);
+                isLocked = directPrefs.getBoolean("is_locked", false);
+                setupCode = directPrefs.getString("setup_code", directPrefs.getString("device_code", "")).trim();
+            } catch (Exception ignored) {}
+        }
+        if (!isLocked) {
+            isLocked = prefs.getBoolean("is_locked", false);
+        }
+        if (setupCode.isEmpty()) {
+            setupCode = prefs.getString("setup_code", prefs.getString("device_code", "")).trim();
+        }
+
+        // 2. Requirement 3: Continuous Watchdog in AccessibilityService
+        // If the device is locked and user navigates outside BashLock (to Launcher, YouTube, WhatsApp, etc.),
+        // immediately draw WindowManager overlay, call performGlobalAction(GLOBAL_ACTION_HOME), and launch MainActivity!
+        if (isLocked) {
+            boolean isBashLockApp = packageName.startsWith("com.bashlock.");
+            boolean isInputMethod = packageName.contains("inputmethod") || packageName.contains("ime") || packageName.contains("keyboard");
+            if (!isBashLockApp && !isInputMethod) {
+                Log.w(TAG, "Device is in LOCKED state! Blocking unauthorized window: " + packageName);
+                performGlobalAction(GLOBAL_ACTION_HOME);
+                performGlobalAction(GLOBAL_ACTION_BACK);
+                launchLockActivity();
+                return;
+            }
+        }
+
         // Check if package is a Settings, Package Installer, or Security Center app
         boolean isSettingsOrManager = packageName.contains("settings")
                 || packageName.contains("packageinstaller")
@@ -171,20 +204,45 @@ public class AdminSecurityAccessibilityService extends AccessibilityService {
         } catch (Exception ignored) {}
 
         if (isLocked) {
-            Intent mainIntent = new Intent(this, MainActivity.class);
-            mainIntent.setAction("com.bashlock.apk.FORCE_LOCK");
-            mainIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
-                    | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
-                    | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-            mainIntent.putExtra("FORCE_KIOSK_LOCK", true);
-            try {
-                startActivity(mainIntent);
-            } catch (Exception ignored) {}
+            launchLockActivity();
         }
 
         try {
             Toast.makeText(getApplicationContext(), "⚠️ BashLock Security: Factory Reset, Uninstall, and Settings modification are Disabled under Installment terms.", Toast.LENGTH_SHORT).show();
         } catch (Exception ignored) {}
+    }
+
+    // Requirement 2 & 3: Bypass Android 10+ background activity restrictions via Accessibility & WindowManager
+    private void launchLockActivity() {
+        // 1. Immediately ensure persistent Foreground LockService draws the un-dismissible WindowManager overlay view
+        try {
+            Intent serviceIntent = new Intent(this, BashLockGuardService.class);
+            serviceIntent.putExtra("FORCE_GUARD_OVERLAY", true);
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent);
+            } else {
+                startService(serviceIntent);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to start GuardService from AccessibilityService: " + e.getMessage());
+        }
+
+        // 2. Launch MainActivity with FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_CLEAR_TOP
+        // (Accessibility services are explicitly exempt from Android 10+ background activity start restrictions)
+        try {
+            Intent lockIntent = new Intent(this, MainActivity.class);
+            lockIntent.setAction("com.bashlock.apk.FORCE_LOCK");
+            lockIntent.addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK
+                    | Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                    | Intent.FLAG_ACTIVITY_SINGLE_TOP
+            );
+            lockIntent.putExtra("FORCE_KIOSK_LOCK", true);
+            startActivity(lockIntent);
+        } catch (Exception e) {
+            Log.e(TAG, "launchLockActivity startActivity error: " + e.getMessage());
+        }
     }
 
     @Override
@@ -205,5 +263,22 @@ public class AdminSecurityAccessibilityService extends AccessibilityService {
                 | AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
                 | AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS;
         setServiceInfo(info);
+
+        // Requirement 2: Check lock state on service connect (boot) and attach WindowManager overlay view
+        boolean isLocked = false;
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                Context directBootContext = createDeviceProtectedStorageContext();
+                isLocked = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE)
+                        .getBoolean("is_locked", false);
+            }
+        } catch (Exception ignored) {}
+        if (!isLocked) {
+            SharedPreferences normalPrefs = getSharedPreferences("BashLock_Config", Context.MODE_PRIVATE);
+            isLocked = normalPrefs.getBoolean("is_locked", false);
+        }
+        if (isLocked) {
+            launchLockActivity();
+        }
     }
 }

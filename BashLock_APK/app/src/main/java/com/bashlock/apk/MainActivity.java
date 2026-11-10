@@ -491,23 +491,35 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * Requirement 3: Kiosk Mode / LockTask & SYSTEM_ALERT_WINDOW Enforcement
+     * Requirement 1 & 2: Kiosk Mode / LockTask & SYSTEM_ALERT_WINDOW Enforcement
      */
     public void setKioskLockState(boolean isLocked) {
         this.mIsLocked = isLocked;
-        mPrefs.edit().putBoolean("is_locked", isLocked).apply();
+        // Requirement 1: Synchronous commit() to standard preferences
+        mPrefs.edit().putBoolean("is_locked", isLocked).commit();
 
-        // Persist to Direct Boot storage for immediate boot-time enforcement before PIN unlock
+        // Requirement 1: Synchronous commit() to native DeviceProtectedStorageContext (Direct Boot)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             try {
                 Context directBootContext = createDeviceProtectedStorageContext();
                 directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE)
-                        .edit().putBoolean("is_locked", isLocked).apply();
+                        .edit().putBoolean("is_locked", isLocked).commit();
             } catch (Exception ignored) {}
         }
 
         // Apply Device Owner hardware lock enforcement (status bar / keyguard disable)
         BashLockDeviceAdminReceiver.setKioskEnforcement(this, isLocked);
+
+        // Sync with background Guard Service
+        try {
+            Intent guardIntent = new Intent(this, BashLockGuardService.class);
+            guardIntent.putExtra("FORCE_GUARD_OVERLAY", isLocked);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                androidx.core.content.ContextCompat.startForegroundService(this, guardIntent);
+            } else {
+                startService(guardIntent);
+            }
+        } catch (Exception ignored) {}
 
         if (isLocked) {
             Log.w(TAG, "LOCK ACTIVATED: Engaging startLockTask() and System Overlay Guard");
