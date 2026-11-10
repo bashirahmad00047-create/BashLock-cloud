@@ -113,6 +113,7 @@ with zipfile.ZipFile(zip_path) as z:
             targets = [
                 'bashlock.apk',
                 'app-debug.apk',
+                os.path.join('download', 'bashlock.apk'),
                 os.path.join('BashLock_APK', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk')
             ]
             for t in targets:

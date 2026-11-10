@@ -393,6 +393,7 @@ def get_device_by_code_status(code_or_imei):
 def download_apk():
     """Serves the latest compiled BashLock APK for 1-tap download and QR provisioning."""
     possible_paths = [
+        os.path.join(BASE_DIR, "download", "bashlock.apk"),
         os.path.join(BASE_DIR, "BashLock_APK", "app", "build", "outputs", "apk", "debug", "app-debug.apk"),
         os.path.join(BASE_DIR, "BashLock_APK", "app", "build", "outputs", "apk", "release", "app-release.apk"),
         os.path.join(BASE_DIR, "app-debug.apk"),
