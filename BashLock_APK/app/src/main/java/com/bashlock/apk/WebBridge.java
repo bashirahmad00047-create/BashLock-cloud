@@ -88,6 +88,17 @@ public class WebBridge {
         boolean currentLock = mPrefs.getBoolean("is_locked", false);
         syncBothPrefs(currentLock, code, pin, deviceId, dueDate);
 
+        if (code != null && !code.trim().isEmpty() && !"4819".equals(code.trim())) {
+            mPrefs.edit().putBoolean("is_activated", true).commit();
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                try {
+                    mActivity.createDeviceProtectedStorageContext()
+                            .getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE)
+                            .edit().putBoolean("is_activated", true).commit();
+                } catch (Exception ignored) {}
+            }
+        }
+
         showNativeToast("Pairing saved: " + code);
 
         // Finalize self-provisioning & engage stealth mode
@@ -108,8 +119,11 @@ public class WebBridge {
         final String trimmedCode = code.trim();
         if (trimmedCode.isEmpty()) return;
 
-        // Save device_code and setup_code in SharedPreferences & DirectBoot storage using commit()
+        // Save is_activated=true, device_code, and setup_code using commit().
+        // Requirement 1: Only mark "is_activated"=true on code activation, and start in UNLOCKED state!
         mPrefs.edit()
+                .putBoolean("is_activated", true)
+                .putBoolean("is_locked", false)
                 .putString("device_code", trimmedCode)
                 .putString("setup_code", trimmedCode)
                 .commit();
@@ -119,6 +133,8 @@ public class WebBridge {
                 Context directBootContext = mActivity.createDeviceProtectedStorageContext();
                 directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE)
                         .edit()
+                        .putBoolean("is_activated", true)
+                        .putBoolean("is_locked", false)
                         .putString("device_code", trimmedCode)
                         .putString("setup_code", trimmedCode)
                         .commit();

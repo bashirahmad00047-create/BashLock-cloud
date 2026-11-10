@@ -48,22 +48,49 @@ public class AdminSecurityAccessibilityService extends AccessibilityService {
             return;
         }
 
-        // 1. Check if device is in LOCKED state (Direct Boot + Normal prefs)
-        boolean isLocked = false;
+        // 1. NEVER Lock During Setup (Before Pairing):
+        // If "is_activated" is false or pairing code is empty / default "4819", NEVER block or lock!
+        boolean isActivated = false;
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+            try {
+                Context directBootContext = createDeviceProtectedStorageContext();
+                isActivated = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE)
+                        .getBoolean("is_activated", false);
+            } catch (Exception ignored) {}
+        }
+        if (!isActivated) {
+            isActivated = prefs.getBoolean("is_activated", false);
+        }
+
         String setupCode = "";
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+            try {
+                Context directBootContext = createDeviceProtectedStorageContext();
+                setupCode = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE)
+                        .getString("setup_code", directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE).getString("device_code", "")).trim();
+            } catch (Exception ignored) {}
+        }
+        if (setupCode.isEmpty()) {
+            setupCode = prefs.getString("setup_code", prefs.getString("device_code", "")).trim();
+        }
+
+        // While the shopkeeper is turning on permissions (Device Admin, Overlay, Accessibility, Battery),
+        // NEVER show lock overlay and NEVER block Settings if "is_activated" is false or code is empty/default.
+        if (!isActivated || setupCode.isEmpty() || "4819".equals(setupCode)) {
+            return;
+        }
+
+        // 2. Check if device is in LOCKED state (Direct Boot + Normal prefs)
+        boolean isLocked = false;
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
             try {
                 Context directBootContext = createDeviceProtectedStorageContext();
                 SharedPreferences directPrefs = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE);
                 isLocked = directPrefs.getBoolean("is_locked", false);
-                setupCode = directPrefs.getString("setup_code", directPrefs.getString("device_code", "")).trim();
             } catch (Exception ignored) {}
         }
         if (!isLocked) {
             isLocked = prefs.getBoolean("is_locked", false);
-        }
-        if (setupCode.isEmpty()) {
-            setupCode = prefs.getString("setup_code", prefs.getString("device_code", "")).trim();
         }
 
         // 2. Requirement 3: Continuous Watchdog in AccessibilityService

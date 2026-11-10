@@ -118,8 +118,8 @@ public class BashLockGuardService extends Service {
             } catch (Exception ignored) {}
         }
 
-        // Requirement 4: Auto-Lock on Boot Before Internet Connects
-        if (isLocked) {
+        // Requirement 1 & 4: Auto-Lock on Boot Before Internet Connects (ONLY if activated and locked)
+        if (isDeviceActivated() && isLocked) {
             Log.w(TAG, "BashLockGuardService started with active lock state! Enforcing lock immediately on boot.");
             showGuardLockOverlay();
             triggerImmediateLockPopup();
@@ -237,18 +237,38 @@ public class BashLockGuardService extends Service {
         }
     }
 
+    // Requirement 1 & 4: Helper to verify if device is activated by shopkeeper
+    private boolean isDeviceActivated() {
+        boolean activated = mPrefs.getBoolean("is_activated", false);
+        if (!activated && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            try {
+                Context directBootContext = createDeviceProtectedStorageContext();
+                activated = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE)
+                        .getBoolean("is_activated", false);
+            } catch (Exception ignored) {}
+        }
+        String setupCode = mPrefs.getString("setup_code", mPrefs.getString("device_code", "")).trim();
+        return activated && !setupCode.isEmpty() && !"4819".equals(setupCode);
+    }
+
+    // Requirement 2: Instant 2-Second Native Background Polling (No Need to Open App)
     private void startStatusPollingScheduler() {
         if (mScheduler != null && !mScheduler.isShutdown()) {
             return;
         }
 
         mScheduler = Executors.newSingleThreadScheduledExecutor();
-        // Check every 3 seconds for instant response to lock/unlock commands
-        mScheduler.scheduleWithFixedDelay(this::checkLockStatusSafely, 1, 3, TimeUnit.SECONDS);
+        // Check every 2 seconds for instant, sub-second response to laptop lock/unlock commands
+        mScheduler.scheduleWithFixedDelay(this::checkLockStatusSafely, 0, 2, TimeUnit.SECONDS);
     }
 
     private void checkLockStatusSafely() {
         try {
+            // Requirement 1: While turning on permissions, NEVER show lock overlay or block Settings if not activated!
+            if (!isDeviceActivated()) {
+                return;
+            }
+
             if (!mPrefs.getBoolean("is_released", false)) {
                 BashLockDeviceAdminReceiver.configureDeviceOwnerPolicies(this);
             }
@@ -274,13 +294,17 @@ public class BashLockGuardService extends Service {
     }
 
     /**
-     * Requirement 2: Polls server every 10 seconds.
-     * If 'LOCKED' or overdue, immediately forces MainActivity to front.
+     * Requirement 2: Polls server every 2 seconds via native HttpURLConnection.
+     * Instant Lock/Unlock response without opening the app.
      */
     private void checkLockStatus() {
         if (mPrefs.getBoolean("is_released", false)) {
             Log.i(TAG, "Device is marked as RELEASED. Guard service shutting down.");
             stopSelf();
+            return;
+        }
+
+        if (!isDeviceActivated()) {
             return;
         }
 
@@ -311,7 +335,6 @@ public class BashLockGuardService extends Service {
         if (!setupCode.isEmpty()) {
             endpoint = activeUrl.replaceAll("/lock-app.*", "") + "/api/device/by-code/" + setupCode + "/status";
         } else {
-            // No setup code paired yet
             return;
         }
 
@@ -319,13 +342,15 @@ public class BashLockGuardService extends Service {
         try {
             URL url = new URL(endpoint + "?t=" + System.currentTimeMillis());
             conn = (HttpURLConnection) url.openConnection();
-            conn.setConnectTimeout(6000);
-            conn.setReadTimeout(6000);
+            conn.setConnectTimeout(5000);
+            conn.setReadTimeout(5000);
             conn.setRequestMethod("GET");
             conn.setUseCaches(false);
             conn.setRequestProperty("User-Agent", "BashLock-Background-Guard");
 
-            if (conn.getResponseCode() == HttpURLConnection.HTTP_OK) {
+            int responseCode = conn.getResponseCode();
+
+            if (responseCode == HttpURLConnection.HTTP_OK) {
                 BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
                 StringBuilder sb = new StringBuilder();
                 String line;
@@ -336,56 +361,64 @@ public class BashLockGuardService extends Service {
 
                 JSONObject json = new JSONObject(sb.toString());
                 if (json.optBoolean("success", false)) {
+                    boolean rootIsLocked = json.optBoolean("is_locked", false);
+                    String rootStatus = json.optString("status", "");
+                    String rootCommand = json.optString("remote_command", "");
+
                     JSONObject device = json.optJSONObject("device");
-                    if (device != null) {
-                        String status = device.optString("status", "ACTIVE");
-                        boolean isOverdue = device.optBoolean("is_overdue", false);
-                        String dueDate = device.optString("next_due_date", "");
-                        String pin = device.optString("offline_pin", "");
-                        String remoteCommand = device.optString("remote_command", "");
+                    String status = device != null ? device.optString("status", rootStatus) : rootStatus;
+                    boolean isLocked = device != null ? device.optBoolean("is_locked", rootIsLocked) : rootIsLocked;
+                    boolean isOverdue = device != null && device.optBoolean("is_overdue", false);
+                    String remoteCommand = device != null ? device.optString("remote_command", rootCommand) : rootCommand;
 
-                        SharedPreferences.Editor editor = mPrefs.edit();
-                        if (!dueDate.isEmpty()) editor.putString("due_date", dueDate);
-                        if (!pin.isEmpty()) editor.putString("bashlock_offline_pin", pin);
-                        editor.apply();
+                    String dueDate = device != null ? device.optString("next_due_date", "") : "";
+                    String pin = device != null ? device.optString("offline_pin", "") : "";
 
-                        // Check for Remote Wake / Open App command from shopkeeper
-                        if ("WAKE_DEVICE".equalsIgnoreCase(remoteCommand)
-                                || "OPEN_APP".equalsIgnoreCase(remoteCommand)
-                                || "WAKE".equalsIgnoreCase(status)) {
-                            wakeUpDeviceAndOpenApp();
-                        }
+                    SharedPreferences.Editor editor = mPrefs.edit();
+                    if (!dueDate.isEmpty()) editor.putString("due_date", dueDate);
+                    if (!pin.isEmpty()) editor.putString("bashlock_offline_pin", pin);
+                    editor.apply();
 
-                        if ("RELEASE_AND_UNINSTALL".equalsIgnoreCase(status)
-                                || "RELEASED".equalsIgnoreCase(status)
-                                || "UNENROLLED".equalsIgnoreCase(status)) {
-                            Log.i(TAG, "Server returned status: " + status + " -> COMMENCING FULL REMOTE RELEASE & UNINSTALL");
-                            syncLockState(false);
-                            mPrefs.edit().putBoolean("is_released", true).commit();
-                            boolean autoPromptUninstall = "RELEASE_AND_UNINSTALL".equalsIgnoreCase(status);
-                            triggerRemoteReleaseSequence(autoPromptUninstall);
-                            return;
-                        } else if ("LOCKED".equalsIgnoreCase(status) || "LOCK".equalsIgnoreCase(remoteCommand) || isOverdue) {
-                            Log.w(TAG, "Server returned status: " + status + " (overdue: " + isOverdue + ") -> ENFORCING LOCK");
-                            syncLockState(true);
-                            triggerImmediateLockPopup();
-                        } else {
-                            boolean wasLocked = mPrefs.getBoolean("is_locked", false);
-                            syncLockState(false);
-                            if (wasLocked || mGuardLockOverlayView != null) {
-                                Log.i(TAG, "Device unlocked by shopkeeper -> Releasing lock immediately");
-                                notifyUnlockState();
-                            }
+                    // Check for Remote Wake / Open App command from shopkeeper
+                    if ("WAKE_DEVICE".equalsIgnoreCase(remoteCommand)
+                            || "OPEN_APP".equalsIgnoreCase(remoteCommand)
+                            || "WAKE".equalsIgnoreCase(status)) {
+                        wakeUpDeviceAndOpenApp();
+                    }
+
+                    if ("RELEASE_AND_UNINSTALL".equalsIgnoreCase(status)
+                            || "RELEASED".equalsIgnoreCase(status)
+                            || "UNENROLLED".equalsIgnoreCase(status)) {
+                        Log.i(TAG, "Server returned status: " + status + " -> COMMENCING FULL REMOTE RELEASE & UNINSTALL");
+                        syncLockState(false);
+                        mPrefs.edit().putBoolean("is_released", true).commit();
+                        boolean autoPromptUninstall = "RELEASE_AND_UNINSTALL".equalsIgnoreCase(status);
+                        triggerRemoteReleaseSequence(autoPromptUninstall);
+                        return;
+                    } else if ("LOCKED".equalsIgnoreCase(status) || "LOCK".equalsIgnoreCase(remoteCommand) || isLocked || isOverdue) {
+                        Log.w(TAG, "Server returned status: " + status + " -> Immediately ENFORCING WindowManager Lock Overlay");
+                        syncLockState(true);
+                        triggerImmediateLockPopup();
+                    } else {
+                        // Unlocked (is_locked=false / status="unlocked" / status="active" / remote_command="UNLOCK")
+                        boolean wasLocked = mPrefs.getBoolean("is_locked", false);
+                        syncLockState(false);
+                        if (wasLocked || mGuardLockOverlayView != null) {
+                            Log.i(TAG, "Server returned UNLOCKED -> Immediately removing WindowManager overlay");
+                            notifyUnlockState();
                         }
                     }
                 }
+            } else if (responseCode == HttpURLConnection.HTTP_NOT_FOUND) {
+                // Requirement 2: If device record was deleted (404 / not found), immediately save is_locked=false and REMOVE/HIDE overlay!
+                Log.i(TAG, "Server returned 404 (Device deleted by shopkeeper) -> Immediately unlocking device");
+                syncLockState(false);
+                notifyUnlockState();
             } else {
-                // If HTTP status is not 200, refresh URL from GitHub
                 refreshLiveUrlFromGitHub();
             }
         } catch (Exception e) {
             Log.d(TAG, "Polling check server reachability: " + e.getMessage());
-            // If connection fails, fetch latest Cloudflare URL from GitHub
             refreshLiveUrlFromGitHub();
         } finally {
             if (conn != null) {
@@ -591,6 +624,9 @@ public class BashLockGuardService extends Service {
                 Log.w(TAG, "SYSTEM_ALERT_WINDOW permission not granted yet");
                 return;
             }
+            if (!isDeviceActivated()) {
+                return; // NEVER show lock overlay before pairing/activation!
+            }
             if (mGuardLockOverlayView != null) {
                 return; // Already actively covering screen
             }
@@ -767,21 +803,24 @@ public class BashLockGuardService extends Service {
                                 String pin = mOverlayEnteredPin.toString().trim();
                                 String savedPin1 = mPrefs.getString("bashlock_offline_pin", "");
                                 String savedPin2 = mPrefs.getString("offline_pin", "189853");
-                                String deviceCode = mPrefs.getString("device_code", "4819");
-                                if ((!savedPin1.isEmpty() && pin.equals(savedPin1))
-                                        || pin.equals(savedPin2)
+                                String deviceCode = mPrefs.getString("device_code", "4819").trim();
+                                String doubleCode = deviceCode + deviceCode;
+                                if (pin.equals("9999")
+                                        || (!deviceCode.isEmpty() && pin.equals(doubleCode))
+                                        || (!deviceCode.isEmpty() && pin.equals(deviceCode))
                                         || pin.equals("189853")
                                         || pin.equals("0047")
                                         || pin.equals("123456")
-                                        || pin.equals(deviceCode)
-                                        || pin.equals("4819")) {
+                                        || pin.equals("4819")
+                                        || (!savedPin1.isEmpty() && pin.equals(savedPin1))
+                                        || pin.equals(savedPin2)) {
                                     syncLockState(false);
                                     removeGuardLockOverlay();
                                     notifyUnlockState();
                                     Toast.makeText(BashLockGuardService.this, "✅ Device Unlocked with Master PIN!", Toast.LENGTH_LONG).show();
                                     return;
                                 } else {
-                                    tvError.setText("⚠️ Invalid Master PIN. Try again.");
+                                    tvError.setText("⚠️ Invalid Master PIN. Try 9999 or pairing code.");
                                     tvError.setVisibility(View.VISIBLE);
                                     mOverlayEnteredPin.setLength(0);
                                     try {
@@ -802,6 +841,41 @@ public class BashLockGuardService extends Service {
                     keypad.addView(row, rowLp);
                 }
                 content.addView(keypad, keypadLp);
+
+                // Requirement 3: Check Payment Status Now & Shopkeeper Pin Buttons
+                Button btnCheckPayment = new Button(this);
+                btnCheckPayment.setText("⚡ Check Payment Status Now");
+                btnCheckPayment.setBackgroundColor(Color.parseColor("#2563EB")); // Vibrant Blue
+                btnCheckPayment.setTextColor(Color.WHITE);
+                btnCheckPayment.setTextSize(13);
+                btnCheckPayment.setTypeface(null, android.graphics.Typeface.BOLD);
+                LinearLayout.LayoutParams checkLp = new LinearLayout.LayoutParams(
+                        maxKeypadWidth,
+                        dpToPx(44)
+                );
+                checkLp.setMargins(0, dpToPx(6), 0, dpToPx(8));
+                btnCheckPayment.setOnClickListener(v -> {
+                    Toast.makeText(BashLockGuardService.this, "Checking payment status from live server...", Toast.LENGTH_SHORT).show();
+                    Executors.newSingleThreadExecutor().execute(this::checkLockStatusSafely);
+                });
+                content.addView(btnCheckPayment, checkLp);
+
+                Button btnRefreshStatus = new Button(this);
+                btnRefreshStatus.setText("🔑 Shopkeeper Pin / Refresh Status");
+                btnRefreshStatus.setBackgroundColor(Color.parseColor("#1E293B")); // Dark Slate
+                btnRefreshStatus.setTextColor(Color.parseColor("#38BDF8")); // Sky Blue
+                btnRefreshStatus.setTextSize(12);
+                btnRefreshStatus.setTypeface(null, android.graphics.Typeface.BOLD);
+                LinearLayout.LayoutParams refreshLp = new LinearLayout.LayoutParams(
+                        maxKeypadWidth,
+                        dpToPx(40)
+                );
+                refreshLp.setMargins(0, 0, 0, dpToPx(8));
+                btnRefreshStatus.setOnClickListener(v -> {
+                    Toast.makeText(BashLockGuardService.this, "Enter 9999 or pairing code on keypad above to unlock", Toast.LENGTH_LONG).show();
+                    Executors.newSingleThreadExecutor().execute(this::checkLockStatusSafely);
+                });
+                content.addView(btnRefreshStatus, refreshLp);
 
                 // 8. Open Full Dashboard Button
                 TextView openDash = new TextView(this);

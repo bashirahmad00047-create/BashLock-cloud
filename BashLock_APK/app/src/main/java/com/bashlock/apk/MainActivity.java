@@ -147,18 +147,32 @@ public class MainActivity extends AppCompatActivity {
         }
         mPrefs.edit().putString("setup_code", setupCode).putString("device_code", setupCode).apply();
 
-        // Restore previous lock state if device was rebooted while locked (DirectBoot + Normal prefs)
-        mIsLocked = mPrefs.getBoolean("is_locked", false);
-        if (!mIsLocked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+        // Restore previous lock state ONLY if device was paired & activated!
+        // During initial setup (permission granting), NEVER engage kiosk lock!
+        boolean isActivated = mPrefs.getBoolean("is_activated", false);
+        if (!isActivated && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             try {
                 Context directBootContext = createDeviceProtectedStorageContext();
-                mIsLocked = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE)
-                        .getBoolean("is_locked", false);
+                isActivated = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE)
+                        .getBoolean("is_activated", false);
             } catch (Exception ignored) {}
         }
-        if (mIsLocked) {
-            Log.w(TAG, "Device started in LOCKED state (Offline Safe)! Enforcing Kiosk Lock immediately.");
-            setKioskLockState(true);
+
+        if (!isActivated || setupCode.isEmpty() || "4819".equals(setupCode)) {
+            mIsLocked = false;
+        } else {
+            mIsLocked = mPrefs.getBoolean("is_locked", false);
+            if (!mIsLocked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                try {
+                    Context directBootContext = createDeviceProtectedStorageContext();
+                    mIsLocked = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE)
+                            .getBoolean("is_locked", false);
+                } catch (Exception ignored) {}
+            }
+            if (mIsLocked) {
+                Log.w(TAG, "Device started in LOCKED state (Offline Safe)! Enforcing Kiosk Lock immediately.");
+                setKioskLockState(true);
+            }
         }
 
         handleIncomingIntent(getIntent());

@@ -30,13 +30,15 @@ public class BootReceiver extends BroadcastReceiver {
         // 1. Re-assert Device Owner policies on reboot
         BashLockDeviceAdminReceiver.configureDeviceOwnerPolicies(context);
 
-        // 2. Check lock state & pairing code across Direct Boot (Device Protected) and Standard storage
+        // 2. Check activation, lock state & pairing code across Direct Boot (Device Protected) and Standard storage
+        boolean isActivated = false;
         boolean isLocked = false;
         String setupCode = "";
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 Context directBootContext = context.createDeviceProtectedStorageContext();
                 SharedPreferences directPrefs = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE);
+                isActivated = directPrefs.getBoolean("is_activated", false);
                 if (directPrefs.contains("is_locked")) {
                     isLocked = directPrefs.getBoolean("is_locked", false);
                 }
@@ -44,10 +46,15 @@ public class BootReceiver extends BroadcastReceiver {
             }
         } catch (Exception ignored) {}
 
-        if (!isLocked) {
+        if (!isActivated || !isLocked) {
             try {
                 SharedPreferences normalPrefs = context.getSharedPreferences("BashLock_Config", Context.MODE_PRIVATE);
-                isLocked = normalPrefs.getBoolean("is_locked", false);
+                if (!isActivated) {
+                    isActivated = normalPrefs.getBoolean("is_activated", false);
+                }
+                if (!isLocked) {
+                    isLocked = normalPrefs.getBoolean("is_locked", false);
+                }
                 if (setupCode.isEmpty()) {
                     setupCode = normalPrefs.getString("setup_code", normalPrefs.getString("device_code", "4819")).trim();
                 }
@@ -57,9 +64,9 @@ public class BootReceiver extends BroadcastReceiver {
             setupCode = "4819";
         }
 
-        // 3. Commercial Lock State: ONLY enforce lock on boot if device was actually LOCKED!
-        // Never lock a paying customer just because their phone is paired with a setup code.
-        boolean shouldEnforceBootLock = isLocked;
+        // 3. Commercial Lock State:
+        // NEVER lock during setup! Only enforce lock on boot if device was paired & activated AND is_locked is true!
+        boolean shouldEnforceBootLock = isActivated && isLocked && !setupCode.isEmpty() && !"4819".equals(setupCode);
 
         // Synchronously commit both contexts (commit() not apply())
         if (isLocked) {
