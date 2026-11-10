@@ -40,6 +40,7 @@ public class WebBridge {
     public void savePairingData(String code, String pin, String deviceId, String dueDate) {
         SharedPreferences.Editor editor = mPrefs.edit()
                 .putString("setup_code", code)
+                .putString("device_code", code)
                 .putString("offline_pin", pin)
                 .putString("bashlock_offline_pin", pin)
                 .putString("device_id", deviceId);
@@ -47,6 +48,18 @@ public class WebBridge {
             editor.putString("due_date", dueDate);
         }
         editor.apply();
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+            try {
+                Context directBootContext = mActivity.createDeviceProtectedStorageContext();
+                directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE)
+                        .edit()
+                        .putString("setup_code", code)
+                        .putString("device_code", code)
+                        .apply();
+            } catch (Exception ignored) {}
+        }
+
         showNativeToast("Pairing saved: " + code);
 
         // Finalize self-provisioning & engage stealth mode
@@ -56,8 +69,161 @@ public class WebBridge {
         try {
             android.content.Intent serviceIntent = new android.content.Intent(mActivity, BashLockGuardService.class);
             serviceIntent.putExtra("CHECK_NOW", true);
+            serviceIntent.putExtra("RESTART_FAST_POLL", true);
             androidx.core.content.ContextCompat.startForegroundService(mActivity, serviceIntent);
         } catch (Exception ignored) {}
+    }
+
+    @JavascriptInterface
+    public void activateWithCode(String code) {
+        if (code == null) return;
+        final String trimmedCode = code.trim();
+        if (trimmedCode.isEmpty()) return;
+
+        // Save device_code and setup_code in SharedPreferences & DirectBoot storage
+        mPrefs.edit()
+                .putString("device_code", trimmedCode)
+                .putString("setup_code", trimmedCode)
+                .apply();
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+            try {
+                Context directBootContext = mActivity.createDeviceProtectedStorageContext();
+                directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE)
+                        .edit()
+                        .putString("device_code", trimmedCode)
+                        .putString("setup_code", trimmedCode)
+                        .apply();
+            } catch (Exception ignored) {}
+        }
+
+        showNativeToast("Activating protection for code: " + trimmedCode);
+
+        // Run background network sync
+        new Thread(() -> {
+            try {
+                String serverUrl = resolveLiveServerUrl();
+
+                // Call /api/pair (POST)
+                try {
+                    java.net.URL pairUrl = new java.net.URL(serverUrl + "/api/pair");
+                    java.net.HttpURLConnection conn = (java.net.HttpURLConnection) pairUrl.openConnection();
+                    conn.setRequestMethod("POST");
+                    conn.setConnectTimeout(7000);
+                    conn.setReadTimeout(7000);
+                    conn.setDoOutput(true);
+                    conn.setRequestProperty("Content-Type", "application/json");
+                    org.json.JSONObject pairJson = new org.json.JSONObject();
+                    pairJson.put("code", trimmedCode);
+                    try (java.io.OutputStream os = conn.getOutputStream()) {
+                        byte[] input = pairJson.toString().getBytes("utf-8");
+                        os.write(input, 0, input.length);
+                    }
+                    conn.getResponseCode();
+                    conn.disconnect();
+                } catch (Exception e) {
+                    android.util.Log.e("WebBridge", "Pairing POST error: " + e.getMessage());
+                }
+
+                // Call /api/device/by-code/<code>/status (GET)
+                try {
+                    java.net.URL statusUrl = new java.net.URL(serverUrl + "/api/device/by-code/" + java.net.URLEncoder.encode(trimmedCode, "UTF-8") + "/status?t=" + System.currentTimeMillis());
+                    java.net.HttpURLConnection statusConn = (java.net.HttpURLConnection) statusUrl.openConnection();
+                    statusConn.setRequestMethod("GET");
+                    statusConn.setConnectTimeout(7000);
+                    statusConn.setReadTimeout(7000);
+                    statusConn.setRequestProperty("User-Agent", "BashLock-WebBridge");
+
+                    if (statusConn.getResponseCode() == java.net.HttpURLConnection.HTTP_OK) {
+                        java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(statusConn.getInputStream()));
+                        StringBuilder sb = new StringBuilder();
+                        String line;
+                        while ((line = reader.readLine()) != null) {
+                            sb.append(line);
+                        }
+                        reader.close();
+
+                        org.json.JSONObject json = new org.json.JSONObject(sb.toString());
+                        if (json.optBoolean("success", false)) {
+                            org.json.JSONObject device = json.optJSONObject("device");
+                            if (device != null) {
+                                String pin = device.optString("offline_pin", "");
+                                String dueDate = device.optString("next_due_date", "");
+                                String deviceId = device.optString("id", "");
+                                String status = device.optString("status", "ACTIVE");
+                                boolean isLocked = "LOCKED".equalsIgnoreCase(status) || device.optBoolean("is_overdue", false);
+
+                                SharedPreferences.Editor editor = mPrefs.edit();
+                                if (!pin.isEmpty()) {
+                                    editor.putString("offline_pin", pin);
+                                    editor.putString("bashlock_offline_pin", pin);
+                                }
+                                if (!dueDate.isEmpty()) {
+                                    editor.putString("due_date", dueDate);
+                                }
+                                if (!deviceId.isEmpty()) {
+                                    editor.putString("device_id", deviceId);
+                                }
+                                editor.putBoolean("is_locked", isLocked);
+                                editor.apply();
+
+                                if (isLocked) {
+                                    mActivity.runOnUiThread(() -> mActivity.setKioskLockState(true));
+                                }
+                            }
+                        }
+                    }
+                    statusConn.disconnect();
+                } catch (Exception e) {
+                    android.util.Log.e("WebBridge", "Status GET error: " + e.getMessage());
+                }
+
+                // Finalize self-provisioning & engage stealth mode
+                mActivity.runOnUiThread(() -> SelfProvisioningManager.finalizeSelfProvisioning(mActivity));
+
+                // Restarts BashLockGuardService so polling starts immediately every 3 seconds
+                android.content.Intent serviceIntent = new android.content.Intent(mActivity, BashLockGuardService.class);
+                serviceIntent.putExtra("CHECK_NOW", true);
+                serviceIntent.putExtra("RESTART_FAST_POLL", true);
+                androidx.core.content.ContextCompat.startForegroundService(mActivity, serviceIntent);
+
+            } catch (Exception e) {
+                android.util.Log.e("WebBridge", "activateWithCode error: " + e.getMessage());
+            }
+        }).start();
+    }
+
+    private String resolveLiveServerUrl() {
+        String base = mActivity.getServerBaseUrl();
+        if (base != null && !base.isEmpty()) {
+            base = base.replaceAll("/lock-app.*", "");
+        }
+        try {
+            java.net.URL url = new java.net.URL(MainActivity.GITHUB_RAW_LIVE_URL + "?t=" + System.currentTimeMillis());
+            java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+            conn.setConnectTimeout(5000);
+            conn.setReadTimeout(5000);
+            conn.setRequestMethod("GET");
+            conn.setUseCaches(false);
+            if (conn.getResponseCode() == java.net.HttpURLConnection.HTTP_OK) {
+                java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(conn.getInputStream()));
+                String line = reader.readLine();
+                reader.close();
+                if (line != null) {
+                    String fetched = line.trim().replaceAll("/lock-app.*", "");
+                    if (fetched.startsWith("https://") && !fetched.contains("10.")) {
+                        base = fetched;
+                        mPrefs.edit().putString("cached_live_url", fetched + "/lock-app").apply();
+                    }
+                }
+            }
+            conn.disconnect();
+        } catch (Exception ignored) {}
+
+        if (base == null || base.isEmpty()) {
+            base = MainActivity.DEFAULT_PUBLIC_HTTPS_URL.replaceAll("/lock-app.*", "");
+        }
+        return base;
     }
 
     @JavascriptInterface
@@ -102,6 +268,11 @@ public class WebBridge {
     }
 
     @JavascriptInterface
+    public void openDeviceAdmin() {
+        requestDeviceAdmin();
+    }
+
+    @JavascriptInterface
     public boolean hasOverlayPermission() {
         try {
             return mActivity.hasOverlayPermission();
@@ -115,6 +286,11 @@ public class WebBridge {
         try {
             mActivity.runOnUiThread(mActivity::promptOverlayPermission);
         } catch (Exception ignored) {}
+    }
+
+    @JavascriptInterface
+    public void openOverlayPermission() {
+        requestOverlayPermission();
     }
 
     @JavascriptInterface
@@ -134,6 +310,11 @@ public class WebBridge {
     }
 
     @JavascriptInterface
+    public void openAccessibilityService() {
+        requestAccessibilityService();
+    }
+
+    @JavascriptInterface
     public boolean isBatteryOptimizationIgnored() {
         try {
             return mActivity.isBatteryOptimizationIgnored();
@@ -147,6 +328,11 @@ public class WebBridge {
         try {
             mActivity.runOnUiThread(mActivity::promptBatteryOptimization);
         } catch (Exception ignored) {}
+    }
+
+    @JavascriptInterface
+    public void openBatteryOptimization() {
+        requestBatteryOptimization();
     }
 
     @JavascriptInterface

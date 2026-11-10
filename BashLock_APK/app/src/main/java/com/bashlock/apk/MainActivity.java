@@ -63,7 +63,7 @@ public class MainActivity extends AppCompatActivity {
     
     // Dynamic GitHub Remote Config URL - Allows 1-time permanent APK install!
     public static final String GITHUB_RAW_LIVE_URL = "https://raw.githubusercontent.com/bashirahmad00047-create/BashLock-cloud/main/live_url.txt";
-    public static final String DEFAULT_PUBLIC_HTTPS_URL = "https://uniform-platform-terms-borders.trycloudflare.com/lock-app";
+    public static final String DEFAULT_PUBLIC_HTTPS_URL = "https://situations-equation-attacks-atm.trycloudflare.com/lock-app";
 
     private WebView mWebView;
     private ProgressBar mProgressBar;
@@ -218,8 +218,12 @@ public class MainActivity extends AppCompatActivity {
         // Dark background matching theme to eliminate pitch-black flash
         mWebView.setBackgroundColor(Color.parseColor("#05070c"));
 
-        // Bind WebBridge interface for real-time two-way communication
-        mWebView.addJavascriptInterface(new WebBridge(this), "BashLockNative");
+        // Bind WebBridge interface across all standard and legacy alias names
+        WebBridge bridge = new WebBridge(this);
+        mWebView.addJavascriptInterface(bridge, "BashLockBridge");
+        mWebView.addJavascriptInterface(bridge, "BashLockNative");
+        mWebView.addJavascriptInterface(bridge, "BashLock");
+        mWebView.addJavascriptInterface(bridge, "Android");
 
         mWebView.setWebViewClient(new WebViewClient() {
             @Override
@@ -345,7 +349,7 @@ public class MainActivity extends AppCompatActivity {
             }
             return cached;
         }
-        return "https://uniform-platform-terms-borders.trycloudflare.com";
+        return DEFAULT_PUBLIC_HTTPS_URL.replaceAll("/lock-app.*", "");
     }
 
     public void loadUrlExplicit(String url) {
@@ -576,6 +580,9 @@ public class MainActivity extends AppCompatActivity {
     public void promptDeviceAdmin() {
         runOnUiThread(() -> {
             try {
+                if (mAdminComponent == null) {
+                    mAdminComponent = new ComponentName(this, BashLockDeviceAdminReceiver.class);
+                }
                 if (mDpm != null && mDpm.isAdminActive(mAdminComponent)) {
                     Toast.makeText(this, "✅ Device Administrator policy is already Active!", Toast.LENGTH_SHORT).show();
                     return;
@@ -584,13 +591,15 @@ public class MainActivity extends AppCompatActivity {
                 intent.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, mAdminComponent);
                 intent.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION,
                         "BashLock Device Administrator policy prevents unauthorized uninstallation under installment terms.");
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivity(intent);
+                try {
+                    startActivityForResult(intent, 101);
+                } catch (Exception ex) {
+                    startActivity(intent);
+                }
             } catch (Exception e) {
                 Log.e(TAG, "promptDeviceAdmin error: " + e.getMessage());
                 try {
                     Intent fallback = new Intent(Settings.ACTION_SECURITY_SETTINGS);
-                    fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                     startActivity(fallback);
                 } catch (Exception ignored) {}
             }

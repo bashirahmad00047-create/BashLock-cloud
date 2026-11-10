@@ -733,7 +733,16 @@
 
   <!-- JAVASCRIPT PHONE GUARD ENGINE -->
   <script>
-    let initialFromUrl = ""; if (window.BashLockNative && typeof window.BashLockNative.getSavedSetupCode === "function") { let saved = window.BashLockNative.getSavedSetupCode(); if (saved) initialFromUrl = saved; }
+    function getBridge() {
+      return window.BashLockBridge || window.BashLockNative || window.BashLock || window.Android || null;
+    }
+
+    let initialFromUrl = "";
+    const _initBridge = getBridge();
+    if (_initBridge && typeof _initBridge.getSavedSetupCode === "function") {
+      let saved = _initBridge.getSavedSetupCode();
+      if (saved) initialFromUrl = saved;
+    }
     let currentCode = initialFromUrl || localStorage.getItem("bashlock_paired_code") || "";
     let activeDeviceId = localStorage.getItem("bashlock_device_id") || null;
     let savedDueDate = localStorage.getItem("bashlock_due_date") || null;
@@ -765,14 +774,15 @@
     }
 
     function getServerBase() {
-      if (window.BashLockNative && typeof window.BashLockNative.getServerBaseUrl === 'function') {
-        const nativeBase = window.BashLockNative.getServerBaseUrl();
+      const b = getBridge();
+      if (b && typeof b.getServerBaseUrl === 'function') {
+        const nativeBase = b.getServerBaseUrl();
         if (nativeBase && nativeBase.startsWith("http")) return nativeBase;
       }
       if (location.origin && location.origin !== "null" && location.protocol.startsWith("http")) {
         return location.origin;
       }
-      return "https://uniform-platform-terms-borders.trycloudflare.com";
+      return "https://situations-equation-attacks-atm.trycloudflare.com";
     }
 
     // Step 1: Activate with 4-Digit Code
@@ -796,12 +806,19 @@
       currentCode = code;
       localStorage.setItem("bashlock_paired_code", code);
 
+      const b = getBridge();
       // Notify native Android bridge immediately
       try {
-        if (window.BashLockNative && typeof window.BashLockNative.savePairingData === 'function') {
-          window.BashLockNative.savePairingData(code, '', '', '');
+        if (b) {
+          if (typeof b.activateWithCode === 'function') {
+            b.activateWithCode(code);
+          } else if (typeof b.savePairingData === 'function') {
+            b.savePairingData(code, '', '', '');
+          }
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error("Bridge activate error:", e);
+      }
 
       // Asynchronous server pairing notification
       const serverBase = getServerBase();
@@ -815,8 +832,8 @@
 
       // Navigate to /lock-app/<code> to load active status
       setTimeout(() => {
-        if (window.BashLockNative && typeof window.BashLockNative.loadRemoteUrl === 'function') {
-          window.BashLockNative.loadRemoteUrl(serverBase + `/lock-app/${encodeURIComponent(code)}`);
+        if (b && typeof b.loadRemoteUrl === 'function') {
+          b.loadRemoteUrl(serverBase + `/lock-app/${encodeURIComponent(code)}`);
         } else {
           window.location.href = serverBase + `/lock-app/${encodeURIComponent(code)}`;
         }
@@ -830,8 +847,9 @@
 
     function notifyNativeLockState(locked) {
       try {
-        if (window.BashLockNative && typeof window.BashLockNative.setLockState === 'function') {
-          window.BashLockNative.setLockState(locked);
+        const b = getBridge();
+        if (b && typeof b.setLockState === 'function') {
+          b.setLockState(locked);
         }
       } catch (e) {}
     }
@@ -930,8 +948,9 @@
     }
 
     function uninstallAppNow() {
-      if (window.BashLockNative && typeof window.BashLockNative.uninstallApp === 'function') {
-        window.BashLockNative.uninstallApp();
+      const b = getBridge();
+      if (b && typeof b.uninstallApp === 'function') {
+        b.uninstallApp();
       } else {
         alert("Physical Android phone par yeh button BashLock APK ko phone se mukammal delete (uninstall) karne ka dialog kholta hai.");
       }
@@ -1046,8 +1065,9 @@
           localStorage.setItem("bashlock_shop_name", d.shop_name);
           localStorage.setItem("bashlock_shop_phone", d.shop_phone);
 
-          if (window.BashLockNative && typeof window.BashLockNative.savePairingData === 'function') {
-            window.BashLockNative.savePairingData(currentCode, d.offline_pin || '', d.id || '', d.next_due_date || '');
+          const b = getBridge();
+          if (b && typeof b.savePairingData === 'function') {
+            b.savePairingData(currentCode, d.offline_pin || '', d.id || '', d.next_due_date || '');
           }
 
           if (d.status === "RELEASE_AND_UNINSTALL" || d.status === "RELEASED" || d.is_released) {
@@ -1156,13 +1176,14 @@
     let lastBatteryState = null;
 
     function checkNativePermissions() {
-      if (!window.BashLockNative) return;
+      const b = getBridge();
+      if (!b) return;
       const card = document.getElementById("native-permission-card");
       if (card) card.classList.remove("hidden");
 
       // 1. Device Admin
       try {
-        const isAdmin = Boolean(window.BashLockNative.isDeviceAdminActive && window.BashLockNative.isDeviceAdminActive());
+        const isAdmin = Boolean(b.isDeviceAdminActive && b.isDeviceAdminActive());
         if (isAdmin !== lastAdminState) {
           lastAdminState = isAdmin;
           const btnAdmin = document.getElementById("perm-btn-admin");
@@ -1177,7 +1198,7 @@
 
       // 2. Overlay
       try {
-        const isOverlay = Boolean(window.BashLockNative.hasOverlayPermission && window.BashLockNative.hasOverlayPermission());
+        const isOverlay = Boolean(b.hasOverlayPermission && b.hasOverlayPermission());
         if (isOverlay !== lastOverlayState) {
           lastOverlayState = isOverlay;
           const btnOverlay = document.getElementById("perm-btn-overlay");
@@ -1192,7 +1213,7 @@
 
       // 3. Accessibility
       try {
-        const isAccess = Boolean(window.BashLockNative.isAccessibilityServiceEnabled && window.BashLockNative.isAccessibilityServiceEnabled());
+        const isAccess = Boolean(b.isAccessibilityServiceEnabled && b.isAccessibilityServiceEnabled());
         if (isAccess !== lastAccessState) {
           lastAccessState = isAccess;
           const btnAccess = document.getElementById("perm-btn-access");
@@ -1207,7 +1228,7 @@
 
       // 4. Battery Optimization
       try {
-        const isBattery = Boolean(window.BashLockNative.isBatteryOptimizationIgnored && window.BashLockNative.isBatteryOptimizationIgnored());
+        const isBattery = Boolean(b.isBatteryOptimizationIgnored && b.isBatteryOptimizationIgnored());
         if (isBattery !== lastBatteryState) {
           lastBatteryState = isBattery;
           const btnBattery = document.getElementById("perm-btn-battery");
@@ -1224,8 +1245,13 @@
     function requestAdminFromWeb() {
       try {
         showToast("Device Administrator setting open ho rahi hai...", true);
-        if (window.BashLockNative && window.BashLockNative.requestDeviceAdmin) {
-          window.BashLockNative.requestDeviceAdmin();
+        const b = getBridge();
+        if (b) {
+          if (typeof b.openDeviceAdmin === 'function') {
+            b.openDeviceAdmin();
+          } else if (typeof b.requestDeviceAdmin === 'function') {
+            b.requestDeviceAdmin();
+          }
         }
       } catch (e) {
         console.error("Admin request error:", e);
@@ -1235,8 +1261,13 @@
     function requestOverlayFromWeb() {
       try {
         showToast("Display Over Other Apps setting open ho rahi hai...", true);
-        if (window.BashLockNative && window.BashLockNative.requestOverlayPermission) {
-          window.BashLockNative.requestOverlayPermission();
+        const b = getBridge();
+        if (b) {
+          if (typeof b.openOverlayPermission === 'function') {
+            b.openOverlayPermission();
+          } else if (typeof b.requestOverlayPermission === 'function') {
+            b.requestOverlayPermission();
+          }
         }
       } catch (e) {
         console.error("Overlay request error:", e);
@@ -1246,8 +1277,13 @@
     function requestAccessFromWeb() {
       try {
         showToast("Accessibility Guard setting open ho rahi hai...", true);
-        if (window.BashLockNative && window.BashLockNative.requestAccessibilityService) {
-          window.BashLockNative.requestAccessibilityService();
+        const b = getBridge();
+        if (b) {
+          if (typeof b.openAccessibilityService === 'function') {
+            b.openAccessibilityService();
+          } else if (typeof b.requestAccessibilityService === 'function') {
+            b.requestAccessibilityService();
+          }
         }
       } catch (e) {
         console.error("Access request error:", e);
@@ -1257,8 +1293,13 @@
     function requestBatteryFromWeb() {
       try {
         showToast("Battery Optimization exemption setting open ho rahi hai...", true);
-        if (window.BashLockNative && window.BashLockNative.requestBatteryOptimization) {
-          window.BashLockNative.requestBatteryOptimization();
+        const b = getBridge();
+        if (b) {
+          if (typeof b.openBatteryOptimization === 'function') {
+            b.openBatteryOptimization();
+          } else if (typeof b.requestBatteryOptimization === 'function') {
+            b.requestBatteryOptimization();
+          }
         }
       } catch (e) {
         console.error("Battery request error:", e);
@@ -1268,8 +1309,9 @@
     function runWizardFromWeb() {
       try {
         showToast("Agli zaroori permission screen khul rahi hai...", true);
-        if (window.BashLockNative && window.BashLockNative.runNextProvisioningStep) {
-          window.BashLockNative.runNextProvisioningStep();
+        const b = getBridge();
+        if (b && typeof b.runNextProvisioningStep === 'function') {
+          b.runNextProvisioningStep();
         }
       } catch (e) {
         console.error("Wizard error:", e);
@@ -1277,7 +1319,12 @@
     }
 
     window.addEventListener("DOMContentLoaded", () => {
-      try { if (window.BashLockNative && typeof window.BashLockNative.onPageReady === "function") { window.BashLockNative.onPageReady(); } } catch(e) {}
+      try {
+        const b = getBridge();
+        if (b && typeof b.onPageReady === "function") {
+          b.onPageReady();
+        }
+      } catch(e) {}
 
       // Setup initial back trap
       pushHistoryTrap();

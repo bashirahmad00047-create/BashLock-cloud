@@ -84,6 +84,15 @@ public class BashLockGuardService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null) {
+            if (intent.getBooleanExtra("RESTART_FAST_POLL", false)) {
+                if (mScheduler != null && !mScheduler.isShutdown()) {
+                    try {
+                        mScheduler.shutdownNow();
+                    } catch (Exception ignored) {}
+                    mScheduler = null;
+                }
+                startStatusPollingScheduler();
+            }
             if (intent.getBooleanExtra("CHECK_NOW", false)) {
                 Executors.newSingleThreadExecutor().execute(this::checkLockStatus);
             }
@@ -163,8 +172,8 @@ public class BashLockGuardService extends Service {
         }
 
         mScheduler = Executors.newSingleThreadScheduledExecutor();
-        // Check every 10 seconds
-        mScheduler.scheduleWithFixedDelay(this::checkLockStatusSafely, 2, 10, TimeUnit.SECONDS);
+        // Check every 3 seconds for instant response to lock/unlock commands
+        mScheduler.scheduleWithFixedDelay(this::checkLockStatusSafely, 1, 3, TimeUnit.SECONDS);
     }
 
     private void checkLockStatusSafely() {
@@ -202,6 +211,9 @@ public class BashLockGuardService extends Service {
 
         // 2. Online Server check
         String setupCode = mPrefs.getString("setup_code", "").trim();
+        if (setupCode.isEmpty()) {
+            setupCode = mPrefs.getString("device_code", "").trim();
+        }
         String activeUrl = resolveLiveServerUrl();
 
         if (activeUrl == null || activeUrl.isEmpty()) {
