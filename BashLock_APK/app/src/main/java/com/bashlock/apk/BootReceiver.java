@@ -42,7 +42,7 @@ public class BootReceiver extends BroadcastReceiver {
                 if (directPrefs.contains("is_locked")) {
                     isLocked = directPrefs.getBoolean("is_locked", false);
                 }
-                setupCode = directPrefs.getString("setup_code", directPrefs.getString("device_code", "4819")).trim();
+                setupCode = directPrefs.getString("setup_code", directPrefs.getString("device_code", "")).trim();
             }
         } catch (Exception ignored) {}
 
@@ -56,12 +56,12 @@ public class BootReceiver extends BroadcastReceiver {
                     isLocked = normalPrefs.getBoolean("is_locked", false);
                 }
                 if (setupCode.isEmpty()) {
-                    setupCode = normalPrefs.getString("setup_code", normalPrefs.getString("device_code", "4819")).trim();
+                    setupCode = normalPrefs.getString("setup_code", normalPrefs.getString("device_code", "")).trim();
                 }
             } catch (Exception ignored) {}
         }
-        if (setupCode.isEmpty()) {
-            setupCode = "4819";
+        if ("4819".equals(setupCode)) {
+            setupCode = "";
         }
 
         // 3. Commercial Lock State:

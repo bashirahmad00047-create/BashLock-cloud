@@ -376,15 +376,36 @@ public class WebBridge {
     }
 
     @JavascriptInterface
-    public void resetPairing() {
+    public String getSetupCode() {
+        boolean isActivated = mPrefs.getBoolean("is_activated", false);
+        if (!isActivated) return "";
+        String code = mPrefs.getString("setup_code", mPrefs.getString("device_code", "")).trim();
+        return "4819".equals(code) ? "" : code;
+    }
+
+    @JavascriptInterface
+    public void resetPairingState() {
+        Log.i("WebBridge", "resetPairingState called from WebView: wiping all pairing preferences");
+        // 1. Wipe standard SharedPreferences
         mPrefs.edit()
                 .putBoolean("is_released", false)
                 .putBoolean("is_locked", false)
                 .putBoolean("is_activated", false)
                 .putString("device_code", "")
                 .putString("setup_code", "")
+                .putString("pairing_code", "")
+                .putString("device_id", "")
+                .putString("bashlock_offline_pin", "")
+                .putString("offline_pin", "")
+                .putString("due_date", "")
+                .putString("monthly_installment", "")
+                .putString("customer_name", "")
+                .putString("phone_model", "")
+                .putString("shop_name", "")
+                .putString("shop_phone", "")
                 .commit();
 
+        // 2. Wipe DirectBoot / DeviceProtectedStorageContext SharedPreferences
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
             try {
                 Context directBootContext = mActivity.createDeviceProtectedStorageContext();
@@ -395,18 +416,39 @@ public class WebBridge {
                         .putBoolean("is_activated", false)
                         .putString("device_code", "")
                         .putString("setup_code", "")
+                        .putString("pairing_code", "")
                         .commit();
             } catch (Exception ignored) {}
         }
 
+        // 3. UI Thread: unlock kiosk & reload setup screen
         mActivity.runOnUiThread(() -> {
-            mActivity.setKioskLockState(false);
-            showNativeToast("Pairing reset. Ready for new customer.");
+            try {
+                mActivity.setKioskLockState(false);
+                if (mActivity.getWebView() != null) {
+                    mActivity.getWebView().evaluateJavascript(
+                            "if(typeof resetToSetupMode==='function'){resetToSetupMode();}", null
+                    );
+                }
+                showNativeToast("Pairing reset. Ready for new 4-digit code.");
+            } catch (Exception e) {
+                Log.e("WebBridge", "Error reloading setup view: " + e.getMessage());
+            }
         });
     }
 
     @JavascriptInterface
+    public void resetPairing() {
+        resetPairingState();
+    }
+
+    @JavascriptInterface
     public boolean isDeviceReleased() {
+        boolean isActivated = mPrefs.getBoolean("is_activated", false);
+        String code = mPrefs.getString("setup_code", mPrefs.getString("device_code", "")).trim();
+        if (!isActivated || code.isEmpty() || "4819".equals(code)) {
+            return false;
+        }
         return mPrefs.getBoolean("is_released", false);
     }
 

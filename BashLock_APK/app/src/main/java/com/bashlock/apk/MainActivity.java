@@ -120,7 +120,7 @@ public class MainActivity extends AppCompatActivity {
         setupWebView();
         setupSwipeRefresh();
 
-        // Requirement 1 & 5: Persistent Lock State & Direct Boot Pairing Code (4819 fallback)
+        // Requirement 1 & 5: Persistent Lock State & Direct Boot Pairing Code
         String setupCode = mPrefs.getString("setup_code", "").trim();
         if (setupCode.isEmpty()) {
             setupCode = mPrefs.getString("device_code", "").trim();
@@ -131,21 +131,13 @@ public class MainActivity extends AppCompatActivity {
                 Context directBootContext = createDeviceProtectedStorageContext();
                 SharedPreferences directPrefs = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE);
                 if (setupCode.isEmpty()) {
-                    setupCode = directPrefs.getString("setup_code", directPrefs.getString("device_code", "4819")).trim();
+                    setupCode = directPrefs.getString("setup_code", directPrefs.getString("device_code", "")).trim();
                 }
-                if (setupCode.isEmpty()) {
-                    setupCode = "4819";
-                }
-                directPrefs.edit()
-                        .putString("setup_code", setupCode)
-                        .putString("device_code", setupCode)
-                        .apply();
             } catch (Exception ignored) {}
         }
-        if (setupCode.isEmpty()) {
-            setupCode = "4819";
+        if ("4819".equals(setupCode)) {
+            setupCode = "";
         }
-        mPrefs.edit().putString("setup_code", setupCode).putString("device_code", setupCode).apply();
 
         // Restore previous lock state ONLY if device was paired & activated!
         // During initial setup (permission granting), NEVER engage kiosk lock!
@@ -888,7 +880,24 @@ public class MainActivity extends AppCompatActivity {
             if (mWebView != null) {
                 mWebView.evaluateJavascript("if(typeof renderReleasedView==='function'){renderReleasedView();}", null);
             }
+        } else if (intent.getBooleanExtra("FORCE_SETUP_VIEW", false)) {
+            Log.i(TAG, "FORCE_SETUP_VIEW received! Switching to fresh 4-digit setup mode.");
+            mPrefs.edit()
+                    .putBoolean("is_released", false)
+                    .putBoolean("is_locked", false)
+                    .putBoolean("is_activated", false)
+                    .putString("device_code", "")
+                    .putString("setup_code", "")
+                    .commit();
+            setKioskLockState(false);
+            if (mWebView != null) {
+                mWebView.evaluateJavascript("if(typeof resetToSetupMode==='function'){resetToSetupMode();}", null);
+            }
         }
+    }
+
+    public WebView getWebView() {
+        return mWebView;
     }
 
     // ---------------- Hardware Button Suppression (Requirement 3) ---------------- //

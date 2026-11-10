@@ -591,6 +591,13 @@
         <div class="p-2.5 rounded-xl bg-slate-950 border border-white/10 text-[10px] text-slate-400">
           Laptop dashboard se <strong>"LOCK"</strong> dabane par yeh screen instant freeze ho jayegi.
         </div>
+
+        <div class="pt-1">
+          <button onclick="promptShopkeeperReset()" class="w-full py-3 rounded-2xl bg-slate-900/90 hover:bg-slate-800 active:scale-95 text-indigo-400 font-extrabold text-xs transition flex items-center justify-center gap-2 border border-indigo-500/30 shadow-md">
+            <i class="fa-solid fa-rotate text-sm"></i>
+            <span>🔄 Change / Enter New 4-Digit Code (Shopkeeper)</span>
+          </button>
+        </div>
       </main>
 
       <!-- ================= VIEW 3: FULL SCREEN RED LOCK SCREEN ================= -->
@@ -713,9 +720,9 @@
             <i class="fa-solid fa-trash-can text-sm"></i>
             <span>Uninstall BashLock App</span>
           </button>
-          <button onclick="resetToSetupMode()" class="w-full py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 font-bold text-xs transition flex items-center justify-center gap-2 border border-slate-700">
-            <i class="fa-solid fa-arrow-rotate-left text-sm"></i>
-            <span>Re-Enroll / Setup New Customer</span>
+          <button onclick="resetToSetupMode()" class="w-full py-3.5 rounded-2xl bg-indigo-950/80 hover:bg-indigo-900 active:scale-95 text-indigo-300 font-extrabold text-xs transition flex items-center justify-center gap-2 border border-indigo-500/40 shadow-lg">
+            <i class="fa-solid fa-rotate text-sm"></i>
+            <span>🔄 Change / Enter New 4-Digit Code (Shopkeeper)</span>
           </button>
           <p class="text-[10px] text-slate-500">
             App uninstall karne ke baad phone bilkul aam phone ki tarah chalega.
@@ -743,11 +750,20 @@
 
     let initialFromUrl = "";
     const _initBridge = getBridge();
-    if (_initBridge && typeof _initBridge.getSavedSetupCode === "function") {
-      let saved = _initBridge.getSavedSetupCode();
-      if (saved) initialFromUrl = saved;
+    if (_initBridge) {
+      if (typeof _initBridge.getSetupCode === "function") {
+        let saved = _initBridge.getSetupCode();
+        if (saved && saved !== "4819") initialFromUrl = saved;
+      } else if (typeof _initBridge.getSavedSetupCode === "function") {
+        let saved = _initBridge.getSavedSetupCode();
+        if (saved && saved !== "4819") initialFromUrl = saved;
+      }
     }
     let currentCode = initialFromUrl || localStorage.getItem("bashlock_paired_code") || "";
+    if (currentCode === "4819") {
+      currentCode = "";
+      localStorage.removeItem("bashlock_paired_code");
+    }
     let activeDeviceId = localStorage.getItem("bashlock_device_id") || null;
     let savedDueDate = localStorage.getItem("bashlock_due_date") || null;
     let savedPin = localStorage.getItem("bashlock_offline_pin") || null;
@@ -1028,21 +1044,45 @@
       localStorage.removeItem("bashlock_cust_name");
       localStorage.removeItem("bashlock_phone_model");
       localStorage.removeItem("bashlock_setup_code");
+      localStorage.removeItem("bashlock_paired_code");
       localStorage.removeItem("bashlock_is_activated");
       localStorage.removeItem("bashlock_balance");
       localStorage.removeItem("bashlock_due_date");
+      localStorage.removeItem("bashlock_offline_pin");
+      localStorage.removeItem("bashlock_monthly");
+      localStorage.removeItem("bashlock_shop_name");
+      localStorage.removeItem("bashlock_shop_phone");
       currentCode = "";
 
       const b = getBridge();
-      if (b && typeof b.resetPairing === 'function') {
-        b.resetPairing();
+      if (b) {
+        if (typeof b.resetPairingState === 'function') {
+          b.resetPairingState();
+        } else if (typeof b.resetPairing === 'function') {
+          b.resetPairing();
+        }
       }
 
       document.getElementById("view-released").classList.add("hidden");
       document.getElementById("view-locked").classList.add("hidden");
       document.getElementById("view-active").classList.add("hidden");
       document.getElementById("view-setup").classList.remove("hidden");
+      const codeInput = document.getElementById("input-setup-code");
+      if (codeInput) {
+        codeInput.value = "";
+        try { codeInput.focus(); } catch(e) {}
+      }
       document.getElementById("connection-status").innerText = "Setup Mode";
+    }
+
+    function promptShopkeeperReset() {
+      const pin = prompt("Shopkeeper Master PIN darj karein (Default: 9999) ya cancel karein:", "9999");
+      if (pin === "9999" || pin === savedPin || (savedPin && pin === savedPin.substring(0, 4))) {
+        resetToSetupMode();
+        showToast("Setup screen ready! Naya 4-digit code darj karein.", true);
+      } else if (pin !== null) {
+        showToast("Ghalat Shopkeeper PIN!", false);
+      }
     }
 
     // Enforcement Check (Offline + Online)
@@ -1050,6 +1090,11 @@
       // 0. If code is empty or default unassigned, DO NOT show released view; show setup!
       if (!currentCode || currentCode === "4819") {
         localStorage.removeItem("bashlock_is_released");
+        document.getElementById("view-released").classList.add("hidden");
+        document.getElementById("view-locked").classList.add("hidden");
+        document.getElementById("view-active").classList.add("hidden");
+        document.getElementById("view-setup").classList.remove("hidden");
+        document.getElementById("connection-status").innerText = "Setup Mode";
         return;
       }
 
@@ -1057,13 +1102,12 @@
       const b = getBridge();
       const bridgeReleased = (b && typeof b.isDeviceReleased === 'function') ? b.isDeviceReleased() : false;
 
-      // Only show released view if BOTH localStorage and native bridge confirm
-      if (localStorage.getItem("bashlock_is_released") === "true" && bridgeReleased) {
+      // Only show released view if BOTH localStorage and native bridge confirm AND code is present
+      if (localStorage.getItem("bashlock_is_released") === "true" && bridgeReleased && currentCode) {
         renderReleasedView({
           customer_name: localStorage.getItem("bashlock_cust_name"),
           phone_model: localStorage.getItem("bashlock_phone_model")
         });
-        return;
       } else {
         localStorage.removeItem("bashlock_is_released");
       }
@@ -1088,8 +1132,18 @@
       try {
         const serverBase = getServerBase();
         const res = await fetch(`${serverBase}/api/device/by-code/${currentCode}/status?t=${Date.now()}`);
+        if (res.status === 404) {
+          console.warn("Device code deleted from dashboard (404). Resetting to fresh setup mode.");
+          resetToSetupMode();
+          return;
+        }
         const data = await res.json();
-        if (data.success) {
+        if (data.status === "NOT_FOUND" || (!data.success && res.status === 404)) {
+          console.warn("Device status NOT_FOUND. Resetting to setup mode.");
+          resetToSetupMode();
+          return;
+        }
+        if (data.success && data.device) {
           const d = data.device;
           savedPin = d.offline_pin;
           localStorage.setItem("bashlock_offline_pin", d.offline_pin);
@@ -1105,9 +1159,16 @@
             b.savePairingData(currentCode, d.offline_pin || '', d.id || '', d.next_due_date || '');
           }
 
-          // ONLY mark as released if status is truly RELEASED or RELEASE_AND_UNINSTALL
-          const isTrulyReleased = (d.status === "RELEASE_AND_UNINSTALL" || d.status === "RELEASED");
-          if (isTrulyReleased) {
+          // Requirement 3: Only show '100% Cleared (NOC)' card when server explicitly returns status == 'noc' or remaining_balance == 0 for existing record
+          const isExplicitNoc = (
+            d.status === "noc" ||
+            d.status === "NOC" ||
+            d.status === "RELEASED" ||
+            d.status === "RELEASE_AND_UNINSTALL" ||
+            (parseFloat(d.remaining_balance) === 0 && d.total_amount && parseFloat(d.total_amount) > 0)
+          );
+
+          if (isExplicitNoc) {
             localStorage.setItem("bashlock_is_released", "true");
             renderReleasedView(d);
             if (d.status === "RELEASE_AND_UNINSTALL") {
@@ -1386,12 +1447,18 @@
         }
       }, { once: false });
 
-      if (initialFromUrl) {
+      if (initialFromUrl && initialFromUrl !== "4819") {
         currentCode = initialFromUrl;
         localStorage.setItem("bashlock_paired_code", initialFromUrl);
       }
-      if (currentCode) {
+      if (currentCode && currentCode !== "4819") {
         checkEnforcementStatus();
+      } else {
+        document.getElementById("view-released").classList.add("hidden");
+        document.getElementById("view-locked").classList.add("hidden");
+        document.getElementById("view-active").classList.add("hidden");
+        document.getElementById("view-setup").classList.remove("hidden");
+        document.getElementById("connection-status").innerText = "Setup Mode";
       }
       setInterval(checkEnforcementStatus, 1500);
       checkNativePermissions();

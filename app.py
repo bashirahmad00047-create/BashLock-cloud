@@ -327,38 +327,27 @@ def get_device_by_code_status(code_or_imei):
     conn.close()
 
     if not row:
-        # Zero Accidental Lockout: If code was deleted or unassigned, NEVER lock out the user!
+        # If code was deleted or unassigned from dashboard, return 404 so phone auto-resets to 4-digit setup mode
         return jsonify({
-            "success": True,
-            "status": "unlocked",
+            "success": False,
+            "status": "NOT_FOUND",
             "is_locked": False,
             "locked": 0,
             "remote_command": "UNLOCK",
-            "device": {
-                "id": "UNLOCKED-DEVICE",
-                "customer_name": "Customer",
-                "phone_model": "Phone",
-                "status": "unlocked",
-                "is_locked": 0,
-                "locked": 0,
-                "remote_command": "UNLOCK",
-                "is_overdue": False,
-                "is_released": False,
-                "remaining_balance": 0,
-                "next_due_date": "2099-12-31",
-                "offline_pin": "189853"
-            }
-        }), 200
+            "is_released": False,
+            "error": "Device record not found or deleted from dashboard"
+        }), 404
 
     d = dict(row)
     db_status = (d.get("status") or "UNLOCKED").strip().upper()
     is_overdue = (d.get("next_due_date", "") < today_str and float(d.get("remaining_balance", 0) or 0) > 0)
+    is_fully_paid = (float(d.get("remaining_balance", 0) or 0) <= 0 and float(d.get("total_amount", 0) or 0) > 0)
 
     # Commercial Lock Enforcement:
     # A device is ONLY locked if the shopkeeper explicitly locked it OR installment is overdue!
-    if db_status in ["RELEASED", "RELEASE_AND_UNINSTALL"]:
+    if db_status in ["RELEASED", "RELEASE_AND_UNINSTALL", "NOC"] or is_fully_paid:
         is_locked = False
-        status_str = db_status
+        status_str = "noc" if (is_fully_paid or db_status == "NOC") else db_status
         remote_cmd = "UNLOCK"
         d["is_released"] = True
     elif db_status == "LOCKED" or is_overdue:

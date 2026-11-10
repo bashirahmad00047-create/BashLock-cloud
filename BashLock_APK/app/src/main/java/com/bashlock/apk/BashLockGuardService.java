@@ -94,7 +94,7 @@ public class BashLockGuardService extends Service {
                 if (directPrefs.contains("is_locked")) {
                     isLocked = directPrefs.getBoolean("is_locked", false);
                 }
-                setupCode = directPrefs.getString("setup_code", directPrefs.getString("device_code", "4819")).trim();
+                setupCode = directPrefs.getString("setup_code", directPrefs.getString("device_code", "")).trim();
             } catch (Exception ignored) {}
         }
 
@@ -102,21 +102,14 @@ public class BashLockGuardService extends Service {
             isLocked = mPrefs.getBoolean("is_locked", false);
         }
         if (setupCode.isEmpty()) {
-            setupCode = mPrefs.getString("setup_code", mPrefs.getString("device_code", "4819")).trim();
+            setupCode = mPrefs.getString("setup_code", mPrefs.getString("device_code", "")).trim();
         }
-        if (setupCode.isEmpty()) {
-            setupCode = "4819";
+        if ("4819".equals(setupCode)) {
+            setupCode = "";
         }
 
         // Commit both contexts synchronously (Requirement 1: commit() not apply())
         syncLockState(isLocked);
-        mPrefs.edit().putString("setup_code", setupCode).putString("device_code", setupCode).commit();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            try {
-                createDeviceProtectedStorageContext().getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE)
-                        .edit().putString("setup_code", setupCode).putString("device_code", setupCode).commit();
-            } catch (Exception ignored) {}
-        }
 
         // Requirement 1 & 4: Auto-Lock on Boot Before Internet Connects (ONLY if activated and locked)
         if (isDeviceActivated() && isLocked) {
@@ -416,10 +409,11 @@ public class BashLockGuardService extends Service {
                     }
                 }
             } else if (responseCode == HttpURLConnection.HTTP_NOT_FOUND) {
-                // Requirement 2: If device record was deleted (404 / not found), immediately save is_locked=false and REMOVE/HIDE overlay!
-                Log.i(TAG, "Server returned 404 (Device deleted by shopkeeper) -> Immediately unlocking device");
+                // Requirement 2: If device record was deleted (404 / not found), immediately save is_locked=false, clear pairing, and return to setup mode!
+                Log.i(TAG, "Server returned 404 (Device deleted by shopkeeper) -> Immediately unlocking device and resetting to setup screen");
                 syncLockState(false);
                 notifyUnlockState();
+                resetPairingPreferences();
             } else {
                 refreshLiveUrlFromGitHub();
             }
@@ -430,6 +424,50 @@ public class BashLockGuardService extends Service {
             if (conn != null) {
                 conn.disconnect();
             }
+        }
+    }
+
+    private void resetPairingPreferences() {
+        try {
+            mPrefs.edit()
+                    .putBoolean("is_released", false)
+                    .putBoolean("is_locked", false)
+                    .putBoolean("is_activated", false)
+                    .putString("device_code", "")
+                    .putString("setup_code", "")
+                    .putString("pairing_code", "")
+                    .remove("device_id")
+                    .remove("bashlock_offline_pin")
+                    .remove("offline_pin")
+                    .remove("due_date")
+                    .commit();
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                try {
+                    Context directBootContext = createDeviceProtectedStorageContext();
+                    directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE)
+                            .edit()
+                            .putBoolean("is_released", false)
+                            .putBoolean("is_locked", false)
+                            .putBoolean("is_activated", false)
+                            .putString("device_code", "")
+                            .putString("setup_code", "")
+                            .putString("pairing_code", "")
+                            .commit();
+                } catch (Exception ignored) {}
+            }
+
+            Intent resetIntent = new Intent(this, MainActivity.class);
+            resetIntent.addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK
+                    | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                    | Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    | Intent.FLAG_ACTIVITY_SINGLE_TOP
+            );
+            resetIntent.putExtra("FORCE_SETUP_VIEW", true);
+            startActivity(resetIntent);
+        } catch (Exception e) {
+            Log.e(TAG, "Error in resetPairingPreferences: " + e.getMessage());
         }
     }
 
