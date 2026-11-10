@@ -57,9 +57,9 @@ public class BootReceiver extends BroadcastReceiver {
             setupCode = "4819";
         }
 
-        // 3. Requirement 1, 2 & 4: Shared Lock State Sync & Auto-Lock on Boot Before Internet Connects
-        boolean isPaired = !setupCode.isEmpty() && !"4819".equals(setupCode);
-        boolean shouldEnforceBootLock = isLocked || isPaired;
+        // 3. Commercial Lock State: ONLY enforce lock on boot if device was actually LOCKED!
+        // Never lock a paying customer just because their phone is paired with a setup code.
+        boolean shouldEnforceBootLock = isLocked;
 
         // Synchronously commit both contexts (commit() not apply())
         if (isLocked) {

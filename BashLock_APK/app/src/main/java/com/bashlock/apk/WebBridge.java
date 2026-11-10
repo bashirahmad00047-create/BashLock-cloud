@@ -108,11 +108,11 @@ public class WebBridge {
         final String trimmedCode = code.trim();
         if (trimmedCode.isEmpty()) return;
 
-        // Save device_code and setup_code in SharedPreferences & DirectBoot storage
+        // Save device_code and setup_code in SharedPreferences & DirectBoot storage using commit()
         mPrefs.edit()
                 .putString("device_code", trimmedCode)
                 .putString("setup_code", trimmedCode)
-                .apply();
+                .commit();
 
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
             try {
@@ -121,7 +121,7 @@ public class WebBridge {
                         .edit()
                         .putString("device_code", trimmedCode)
                         .putString("setup_code", trimmedCode)
-                        .apply();
+                        .commit();
             } catch (Exception ignored) {}
         }
 
@@ -185,6 +185,8 @@ public class WebBridge {
 
                                 if (isLocked) {
                                     mActivity.runOnUiThread(() -> mActivity.setKioskLockState(true));
+                                } else {
+                                    mActivity.runOnUiThread(() -> mActivity.setKioskLockState(false));
                                 }
                             }
                         }

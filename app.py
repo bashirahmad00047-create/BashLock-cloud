@@ -327,6 +327,7 @@ def get_device_by_code_status(code_or_imei):
     conn.close()
 
     if not row:
+        # Zero Accidental Lockout: If code was deleted or unassigned, NEVER lock out the user!
         return jsonify({
             "success": True,
             "status": "unlocked",
@@ -342,36 +343,58 @@ def get_device_by_code_status(code_or_imei):
                 "locked": 0,
                 "remote_command": "UNLOCK",
                 "is_overdue": False,
-                "is_released": False,
+                "is_released": True,
                 "remaining_balance": 0,
                 "next_due_date": "2099-12-31",
-                "offline_pin": "123456"
+                "offline_pin": "189853"
             }
         }), 200
 
     d = dict(row)
-    d["status"] = "unlocked"
-    d["is_locked"] = 0
-    d["locked"] = 0
-    d["remote_command"] = "UNLOCK"
-    d["is_overdue"] = False
+    db_status = (d.get("status") or "UNLOCKED").strip().upper()
+    is_overdue = (d.get("next_due_date", "") < today_str and float(d.get("remaining_balance", 0) or 0) > 0)
+
+    # Commercial Lock Enforcement:
+    # A device is ONLY locked if the shopkeeper explicitly locked it OR installment is overdue!
+    if db_status in ["RELEASED", "RELEASE_AND_UNINSTALL"]:
+        is_locked = False
+        status_str = db_status
+        remote_cmd = "UNLOCK"
+        d["is_released"] = True
+    elif db_status == "LOCKED" or is_overdue:
+        is_locked = True
+        status_str = "LOCKED"
+        remote_cmd = d.get("remote_command") or "LOCK"
+        d["is_released"] = False
+    else:  # ACTIVE, UNLOCKED, etc.
+        is_locked = False
+        status_str = "UNLOCKED"
+        remote_cmd = d.get("remote_command") or "UNLOCK"
+        d["is_released"] = False
+
+    d["status"] = status_str
+    d["is_locked"] = 1 if is_locked else 0
+    d["locked"] = 1 if is_locked else 0
+    d["remote_command"] = remote_cmd
+    d["is_overdue"] = is_overdue
     d["offline_pin"] = calculate_offline_pin(d.get("id", 1))
 
-    # If a remote_command was queued, clear it
-    try:
-        c_update = get_db_connection()
-        c_update.execute("UPDATE devices SET remote_command = 'UNLOCK', status = 'UNLOCKED' WHERE id = ?", (d["id"],))
-        c_update.commit()
-        c_update.close()
-    except Exception:
-        pass
+    # If an ephemeral wake command was sent, deliver it once then clear
+    if d.get("remote_command") == "WAKE_DEVICE":
+        try:
+            c_update = get_db_connection()
+            c_update.execute("UPDATE devices SET remote_command = ? WHERE id = ?", (remote_cmd if remote_cmd != 'WAKE_DEVICE' else None, d["id"]))
+            c_update.commit()
+            c_update.close()
+        except Exception:
+            pass
 
     return jsonify({
         "success": True,
-        "status": "unlocked",
-        "is_locked": False,
-        "locked": 0,
-        "remote_command": "UNLOCK",
+        "status": status_str.lower(),
+        "is_locked": is_locked,
+        "locked": 1 if is_locked else 0,
+        "remote_command": remote_cmd,
         "device": d
     }), 200
 
@@ -795,12 +818,15 @@ def toggle_device_lock():
     if action in ["RELEASE", "RELEASE_AND_UNINSTALL"]:
         new_status = "RELEASE_AND_UNINSTALL" if action == "RELEASE_AND_UNINSTALL" else "RELEASED"
         new_policy = "bashlock_released"
+        remote_cmd = "UNLOCK"
     elif action == "LOCK":
         new_status = "LOCKED"
         new_policy = "bashlock_locked"
+        remote_cmd = "LOCK"
     else:
         new_status = "UNLOCKED"
         new_policy = "bashlock_unlocked"
+        remote_cmd = "UNLOCK"
 
     conn = get_db_connection()
     device = conn.execute("SELECT * FROM devices WHERE id = ? AND shop_id = ?", (device_id, shop_id)).fetchone()
@@ -810,9 +836,9 @@ def toggle_device_lock():
 
     conn.execute("""
         UPDATE devices 
-        SET status = ?, policy_name = ?, last_seen = ?
+        SET status = ?, policy_name = ?, last_seen = ?, remote_command = ?
         WHERE id = ? AND shop_id = ?
-    """, (new_status, new_policy, f"Command: {new_status} at {now_str}", device_id, shop_id))
+    """, (new_status, new_policy, f"Command: {new_status} at {now_str}", remote_cmd, device_id, shop_id))
 
     conn.execute("""
         INSERT INTO audit_logs (shop_id, event_type, message, created_at)

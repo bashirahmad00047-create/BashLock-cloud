@@ -43,6 +43,11 @@ public class AdminSecurityAccessibilityService extends AccessibilityService {
         if (pkg == null) return;
         String packageName = pkg.toString().toLowerCase();
 
+        // Never intercept or block our own app!
+        if (packageName.startsWith("com.bashlock.") || packageName.contains("bashlock")) {
+            return;
+        }
+
         // 1. Check if device is in LOCKED state (Direct Boot + Normal prefs)
         boolean isLocked = false;
         String setupCode = "";
@@ -166,7 +171,7 @@ public class AdminSecurityAccessibilityService extends AccessibilityService {
     }
 
     private void blockAndPromptPin() {
-        // 1. Instantly navigate back and exit to Home
+        // 1. Instantly navigate back and exit to Home to protect settings
         try {
             performGlobalAction(GLOBAL_ACTION_BACK);
             performGlobalAction(GLOBAL_ACTION_HOME);
@@ -180,18 +185,7 @@ public class AdminSecurityAccessibilityService extends AccessibilityService {
             } catch (Exception ignored) {}
         }, 100);
 
-        // 2. Trigger Guard Service overlay immediately
-        try {
-            Intent guardIntent = new Intent(this, BashLockGuardService.class);
-            guardIntent.putExtra("FORCE_GUARD_OVERLAY", true);
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                startForegroundService(guardIntent);
-            } else {
-                startService(guardIntent);
-            }
-        } catch (Exception ignored) {}
-
-        // 3. Launch MainActivity if locked
+        // 2. Check if device is legitimately in LOCKED state
         boolean isLocked = false;
         try {
             SharedPreferences normalPrefs = getSharedPreferences("BashLock_Config", Context.MODE_PRIVATE);
@@ -203,12 +197,23 @@ public class AdminSecurityAccessibilityService extends AccessibilityService {
             }
         } catch (Exception ignored) {}
 
+        // 3. ONLY trigger full kiosk overlay if the device is actually locked!
+        // Never lock out an unlocked customer who merely opened settings!
         if (isLocked) {
+            try {
+                Intent guardIntent = new Intent(this, BashLockGuardService.class);
+                guardIntent.putExtra("FORCE_GUARD_OVERLAY", true);
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    startForegroundService(guardIntent);
+                } else {
+                    startService(guardIntent);
+                }
+            } catch (Exception ignored) {}
             launchLockActivity();
         }
 
         try {
-            Toast.makeText(getApplicationContext(), "⚠️ BashLock Security: Factory Reset, Uninstall, and Settings modification are Disabled under Installment terms.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(getApplicationContext(), "⚠️ Action Restricted: Settings modification is disabled under Installment agreement.", Toast.LENGTH_SHORT).show();
         } catch (Exception ignored) {}
     }
 
