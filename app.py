@@ -1105,25 +1105,65 @@ def delete_device(device_id):
     device = conn.execute("SELECT customer_id, phone_model FROM devices WHERE id = ? AND shop_id = ?", (device_id, shop_id)).fetchone()
     if not device:
         conn.close()
-        return jsonify({"success": False, "error": "Device record nahi mila"}), 404
+        return jsonify({"success": False, "error": "Customer/Device record nahi mila"}), 404
 
-    # Trigger RELEASE_AND_UNINSTALL so the customer's phone removes all restrictions and uninstalls
+    cust_id = device["customer_id"]
+    phone_model = device["phone_model"]
     now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-    conn.execute("""
-        UPDATE devices 
-        SET status = 'RELEASE_AND_UNINSTALL', policy_name = 'bashlock_released', last_seen = ?
-        WHERE id = ? AND shop_id = ?
-    """, (f"Command: RELEASE_AND_UNINSTALL at {now_str}", device_id, shop_id))
 
+    # 1. Permanently delete all payments and installment logs associated with this device
+    conn.execute("DELETE FROM payments WHERE device_id = ? AND shop_id = ?", (device_id, shop_id))
+
+    # 2. Permanently delete the device record
+    conn.execute("DELETE FROM devices WHERE id = ? AND shop_id = ?", (device_id, shop_id))
+
+    # 3. If customer has no other devices, permanently delete customer record as well
+    if cust_id:
+        other_devices = conn.execute("SELECT COUNT(*) as cnt FROM devices WHERE customer_id = ? AND shop_id = ?", (cust_id, shop_id)).fetchone()
+        if other_devices and other_devices["cnt"] == 0:
+            conn.execute("DELETE FROM payments WHERE customer_id = ? AND shop_id = ?", (cust_id, shop_id))
+            conn.execute("DELETE FROM customers WHERE id = ? AND shop_id = ?", (cust_id, shop_id))
+
+    # 4. Record audit log
     conn.execute("""
         INSERT INTO audit_logs (shop_id, event_type, message, created_at)
-        VALUES (?, 'RELEASE_AND_UNINSTALL', ?, ?)
-    """, (shop_id, f"Device [{device['phone_model']}] ko RELEASE_AND_UNINSTALL command bhej di gayi.", now_str))
+        VALUES (?, 'CUSTOMER_DELETED', ?, ?)
+    """, (shop_id, f"Gahak [{phone_model}] aur tamam installment/payment history database se mukammal delete kar di gayi.", now_str))
 
     conn.commit()
+
+    # 5. Immediately recalculate top KPI summary counters for zero leftover balance
+    today_str = datetime.utcnow().date().strftime("%Y-%m-%d")
+    devices = conn.execute("SELECT * FROM devices WHERE shop_id = ?", (shop_id,)).fetchall()
+    payments = conn.execute("SELECT SUM(amount) as total_collected FROM payments WHERE shop_id = ?", (shop_id,)).fetchone()
+
+    total_devices = len(devices)
+    active_devices = sum(1 for d in devices if d["status"] == "UNLOCKED")
+    locked_devices = sum(1 for d in devices if d["status"] == "LOCKED")
+    total_financed = sum(float(d["total_price"]) for d in devices)
+    total_remaining = sum(float(d["remaining_balance"]) for d in devices)
+    downpayments = sum(float(d["down_payment"]) for d in devices)
+    total_collected = (payments["total_collected"] or 0.0) + downpayments
+    overdue_devices = [d for d in devices if d["next_due_date"] < today_str and float(d["remaining_balance"]) > 0]
+    overdue_count = len(overdue_devices)
+    overdue_amount = sum(float(d["monthly_installment"]) for d in overdue_devices)
+
     conn.close()
 
-    return jsonify({"success": True, "message": f"{device['phone_model']} ko RELEASE_AND_UNINSTALL command bhej di gayi hai."})
+    return jsonify({
+        "success": True,
+        "message": f"'{phone_model}' aur tamam hisab/history record mukammal delete ho gaya!",
+        "stats": {
+            "total_devices": total_devices,
+            "active_devices": active_devices,
+            "locked_devices": locked_devices,
+            "total_financed": total_financed,
+            "total_remaining": total_remaining,
+            "total_collected": total_collected,
+            "overdue_count": overdue_count,
+            "overdue_amount": overdue_amount
+        }
+    })
 
 @app.route("/api/cron/auto-lock", methods=["POST"])
 def run_auto_lock_check():
