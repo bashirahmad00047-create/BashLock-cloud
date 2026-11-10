@@ -63,7 +63,7 @@ public class MainActivity extends AppCompatActivity {
     
     // Dynamic GitHub Remote Config URL - Allows 1-time permanent APK install!
     public static final String GITHUB_RAW_LIVE_URL = "https://raw.githubusercontent.com/bashirahmad00047-create/BashLock-cloud/main/live_url.txt";
-    public static final String DEFAULT_PUBLIC_HTTPS_URL = "https://situations-equation-attacks-atm.trycloudflare.com/lock-app";
+    public static final String DEFAULT_PUBLIC_HTTPS_URL = "https://scotland-brands-trend-universities.trycloudflare.com/lock-app";
 
     private WebView mWebView;
     private ProgressBar mProgressBar;
