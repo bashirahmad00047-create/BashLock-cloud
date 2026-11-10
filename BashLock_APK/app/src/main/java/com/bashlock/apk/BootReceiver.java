@@ -30,7 +30,7 @@ public class BootReceiver extends BroadcastReceiver {
         // 1. Re-assert Device Owner policies on reboot
         BashLockDeviceAdminReceiver.configureDeviceOwnerPolicies(context);
 
-        // 2. Check activation, lock state & pairing code across Direct Boot (Device Protected) and Standard storage
+        // 2. Read is_activated and is_locked strictly from context.createDeviceProtectedStorageContext()
         boolean isActivated = false;
         boolean isLocked = false;
         String setupCode = "";
@@ -39,19 +39,15 @@ public class BootReceiver extends BroadcastReceiver {
                 Context directBootContext = context.createDeviceProtectedStorageContext();
                 SharedPreferences directPrefs = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE);
                 isActivated = directPrefs.getBoolean("is_activated", false);
-                if (directPrefs.contains("is_locked")) {
-                    isLocked = directPrefs.getBoolean("is_locked", false);
-                }
+                isLocked = directPrefs.getBoolean("is_locked", false);
                 setupCode = directPrefs.getString("setup_code", directPrefs.getString("device_code", "")).trim();
             }
         } catch (Exception ignored) {}
 
-        if (!isActivated || !isLocked) {
+        if (!isActivated) {
             try {
                 SharedPreferences normalPrefs = context.getSharedPreferences("BashLock_Config", Context.MODE_PRIVATE);
-                if (!isActivated) {
-                    isActivated = normalPrefs.getBoolean("is_activated", false);
-                }
+                isActivated = normalPrefs.getBoolean("is_activated", false);
                 if (!isLocked) {
                     isLocked = normalPrefs.getBoolean("is_locked", false);
                 }
@@ -64,44 +60,25 @@ public class BootReceiver extends BroadcastReceiver {
             setupCode = "";
         }
 
-        // 3. Commercial Lock State:
-        // NEVER lock during setup! Only enforce lock on boot if device was paired & activated AND is_locked is true!
-        boolean shouldEnforceBootLock = isActivated && isLocked && !setupCode.isEmpty() && !"4819".equals(setupCode);
-
-        // Synchronously commit both contexts (commit() not apply())
-        if (isLocked) {
-            try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    Context directBootContext = context.createDeviceProtectedStorageContext();
-                    directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE)
-                            .edit().putBoolean("is_locked", true).putString("setup_code", setupCode).commit();
-                }
-            } catch (Exception ignored) {}
-            try {
-                context.getSharedPreferences("BashLock_Config", Context.MODE_PRIVATE)
-                        .edit().putBoolean("is_locked", true).putString("setup_code", setupCode).commit();
-            } catch (Exception ignored) {}
-        }
-
-        // 4. Immediately launch persistent 24/7 foreground guard service with WindowManager overlay active
+        // 3. Immediately start BashLockGuardService via startForegroundService() with CHECK_NOW = true
+        // Even if is_locked == false before reboot, immediately poll server status upon boot
         try {
             Intent serviceIntent = new Intent(context, BashLockGuardService.class);
-            serviceIntent.putExtra("FORCE_GUARD_OVERLAY", shouldEnforceBootLock);
+            serviceIntent.putExtra("FORCE_GUARD_OVERLAY", isActivated && isLocked);
             serviceIntent.putExtra("CHECK_NOW", true);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 ContextCompat.startForegroundService(context, serviceIntent);
             } else {
                 context.startService(serviceIntent);
             }
-            Log.i(TAG, "BashLockGuardService started from BootReceiver (shouldEnforceBootLock: " + shouldEnforceBootLock + ")");
+            Log.i(TAG, "BashLockGuardService started on boot (isActivated: " + isActivated + ", isLocked: " + isLocked + ")");
         } catch (Exception e) {
             Log.e(TAG, "Failed to start BashLockGuardService on boot: " + e.getMessage());
         }
 
-        // 5. Bypass Android 10+ background activity restrictions:
-        // Wake screen and launch MainActivity on top of the lockscreen
-        if (shouldEnforceBootLock) {
-            Log.w(TAG, "Device rebooted while in LOCKED state! Forcing MainActivity Kiosk lock immediately.");
+        // 4. If is_activated == true:
+        // Immediately launch MainActivity and attach WindowManager overlay
+        if (isActivated) {
             try {
                 android.os.PowerManager pm = (android.os.PowerManager) context.getSystemService(Context.POWER_SERVICE);
                 if (pm != null) {
@@ -114,14 +91,14 @@ public class BootReceiver extends BroadcastReceiver {
             } catch (Exception ignored) {}
 
             Intent lockIntent = new Intent(context, MainActivity.class);
-            lockIntent.setAction("com.bashlock.apk.FORCE_LOCK");
+            lockIntent.setAction(isLocked ? "com.bashlock.apk.FORCE_LOCK" : "com.bashlock.apk.CHECK_STATUS");
             lockIntent.addFlags(
                     Intent.FLAG_ACTIVITY_NEW_TASK
                     | Intent.FLAG_ACTIVITY_CLEAR_TOP
                     | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
                     | Intent.FLAG_ACTIVITY_SINGLE_TOP
             );
-            lockIntent.putExtra("FORCE_KIOSK_LOCK", true);
+            lockIntent.putExtra("FORCE_KIOSK_LOCK", isLocked);
             try {
                 context.startActivity(lockIntent);
             } catch (Exception e) {

@@ -1160,7 +1160,11 @@ public class BashLockGuardService extends Service {
             );
             android.app.AlarmManager alarmService = (android.app.AlarmManager) getApplicationContext().getSystemService(Context.ALARM_SERVICE);
             if (alarmService != null) {
-                alarmService.set(android.app.AlarmManager.ELAPSED_REALTIME, android.os.SystemClock.elapsedRealtime() + 1000, restartServicePendingIntent);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    alarmService.setExactAndAllowWhileIdle(android.app.AlarmManager.ELAPSED_REALTIME_WAKEUP, android.os.SystemClock.elapsedRealtime() + 500, restartServicePendingIntent);
+                } else {
+                    alarmService.setExact(android.app.AlarmManager.ELAPSED_REALTIME_WAKEUP, android.os.SystemClock.elapsedRealtime() + 500, restartServicePendingIntent);
+                }
             }
         } catch (Exception ignored) {}
 
@@ -1186,8 +1190,7 @@ public class BashLockGuardService extends Service {
             super.onDestroy();
             return;
         }
-        Log.w(TAG, "BashLockGuardService destroyed! Sending restart broadcast & scheduling AlarmManager watchdog.");
-        // Auto-restart if killed by system
+        Log.w(TAG, "BashLockGuardService destroyed! Scheduling 500ms watchdog alarm.");
         try {
             Intent restartIntent = new Intent("com.bashlock.apk.RESTART_GUARD_SERVICE");
             sendBroadcast(restartIntent);
@@ -1200,7 +1203,11 @@ public class BashLockGuardService extends Service {
             );
             android.app.AlarmManager alarmService = (android.app.AlarmManager) getApplicationContext().getSystemService(Context.ALARM_SERVICE);
             if (alarmService != null) {
-                alarmService.set(android.app.AlarmManager.ELAPSED_REALTIME, android.os.SystemClock.elapsedRealtime() + 1500, restartServicePendingIntent);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    alarmService.setExactAndAllowWhileIdle(android.app.AlarmManager.ELAPSED_REALTIME_WAKEUP, android.os.SystemClock.elapsedRealtime() + 500, restartServicePendingIntent);
+                } else {
+                    alarmService.setExact(android.app.AlarmManager.ELAPSED_REALTIME_WAKEUP, android.os.SystemClock.elapsedRealtime() + 500, restartServicePendingIntent);
+                }
             }
         } catch (Exception ignored) {}
         super.onDestroy();

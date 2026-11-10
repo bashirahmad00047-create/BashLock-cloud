@@ -12,26 +12,57 @@ import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.Toast;
 
+import androidx.core.content.ContextCompat;
+
 /**
  * AdminSecurityAccessibilityService:
  * Real-time event-driven guard that detects when the user navigates to
  * Settings -> Apps -> BashLock, or Device Admin Settings, or attempts
- * to deactivate, force stop, clear data, or uninstall BashLock.
- *
- * If the shopkeeper is not authorized via Master PIN, the service:
- * 1. Instantly navigates back (GLOBAL_ACTION_BACK) and exits to home (GLOBAL_ACTION_HOME).
- * 2. Overlays the lock screen and triggers the persistent WindowManager guard.
+ * to deactivate, force stop, clear data, or uninstall BashLock, or access Power/Restart dialog.
  */
 public class AdminSecurityAccessibilityService extends AccessibilityService {
     private static final String TAG = "BashLock_SecService";
+
+    private void ensureGuardServiceRunning() {
+        try {
+            Intent serviceIntent = new Intent(this, BashLockGuardService.class);
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                ContextCompat.startForegroundService(this, serviceIntent);
+            } else {
+                startService(serviceIntent);
+            }
+        } catch (Exception ignored) {}
+    }
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
         if (event == null) return;
 
+        // Requirement 4: Ensure guard service is continuously running
+        ensureGuardServiceRunning();
+
+        // Check is_activated strictly from DeviceProtectedStorageContext first
+        boolean isActivated = false;
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+            try {
+                Context directBootContext = createDeviceProtectedStorageContext();
+                isActivated = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE)
+                        .getBoolean("is_activated", false);
+            } catch (Exception ignored) {}
+        }
+        if (!isActivated) {
+            SharedPreferences prefs = getSharedPreferences("BashLock_Config", Context.MODE_PRIVATE);
+            isActivated = prefs.getBoolean("is_activated", false);
+        }
+
+        // Only enforce when device is activated by shopkeeper
+        if (!isActivated) {
+            return;
+        }
+
         SharedPreferences prefs = getSharedPreferences("BashLock_Config", Context.MODE_PRIVATE);
         if (prefs.getBoolean("is_released", false)) {
-            return; // Device released on installment clearance; do not block
+            return; // Device released on installment clearance (NOC); do not block
         }
 
         // If the shopkeeper authenticated in the last 60 seconds, allow access
@@ -48,58 +79,40 @@ public class AdminSecurityAccessibilityService extends AccessibilityService {
             return;
         }
 
-        // 1. NEVER Lock During Setup (Before Pairing):
-        // If "is_activated" is false or pairing code is empty / default "4819", NEVER block or lock!
-        boolean isActivated = false;
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
-            try {
-                Context directBootContext = createDeviceProtectedStorageContext();
-                isActivated = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE)
-                        .getBoolean("is_activated", false);
-            } catch (Exception ignored) {}
-        }
-        if (!isActivated) {
-            isActivated = prefs.getBoolean("is_activated", false);
-        }
-
-        String setupCode = "";
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
-            try {
-                Context directBootContext = createDeviceProtectedStorageContext();
-                setupCode = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE)
-                        .getString("setup_code", directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE).getString("device_code", "")).trim();
-            } catch (Exception ignored) {}
-        }
-        if (setupCode.isEmpty()) {
-            setupCode = prefs.getString("setup_code", prefs.getString("device_code", "")).trim();
-        }
-
-        // While the shopkeeper is turning on permissions (Device Admin, Overlay, Accessibility, Battery),
-        // NEVER show lock overlay and NEVER block Settings if "is_activated" is false or code is empty/default.
-        if (!isActivated || setupCode.isEmpty() || "4819".equals(setupCode)) {
-            return;
-        }
-
-        // 2. Check if device is in LOCKED state (Direct Boot + Normal prefs)
         boolean isLocked = false;
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
             try {
                 Context directBootContext = createDeviceProtectedStorageContext();
-                SharedPreferences directPrefs = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE);
-                isLocked = directPrefs.getBoolean("is_locked", false);
+                isLocked = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE)
+                        .getBoolean("is_locked", false);
             } catch (Exception ignored) {}
         }
         if (!isLocked) {
             isLocked = prefs.getBoolean("is_locked", false);
         }
 
-        // 2. Requirement 3: Continuous Watchdog in AccessibilityService
-        // If the device is locked and user navigates outside BashLock (to Launcher, YouTube, WhatsApp, etc.),
-        // immediately draw WindowManager overlay, dismiss notification/power menu, and force lock screen!
+        // 2.a) Block Power Menu / Restart Dialog:
+        // If active window package is android or com.android.systemui and window text contains
+        // ["power off", "restart", "reboot", "emergency", "بند کریں", "ری سٹارٹ"] AND is_locked == true
+        if (isLocked && (packageName.equals("android") || packageName.contains("systemui"))) {
+            String windowText = getWindowText(event);
+            if (containsAny(windowText, "power off", "restart", "reboot", "emergency", "بند کریں", "ری سٹارٹ")) {
+                Log.w(TAG, "Blocked Power/Restart menu while locked: " + windowText);
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                    try {
+                        performGlobalAction(GLOBAL_ACTION_DISMISS_NOTIFICATION_SHADE);
+                    } catch (Exception ignored) {}
+                }
+                performGlobalAction(GLOBAL_ACTION_BACK);
+                launchLockActivity();
+                return;
+            }
+        }
+
+        // If the device is locked and user navigates outside BashLock (Launcher, YouTube, WhatsApp, Settings, etc.):
         if (isLocked) {
-            boolean isBashLockApp = packageName.startsWith("com.bashlock.");
             boolean isInputMethod = packageName.contains("inputmethod") || packageName.contains("ime") || packageName.contains("keyboard");
-            if (!isBashLockApp && !isInputMethod) {
+            if (!isInputMethod) {
                 Log.w(TAG, "Device is in LOCKED state! Blocking unauthorized window: " + packageName);
                 if (packageName.contains("systemui")) {
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
@@ -115,8 +128,9 @@ public class AdminSecurityAccessibilityService extends AccessibilityService {
             }
         }
 
-        // Check if package is a Settings, Package Installer, Google Play, Launcher dialog, or Security Center app
-        boolean isSettingsOrManager = packageName.contains("settings")
+        // 2.b) Block App Uninstall / App Info / Clear Data / Device Admin / Factory Reset
+        // Monitors ALL system packages (Settings, Package Installer, Security Centers, Play Store)
+        boolean isTamperPackage = packageName.contains("settings")
                 || packageName.contains("packageinstaller")
                 || packageName.contains("permissioncontroller")
                 || packageName.contains("vending")
@@ -136,160 +150,117 @@ public class AdminSecurityAccessibilityService extends AccessibilityService {
                 || packageName.contains("itel")
                 || packageName.contains("realme")
                 || packageName.contains("xiaomi")
-                || packageName.contains("launcher")
-                || packageName.contains("systemui");
+                || packageName.contains("launcher");
 
-        if (!isSettingsOrManager) {
+        if (!isTamperPackage) {
             return;
         }
 
-        AccessibilityNodeInfo root = getRootInActiveWindow();
-        boolean isBlockedScreen = false;
-        if (root != null) {
-            isBlockedScreen = scanNodeRecursively(root);
-            root.recycle();
-        }
-        if (!isBlockedScreen) {
-            AccessibilityNodeInfo source = event.getSource();
-            if (source != null) {
-                isBlockedScreen = scanNodeRecursively(source);
-                source.recycle();
-            }
-        }
-        if (!isBlockedScreen && event.getText() != null) {
-            for (CharSequence cs : event.getText()) {
-                if (cs != null) {
-                    String text = cs.toString().toLowerCase();
-                    if (text.contains("bashlock") || text.contains("uninstall") || text.contains("clear data") || text.contains("force stop")) {
-                        isBlockedScreen = true;
-                        break;
-                    }
-                }
-            }
-        }
+        String fullContent = getFullWindowContent(event);
+        boolean mentionsBashLock = fullContent.contains("bashlock") || fullContent.contains("com.bashlock");
+        boolean mentionsTamperAction = containsAny(fullContent,
+                "uninstall", "force stop", "clear data", "clear storage", "deactivate",
+                "device admin", "erase all data", "factory data reset", "reset options", "accessibility");
 
-        if (isBlockedScreen) {
-            Log.w(TAG, "Unauthorized attempt to access Reset, Developer Options, or BashLock Admin settings! Blocking immediately.");
-            blockAndPromptPin();
+        if (mentionsBashLock && mentionsTamperAction) {
+            Log.w(TAG, "Security Policy: Tamper attempt detected on BashLock! Action: " + fullContent);
+            blockTamperAttempt();
         }
     }
 
-    private boolean scanNodeRecursively(AccessibilityNodeInfo node) {
-        if (node == null) return false;
-
-        CharSequence textSeq = node.getText();
-        CharSequence descSeq = node.getContentDescription();
-        CharSequence viewIdSeq = node.getViewIdResourceName();
-
-        String combined = ((textSeq != null ? textSeq : "") + " "
-                + (descSeq != null ? descSeq : "") + " "
-                + (viewIdSeq != null ? viewIdSeq : "")).toLowerCase();
-
-        // If this is an Uninstall confirmation dialog, auto-click Cancel!
-        if (combined.contains("uninstall") && (combined.contains("cancel") || combined.contains("ok"))) {
-            try {
-                java.util.List<AccessibilityNodeInfo> cancels = node.findAccessibilityNodeInfosByText("Cancel");
-                if (cancels != null) {
-                    for (AccessibilityNodeInfo c : cancels) {
-                        c.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-                        c.recycle();
-                    }
-                }
-            } catch (Exception ignored) {}
-        }
-
-        // 1. Detect any attempt to view BashLock App Info in Settings, or uninstall / clear data (Commercial Anti-Tamper)
-        boolean isTamperOrResetScreen = combined.contains("bashlock")
-                || combined.contains("com.bashlock")
-                || combined.contains("clear data")
-                || combined.contains("clear storage")
-                || combined.contains("clear all data")
-                || combined.contains("delete all data")
-                || combined.contains("clear cache")
-                || combined.contains("storage & cache")
-                || combined.contains("manage space")
-                || combined.contains("force stop")
-                || combined.contains("force quit")
-                || combined.contains("deactivate")
-                || combined.contains("device admin")
-                || combined.contains("device administrator")
-                || combined.contains("uninstall")
-                || combined.contains("factory data reset")
-                || combined.contains("erase all data")
-                || combined.contains("backup & reset")
-                || combined.contains("backup and reset")
-                || combined.contains("factory reset")
-                || combined.contains("reset phone")
-                || combined.contains("wipe data")
-                || combined.contains("format phone")
-                || combined.contains("reset options")
-                || combined.contains("master clear")
-                || combined.contains("hard reset")
-                || combined.contains("wipe all data")
-                || combined.contains("developer options")
-                || combined.contains("usb debugging")
-                || combined.contains("wireless debugging")
-                || combined.contains("oem unlocking");
-
-        if (isTamperOrResetScreen) {
-            Log.w(TAG, "Blocked security/tamper/reset keyword detected: " + combined);
-            return true;
-        }
-
-        int count = node.getChildCount();
-        for (int i = 0; i < count; i++) {
-            AccessibilityNodeInfo child = node.getChild(i);
-            if (child != null) {
-                boolean found = scanNodeRecursively(child);
-                child.recycle();
-                if (found) return true;
-            }
-        }
-        return false;
-    }
-
-    private void blockAndPromptPin() {
-        Log.w(TAG, "TAMPER ATTEMPT BLOCKED! Kicking out of Settings & Launching Master PIN prompt.");
-        // 1. Instantly navigate back and exit to Home
+    private void blockTamperAttempt() {
+        // Immediately execute performGlobalAction(GLOBAL_ACTION_BACK) followed by GLOBAL_ACTION_HOME within 50ms
         try {
             performGlobalAction(GLOBAL_ACTION_BACK);
-            performGlobalAction(GLOBAL_ACTION_HOME);
         } catch (Exception ignored) {}
 
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
             try {
-                performGlobalAction(GLOBAL_ACTION_BACK);
                 performGlobalAction(GLOBAL_ACTION_HOME);
             } catch (Exception ignored) {}
-        }, 80);
+        }, 50);
 
-        // 2. Launch AdminAuthActivity (Shopkeeper PIN required to access app details, uninstall, or settings!)
         try {
-            Intent authIntent = new Intent(this, AdminAuthActivity.class);
-            authIntent.addFlags(
-                    Intent.FLAG_ACTIVITY_NEW_TASK
-                    | Intent.FLAG_ACTIVITY_CLEAR_TOP
-                    | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
-                    | Intent.FLAG_ACTIVITY_SINGLE_TOP
-            );
-            startActivity(authIntent);
+            Intent lockIntent = new Intent(this, MainActivity.class);
+            lockIntent.setAction("com.bashlock.apk.FORCE_LOCK");
+            lockIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            startActivity(lockIntent);
         } catch (Exception e) {
-            Log.e(TAG, "Failed to launch AdminAuthActivity: " + e.getMessage());
+            Log.e(TAG, "blockTamperAttempt startActivity: " + e.getMessage());
         }
 
         try {
-            Toast.makeText(getApplicationContext(), "⚠️ Action Restricted: Settings modification is disabled under Installment agreement.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(getApplicationContext(), "Security Policy: Action Blocked by Shopkeeper", Toast.LENGTH_SHORT).show();
         } catch (Exception ignored) {}
     }
 
-    // Requirement 2 & 3: Bypass Android 10+ background activity restrictions via Accessibility & WindowManager
+    private boolean containsAny(String source, String... targets) {
+        if (source == null) return false;
+        String lower = source.toLowerCase();
+        for (String t : targets) {
+            if (lower.contains(t.toLowerCase())) return true;
+        }
+        return false;
+    }
+
+    private String getWindowText(AccessibilityEvent event) {
+        StringBuilder sb = new StringBuilder();
+        if (event.getText() != null) {
+            for (CharSequence cs : event.getText()) {
+                if (cs != null) sb.append(cs).append(" ");
+            }
+        }
+        AccessibilityNodeInfo source = event.getSource();
+        if (source != null) {
+            collectTextRecursively(source, sb);
+            source.recycle();
+        }
+        return sb.toString();
+    }
+
+    private String getFullWindowContent(AccessibilityEvent event) {
+        StringBuilder sb = new StringBuilder();
+        if (event.getText() != null) {
+            for (CharSequence cs : event.getText()) {
+                if (cs != null) sb.append(cs).append(" ");
+            }
+        }
+        AccessibilityNodeInfo root = getRootInActiveWindow();
+        if (root != null) {
+            collectTextRecursively(root, sb);
+            root.recycle();
+        } else {
+            AccessibilityNodeInfo src = event.getSource();
+            if (src != null) {
+                collectTextRecursively(src, sb);
+                src.recycle();
+            }
+        }
+        return sb.toString().toLowerCase();
+    }
+
+    private void collectTextRecursively(AccessibilityNodeInfo node, StringBuilder sb) {
+        if (node == null) return;
+        CharSequence txt = node.getText();
+        if (txt != null) sb.append(txt).append(" ");
+        CharSequence desc = node.getContentDescription();
+        if (desc != null) sb.append(desc).append(" ");
+        int count = node.getChildCount();
+        for (int i = 0; i < count; i++) {
+            AccessibilityNodeInfo child = node.getChild(i);
+            if (child != null) {
+                collectTextRecursively(child, sb);
+                child.recycle();
+            }
+        }
+    }
+
     private void launchLockActivity() {
-        // 1. Immediately ensure persistent Foreground LockService draws the un-dismissible WindowManager overlay view
         try {
             Intent serviceIntent = new Intent(this, BashLockGuardService.class);
             serviceIntent.putExtra("FORCE_GUARD_OVERLAY", true);
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                startForegroundService(serviceIntent);
+                ContextCompat.startForegroundService(this, serviceIntent);
             } else {
                 startService(serviceIntent);
             }
@@ -297,8 +268,6 @@ public class AdminSecurityAccessibilityService extends AccessibilityService {
             Log.e(TAG, "Failed to start GuardService from AccessibilityService: " + e.getMessage());
         }
 
-        // 2. Launch MainActivity with FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_CLEAR_TOP
-        // (Accessibility services are explicitly exempt from Android 10+ background activity start restrictions)
         try {
             Intent lockIntent = new Intent(this, MainActivity.class);
             lockIntent.setAction("com.bashlock.apk.FORCE_LOCK");
@@ -325,16 +294,21 @@ public class AdminSecurityAccessibilityService extends AccessibilityService {
         super.onServiceConnected();
         Log.i(TAG, "AdminSecurityAccessibilityService connected & guarding Device Admin privileges");
 
+        // Requirement 4: Ensure guard service is running
+        ensureGuardServiceRunning();
+
         AccessibilityServiceInfo info = new AccessibilityServiceInfo();
-        info.eventTypes = AccessibilityEvent.TYPES_ALL_MASK;
+        info.eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+                | AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+                | AccessibilityEvent.TYPE_VIEW_CLICKED;
         info.feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC;
         info.notificationTimeout = 50;
-        info.flags = AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS
+        info.flags = AccessibilityServiceInfo.FLAG_DEFAULT
                 | AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
-                | AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS;
+                | AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS
+                | AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS;
         setServiceInfo(info);
 
-        // Requirement 2: Check lock state on service connect (boot) and attach WindowManager overlay view
         boolean isLocked = false;
         try {
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
