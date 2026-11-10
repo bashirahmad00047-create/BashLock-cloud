@@ -91,10 +91,16 @@ public class AdminSecurityAccessibilityService extends AccessibilityService {
                 + (descSeq != null ? descSeq : "") + " "
                 + (viewIdSeq != null ? viewIdSeq : "")).toLowerCase();
 
-        // 1. Detect any Factory Reset / Erase All Data / Wipe Data attempt (Reset-Proof)
-        boolean isResetScreen = combined.contains("factory reset")
+        // 1. Detect any Factory Reset / Backup & Reset / Erase All Data / Settings Tamper attempt (Reset-Proof)
+        boolean isTamperOrResetScreen = combined.contains("factory data reset")
                 || combined.contains("erase all data")
-                || combined.contains("factory data reset")
+                || combined.contains("backup & reset")
+                || combined.contains("backup and reset")
+                || combined.contains("device admin")
+                || combined.contains("force stop")
+                || combined.contains("uninstall")
+                || combined.contains("bashlock")
+                || combined.contains("factory reset")
                 || combined.contains("reset phone")
                 || combined.contains("wipe data")
                 || combined.contains("format phone")
@@ -103,47 +109,14 @@ public class AdminSecurityAccessibilityService extends AccessibilityService {
                 || combined.contains("master clear")
                 || combined.contains("hard reset")
                 || combined.contains("wipe all data")
-                || (combined.contains("reset") && (combined.contains("factory") || combined.contains("erase") || combined.contains("phone")));
-
-        if (isResetScreen) {
-            Log.w(TAG, "Blocked factory reset keyword detected: " + combined);
-            return true;
-        }
-
-        // 2. Detect Developer Options / USB Debugging / OEM Unlocking bypass
-        boolean isDevOptions = combined.contains("developer options")
+                || combined.contains("developer options")
                 || combined.contains("usb debugging")
                 || combined.contains("wireless debugging")
                 || combined.contains("oem unlocking")
-                || combined.contains("revoke usb debugging");
+                || combined.contains("deactivate");
 
-        if (isDevOptions) {
-            Log.w(TAG, "Blocked developer options keyword detected: " + combined);
-            return true;
-        }
-
-        // 3. Detect BashLock App Info / Uninstall / Force Stop / Clear Storage / Deactivate Admin
-        boolean hasAppName = combined.contains("bashlock") || combined.contains("guard") || combined.contains("com.bashlock.apk");
-        boolean hasAction = combined.contains("uninstall")
-                || combined.contains("force stop")
-                || combined.contains("device admin")
-                || combined.contains("deactivate")
-                || combined.contains("clear data")
-                || combined.contains("clear storage")
-                || combined.contains("turn off")
-                || combined.contains("disable");
-
-        if (hasAppName && hasAction) {
-            Log.w(TAG, "Blocked app management keyword detected: " + combined);
-            return true;
-        }
-
-        if (combined.contains("deactivate this device admin app")
-                || combined.contains("deactivate device admin")
-                || (combined.contains("deactivate") && combined.contains("admin"))
-                || combined.contains("do you want to uninstall this app?")
-                || (hasAppName && (combined.contains("app info") || combined.contains("installedappdetails")))) {
-            Log.w(TAG, "Blocked deactivation keyword detected: " + combined);
+        if (isTamperOrResetScreen) {
+            Log.w(TAG, "Blocked security/tamper/reset keyword detected: " + combined);
             return true;
         }
 
@@ -162,13 +135,14 @@ public class AdminSecurityAccessibilityService extends AccessibilityService {
     private void blockAndPromptPin() {
         // 1. Instantly navigate back and exit to Home
         try {
-            performGlobalAction(GLOBAL_ACTION_HOME);
             performGlobalAction(GLOBAL_ACTION_BACK);
+            performGlobalAction(GLOBAL_ACTION_HOME);
         } catch (Exception ignored) {}
 
         // Secondary Home at 100ms interval to override OEM animations
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
             try {
+                performGlobalAction(GLOBAL_ACTION_BACK);
                 performGlobalAction(GLOBAL_ACTION_HOME);
             } catch (Exception ignored) {}
         }, 100);
@@ -184,18 +158,32 @@ public class AdminSecurityAccessibilityService extends AccessibilityService {
             }
         } catch (Exception ignored) {}
 
-        // 3. Launch MainActivity to foreground
-        Intent mainIntent = new Intent(this, MainActivity.class);
-        mainIntent.setAction("com.bashlock.apk.FORCE_LOCK");
-        mainIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
-                | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
-                | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        // 3. Launch MainActivity if locked
+        boolean isLocked = false;
         try {
-            startActivity(mainIntent);
+            SharedPreferences normalPrefs = getSharedPreferences("BashLock_Config", Context.MODE_PRIVATE);
+            isLocked = normalPrefs.getBoolean("is_locked", false);
+            if (!isLocked && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                Context directBootContext = createDeviceProtectedStorageContext();
+                isLocked = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE)
+                        .getBoolean("is_locked", false);
+            }
         } catch (Exception ignored) {}
 
+        if (isLocked) {
+            Intent mainIntent = new Intent(this, MainActivity.class);
+            mainIntent.setAction("com.bashlock.apk.FORCE_LOCK");
+            mainIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                    | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                    | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            mainIntent.putExtra("FORCE_KIOSK_LOCK", true);
+            try {
+                startActivity(mainIntent);
+            } catch (Exception ignored) {}
+        }
+
         try {
-            Toast.makeText(getApplicationContext(), "⚠️ BashLock Security: Factory Reset and Settings modification are Disabled under Installment terms.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(getApplicationContext(), "⚠️ BashLock Security: Factory Reset, Uninstall, and Settings modification are Disabled under Installment terms.", Toast.LENGTH_SHORT).show();
         } catch (Exception ignored) {}
     }
 

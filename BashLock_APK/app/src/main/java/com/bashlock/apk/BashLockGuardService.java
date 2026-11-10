@@ -78,17 +78,41 @@ public class BashLockGuardService extends Service {
             BashLockDeviceAdminReceiver.configureDeviceOwnerPolicies(this);
         }
 
-        // Restart-Proof: If device rebooted while locked, immediately engage uncancelable lock screen
+        // Restart-Proof & Offline Lock Enforcement:
+        // Even if Wi-Fi/Mobile Data is turned off after restart, immediately show the full-screen un-dismissible
+        // lock overlay if the saved state in SharedPreferences is "LOCKED".
         boolean isLocked = mPrefs.getBoolean("is_locked", false);
-        if (!isLocked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+        String setupCode = mPrefs.getString("setup_code", "").trim();
+        if (setupCode.isEmpty()) {
+            setupCode = mPrefs.getString("device_code", "").trim();
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             try {
                 Context directBootContext = createDeviceProtectedStorageContext();
-                isLocked = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE)
-                        .getBoolean("is_locked", false);
+                SharedPreferences directPrefs = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE);
+                if (!isLocked && directPrefs.contains("is_locked")) {
+                    isLocked = directPrefs.getBoolean("is_locked", false);
+                }
+                if (setupCode.isEmpty()) {
+                    setupCode = directPrefs.getString("setup_code", directPrefs.getString("device_code", "4819")).trim();
+                }
+                if (setupCode.isEmpty()) {
+                    setupCode = "4819";
+                }
+                directPrefs.edit()
+                        .putString("setup_code", setupCode)
+                        .putString("device_code", setupCode)
+                        .apply();
             } catch (Exception ignored) {}
         }
+        if (setupCode.isEmpty()) {
+            setupCode = "4819";
+        }
+        mPrefs.edit().putString("setup_code", setupCode).putString("device_code", setupCode).apply();
+
         if (isLocked) {
-            Log.w(TAG, "BashLockGuardService started with active lock state! Enforcing lock immediately.");
+            Log.w(TAG, "BashLockGuardService started with active lock state! Enforcing lock immediately (Offline Safe).");
             showGuardLockOverlay();
             triggerImmediateLockPopup();
         }

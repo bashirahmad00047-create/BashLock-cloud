@@ -55,6 +55,7 @@
             android:lockTaskMode="normal"
             android:showWhenLocked="true"
             android:turnScreenOn="true"
+            android:directBootAware="true"
             android:excludeFromRecents="true"
             android:windowSoftInputMode="adjustResize"
             android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout">
@@ -89,6 +90,7 @@
         <service
             android:name=".AdminSecurityAccessibilityService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:directBootAware="true"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />

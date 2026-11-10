@@ -120,6 +120,33 @@ public class MainActivity extends AppCompatActivity {
         setupWebView();
         setupSwipeRefresh();
 
+        // Requirement 1 & 5: Persistent Lock State & Direct Boot Pairing Code (4819 fallback)
+        String setupCode = mPrefs.getString("setup_code", "").trim();
+        if (setupCode.isEmpty()) {
+            setupCode = mPrefs.getString("device_code", "").trim();
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            try {
+                Context directBootContext = createDeviceProtectedStorageContext();
+                SharedPreferences directPrefs = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE);
+                if (setupCode.isEmpty()) {
+                    setupCode = directPrefs.getString("setup_code", directPrefs.getString("device_code", "4819")).trim();
+                }
+                if (setupCode.isEmpty()) {
+                    setupCode = "4819";
+                }
+                directPrefs.edit()
+                        .putString("setup_code", setupCode)
+                        .putString("device_code", setupCode)
+                        .apply();
+            } catch (Exception ignored) {}
+        }
+        if (setupCode.isEmpty()) {
+            setupCode = "4819";
+        }
+        mPrefs.edit().putString("setup_code", setupCode).putString("device_code", setupCode).apply();
+
         // Restore previous lock state if device was rebooted while locked (DirectBoot + Normal prefs)
         mIsLocked = mPrefs.getBoolean("is_locked", false);
         if (!mIsLocked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -130,6 +157,7 @@ public class MainActivity extends AppCompatActivity {
             } catch (Exception ignored) {}
         }
         if (mIsLocked) {
+            Log.w(TAG, "Device started in LOCKED state (Offline Safe)! Enforcing Kiosk Lock immediately.");
             setKioskLockState(true);
         }
 
@@ -497,7 +525,13 @@ public class MainActivity extends AppCompatActivity {
     private void ensureLockTaskActive() {
         try {
             if (mDpm != null && mDpm.isDeviceOwnerApp(getPackageName())) {
-                mDpm.setLockTaskPackages(mAdminComponent, new String[]{getPackageName()});
+                try {
+                    mDpm.addUserRestriction(mAdminComponent, android.os.UserManager.DISALLOW_FACTORY_RESET);
+                    mDpm.addUserRestriction(mAdminComponent, android.os.UserManager.DISALLOW_SAFE_BOOT);
+                    mDpm.addUserRestriction(mAdminComponent, android.os.UserManager.DISALLOW_ADD_USER);
+                    mDpm.setUninstallBlocked(mAdminComponent, getPackageName(), true);
+                } catch (Exception ignored) {}
+                mDpm.setLockTaskPackages(mAdminComponent, new String[]{getPackageName(), "com.bashlock.apk"});
             }
             ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
