@@ -343,7 +343,7 @@ def get_device_by_code_status(code_or_imei):
                 "locked": 0,
                 "remote_command": "UNLOCK",
                 "is_overdue": False,
-                "is_released": True,
+                "is_released": False,
                 "remaining_balance": 0,
                 "next_due_date": "2099-12-31",
                 "offline_pin": "189853"

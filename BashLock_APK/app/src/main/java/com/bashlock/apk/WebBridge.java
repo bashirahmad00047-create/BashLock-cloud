@@ -376,6 +376,36 @@ public class WebBridge {
     }
 
     @JavascriptInterface
+    public void resetPairing() {
+        mPrefs.edit()
+                .putBoolean("is_released", false)
+                .putBoolean("is_locked", false)
+                .putBoolean("is_activated", false)
+                .putString("device_code", "")
+                .putString("setup_code", "")
+                .commit();
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+            try {
+                Context directBootContext = mActivity.createDeviceProtectedStorageContext();
+                directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE)
+                        .edit()
+                        .putBoolean("is_released", false)
+                        .putBoolean("is_locked", false)
+                        .putBoolean("is_activated", false)
+                        .putString("device_code", "")
+                        .putString("setup_code", "")
+                        .commit();
+            } catch (Exception ignored) {}
+        }
+
+        mActivity.runOnUiThread(() -> {
+            mActivity.setKioskLockState(false);
+            showNativeToast("Pairing reset. Ready for new customer.");
+        });
+    }
+
+    @JavascriptInterface
     public boolean isDeviceReleased() {
         return mPrefs.getBoolean("is_released", false);
     }

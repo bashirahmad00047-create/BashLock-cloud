@@ -299,9 +299,13 @@ public class BashLockGuardService extends Service {
      */
     private void checkLockStatus() {
         if (mPrefs.getBoolean("is_released", false)) {
-            Log.i(TAG, "Device is marked as RELEASED. Guard service shutting down.");
-            stopSelf();
-            return;
+            String setupCode = mPrefs.getString("setup_code", mPrefs.getString("device_code", "")).trim();
+            if (setupCode.isEmpty() || "4819".equals(setupCode) || !mPrefs.getBoolean("is_activated", false)) {
+                mPrefs.edit().putBoolean("is_released", false).commit();
+            } else {
+                Log.i(TAG, "Device is marked as RELEASED.");
+                return;
+            }
         }
 
         if (!isDeviceActivated()) {
@@ -396,11 +400,13 @@ public class BashLockGuardService extends Service {
                         triggerRemoteReleaseSequence(autoPromptUninstall);
                         return;
                     } else if ("LOCKED".equalsIgnoreCase(status) || "LOCK".equalsIgnoreCase(remoteCommand) || isLocked || isOverdue) {
+                        mPrefs.edit().putBoolean("is_released", false).commit();
                         Log.w(TAG, "Server returned status: " + status + " -> Immediately ENFORCING WindowManager Lock Overlay");
                         syncLockState(true);
                         triggerImmediateLockPopup();
                     } else {
                         // Unlocked (is_locked=false / status="unlocked" / status="active" / remote_command="UNLOCK")
+                        mPrefs.edit().putBoolean("is_released", false).commit();
                         boolean wasLocked = mPrefs.getBoolean("is_locked", false);
                         syncLockState(false);
                         if (wasLocked || mGuardLockOverlayView != null) {
