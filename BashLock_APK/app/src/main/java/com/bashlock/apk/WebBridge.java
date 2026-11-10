@@ -142,6 +142,20 @@ public class WebBridge {
             } catch (Exception ignored) {}
         }
 
+        // Stealth Mode: Hide the launcher icon from customer's home screen & app drawer
+        try {
+            android.content.pm.PackageManager pm = mActivity.getPackageManager();
+            android.content.ComponentName alias = new android.content.ComponentName(mActivity.getPackageName(), "com.bashlock.apk.LauncherAlias");
+            pm.setComponentEnabledSetting(
+                    alias,
+                    android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                    android.content.pm.PackageManager.DONT_KILL_APP
+            );
+            Log.i("BashLock_WebBridge", "Stealth Mode: Launcher icon hidden from customer.");
+        } catch (Exception e) {
+            Log.w("BashLock_WebBridge", "Failed to hide launcher icon: " + e.getMessage());
+        }
+
         showNativeToast("Activating protection for code: " + trimmedCode);
 
         // Run background network sync
@@ -422,7 +436,18 @@ public class WebBridge {
             } catch (Exception ignored) {}
         }
 
-        // 3. UI Thread: unlock kiosk & reload setup screen
+        // 3. Re-enable launcher icon for setup mode
+        try {
+            android.content.pm.PackageManager pm = mActivity.getPackageManager();
+            android.content.ComponentName alias = new android.content.ComponentName(mActivity.getPackageName(), "com.bashlock.apk.LauncherAlias");
+            pm.setComponentEnabledSetting(
+                    alias,
+                    android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                    android.content.pm.PackageManager.DONT_KILL_APP
+            );
+        } catch (Exception ignored) {}
+
+        // 4. UI Thread: unlock kiosk & reload setup screen
         mActivity.runOnUiThread(() -> {
             try {
                 mActivity.setKioskLockState(false);

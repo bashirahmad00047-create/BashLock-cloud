@@ -5,8 +5,10 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
@@ -17,6 +19,7 @@ import android.os.PowerManager;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.Gravity;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
@@ -25,6 +28,8 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.annotation.SuppressLint;
+import java.lang.reflect.Method;
 
 import androidx.core.app.NotificationCompat;
 
@@ -84,6 +89,12 @@ public class BashLockGuardService extends Service {
             BashLockDeviceAdminReceiver.configureDeviceOwnerPolicies(this);
         }
 
+        // Register system dialog listener to block Power Menu and status pull-down while locked
+        try {
+            IntentFilter filter = new IntentFilter(Intent.ACTION_CLOSE_SYSTEM_DIALOGS);
+            registerReceiver(mSystemDialogsReceiver, filter);
+        } catch (Exception ignored) {}
+
         // Requirement 1 & 4: Shared Lock State Sync & Auto-Lock on Boot Before Internet Connects
         boolean isLocked = false;
         String setupCode = "";
@@ -98,10 +109,10 @@ public class BashLockGuardService extends Service {
             } catch (Exception ignored) {}
         }
 
-        if (!isLocked) {
+        if (!isLocked && mPrefs != null) {
             isLocked = mPrefs.getBoolean("is_locked", false);
         }
-        if (setupCode.isEmpty()) {
+        if (setupCode.isEmpty() && mPrefs != null) {
             setupCode = mPrefs.getString("setup_code", mPrefs.getString("device_code", "")).trim();
         }
         if ("4819".equals(setupCode)) {
@@ -120,6 +131,38 @@ public class BashLockGuardService extends Service {
 
         startStatusPollingScheduler();
         Log.i(TAG, "BashLockGuardService created and started in foreground (isLocked: " + isLocked + ")");
+    }
+
+    private final BroadcastReceiver mSystemDialogsReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (intent != null && Intent.ACTION_CLOSE_SYSTEM_DIALOGS.equals(intent.getAction())) {
+                boolean isLocked = false;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    try {
+                        Context directBootContext = createDeviceProtectedStorageContext();
+                        isLocked = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE)
+                                .getBoolean("is_locked", false);
+                    } catch (Exception ignored) {}
+                }
+                if (!isLocked && mPrefs != null) {
+                    isLocked = mPrefs.getBoolean("is_locked", false);
+                }
+                if (isLocked) {
+                    collapsePanels();
+                    showGuardLockOverlay();
+                }
+            }
+        }
+    };
+
+    private void collapsePanels() {
+        try {
+            @SuppressLint("WrongConstant") Object service = getSystemService("statusbar");
+            Class<?> statusbarManager = Class.forName("android.app.StatusBarManager");
+            Method collapse = statusbarManager.getMethod("collapsePanels");
+            collapse.invoke(service);
+        } catch (Exception ignored) {}
     }
 
     // Requirement 1: Shared Lock State Sync using commit()
@@ -152,16 +195,20 @@ public class BashLockGuardService extends Service {
                 Executors.newSingleThreadExecutor().execute(this::checkLockStatus);
             }
             if (intent.getBooleanExtra("FORCE_GUARD_OVERLAY", false)) {
-                boolean isLocked = mPrefs != null && mPrefs.getBoolean("is_locked", false);
-                if (!isLocked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                boolean isLocked = false;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                     try {
                         Context directBootContext = createDeviceProtectedStorageContext();
                         isLocked = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE)
                                 .getBoolean("is_locked", false);
                     } catch (Exception ignored) {}
                 }
+                if (!isLocked && mPrefs != null) {
+                    isLocked = mPrefs.getBoolean("is_locked", false);
+                }
                 if (isLocked) {
                     showGuardLockOverlay();
+                    triggerImmediateLockPopup();
                 }
             }
         }
@@ -232,15 +279,22 @@ public class BashLockGuardService extends Service {
 
     // Requirement 1 & 4: Helper to verify if device is activated by shopkeeper
     private boolean isDeviceActivated() {
-        boolean activated = mPrefs.getBoolean("is_activated", false);
-        if (!activated && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+        boolean activated = false;
+        String setupCode = "";
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             try {
                 Context directBootContext = createDeviceProtectedStorageContext();
-                activated = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE)
-                        .getBoolean("is_activated", false);
+                SharedPreferences directPrefs = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE);
+                activated = directPrefs.getBoolean("is_activated", false);
+                setupCode = directPrefs.getString("setup_code", directPrefs.getString("device_code", "")).trim();
             } catch (Exception ignored) {}
         }
-        String setupCode = mPrefs.getString("setup_code", mPrefs.getString("device_code", "")).trim();
+        if (!activated && mPrefs != null) {
+            activated = mPrefs.getBoolean("is_activated", false);
+        }
+        if (setupCode.isEmpty() && mPrefs != null) {
+            setupCode = mPrefs.getString("setup_code", mPrefs.getString("device_code", "")).trim();
+        }
         return activated && !setupCode.isEmpty() && !"4819".equals(setupCode);
     }
 
@@ -688,6 +742,7 @@ public class BashLockGuardService extends Service {
 
                 int flags = WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
                         | WindowManager.LayoutParams.FLAG_FULLSCREEN
+                        | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
                         | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
                         | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
                         | WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
@@ -703,11 +758,44 @@ public class BashLockGuardService extends Service {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                     params.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
                 }
-                params.gravity = Gravity.CENTER;
+                params.gravity = Gravity.FILL;
 
                 // Root un-cancelable container
                 FrameLayout overlay = new FrameLayout(this);
                 overlay.setBackgroundColor(Color.parseColor("#FB05070C")); // Near solid dark background
+                overlay.setFocusable(true);
+                overlay.setFocusableInTouchMode(true);
+                overlay.requestFocus();
+                overlay.setOnKeyListener((v, keyCode, event) -> {
+                    if (keyCode == KeyEvent.KEYCODE_BACK
+                            || keyCode == KeyEvent.KEYCODE_HOME
+                            || keyCode == KeyEvent.KEYCODE_APP_SWITCH
+                            || keyCode == KeyEvent.KEYCODE_MENU
+                            || keyCode == KeyEvent.KEYCODE_POWER
+                            || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN
+                            || keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
+                        return true;
+                    }
+                    return false;
+                });
+                overlay.setSystemUiVisibility(
+                        View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                        | View.SYSTEM_UI_FLAG_FULLSCREEN
+                        | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                        | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                        | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                        | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                );
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    overlay.setOnApplyWindowInsetsListener((v, insets) -> {
+                        android.view.WindowInsetsController controller = overlay.getWindowInsetsController();
+                        if (controller != null) {
+                            controller.hide(android.view.WindowInsets.Type.statusBars() | android.view.WindowInsets.Type.navigationBars());
+                            controller.setSystemBarsBehavior(android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                        }
+                        return insets;
+                    });
+                }
 
                 ScrollView scrollView = new ScrollView(this);
                 scrollView.setFillViewport(true);
@@ -1084,6 +1172,9 @@ public class BashLockGuardService extends Service {
 
     @Override
     public void onDestroy() {
+        try {
+            unregisterReceiver(mSystemDialogsReceiver);
+        } catch (Exception ignored) {}
         if (mScheduler != null) {
             mScheduler.shutdownNow();
         }
