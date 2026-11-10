@@ -120,8 +120,15 @@ public class MainActivity extends AppCompatActivity {
         setupWebView();
         setupSwipeRefresh();
 
-        // Restore previous lock state if device was rebooted while locked
+        // Restore previous lock state if device was rebooted while locked (DirectBoot + Normal prefs)
         mIsLocked = mPrefs.getBoolean("is_locked", false);
+        if (!mIsLocked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            try {
+                Context directBootContext = createDeviceProtectedStorageContext();
+                mIsLocked = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE)
+                        .getBoolean("is_locked", false);
+            } catch (Exception ignored) {}
+        }
         if (mIsLocked) {
             setKioskLockState(true);
         }
@@ -850,6 +857,17 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         removeSystemAlertOverlay();
+        if (mIsLocked && mPrefs != null && !mPrefs.getBoolean("is_released", false)) {
+            // Restart-Proof: If MainActivity is ever destroyed while locked, immediately respawn it
+            Log.w(TAG, "MainActivity destroyed while locked! Relaunching immediately.");
+            try {
+                Intent restart = new Intent(this, MainActivity.class);
+                restart.setAction("com.bashlock.apk.FORCE_LOCK");
+                restart.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                restart.putExtra("FORCE_KIOSK_LOCK", true);
+                startActivity(restart);
+            } catch (Exception ignored) {}
+        }
         super.onDestroy();
     }
 }

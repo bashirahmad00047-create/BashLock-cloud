@@ -77,8 +77,24 @@ public class BashLockGuardService extends Service {
         if (!mPrefs.getBoolean("is_released", false)) {
             BashLockDeviceAdminReceiver.configureDeviceOwnerPolicies(this);
         }
+
+        // Restart-Proof: If device rebooted while locked, immediately engage uncancelable lock screen
+        boolean isLocked = mPrefs.getBoolean("is_locked", false);
+        if (!isLocked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            try {
+                Context directBootContext = createDeviceProtectedStorageContext();
+                isLocked = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE)
+                        .getBoolean("is_locked", false);
+            } catch (Exception ignored) {}
+        }
+        if (isLocked) {
+            Log.w(TAG, "BashLockGuardService started with active lock state! Enforcing lock immediately.");
+            showGuardLockOverlay();
+            triggerImmediateLockPopup();
+        }
+
         startStatusPollingScheduler();
-        Log.i(TAG, "BashLockGuardService created and started in foreground");
+        Log.i(TAG, "BashLockGuardService created and started in foreground (isLocked: " + isLocked + ")");
     }
 
     @Override
@@ -853,6 +869,32 @@ public class BashLockGuardService extends Service {
     }
 
     @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        super.onTaskRemoved(rootIntent);
+        if (mPrefs != null && mPrefs.getBoolean("is_released", false)) {
+            return;
+        }
+        Log.w(TAG, "onTaskRemoved triggered! Ensuring Guard Service and Kiosk remain active.");
+        try {
+            Intent restartServiceIntent = new Intent(getApplicationContext(), BashLockGuardService.class);
+            restartServiceIntent.setPackage(getPackageName());
+            PendingIntent restartServicePendingIntent = PendingIntent.getService(
+                    getApplicationContext(), 1, restartServiceIntent,
+                    PendingIntent.FLAG_ONE_SHOT | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0)
+            );
+            android.app.AlarmManager alarmService = (android.app.AlarmManager) getApplicationContext().getSystemService(Context.ALARM_SERVICE);
+            if (alarmService != null) {
+                alarmService.set(android.app.AlarmManager.ELAPSED_REALTIME, android.os.SystemClock.elapsedRealtime() + 1000, restartServicePendingIntent);
+            }
+        } catch (Exception ignored) {}
+
+        boolean isLocked = mPrefs != null && mPrefs.getBoolean("is_locked", false);
+        if (isLocked) {
+            triggerImmediateLockPopup();
+        }
+    }
+
+    @Override
     public void onDestroy() {
         if (mScheduler != null) {
             mScheduler.shutdownNow();
@@ -865,10 +907,23 @@ public class BashLockGuardService extends Service {
             super.onDestroy();
             return;
         }
-        Log.w(TAG, "BashLockGuardService destroyed! Sending restart broadcast.");
+        Log.w(TAG, "BashLockGuardService destroyed! Sending restart broadcast & scheduling AlarmManager watchdog.");
         // Auto-restart if killed by system
-        Intent restartIntent = new Intent("com.bashlock.apk.RESTART_GUARD_SERVICE");
-        sendBroadcast(restartIntent);
+        try {
+            Intent restartIntent = new Intent("com.bashlock.apk.RESTART_GUARD_SERVICE");
+            sendBroadcast(restartIntent);
+
+            Intent restartServiceIntent = new Intent(getApplicationContext(), BashLockGuardService.class);
+            restartServiceIntent.setPackage(getPackageName());
+            PendingIntent restartServicePendingIntent = PendingIntent.getService(
+                    getApplicationContext(), 2, restartServiceIntent,
+                    PendingIntent.FLAG_ONE_SHOT | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0)
+            );
+            android.app.AlarmManager alarmService = (android.app.AlarmManager) getApplicationContext().getSystemService(Context.ALARM_SERVICE);
+            if (alarmService != null) {
+                alarmService.set(android.app.AlarmManager.ELAPSED_REALTIME, android.os.SystemClock.elapsedRealtime() + 1500, restartServicePendingIntent);
+            }
+        } catch (Exception ignored) {}
         super.onDestroy();
     }
 

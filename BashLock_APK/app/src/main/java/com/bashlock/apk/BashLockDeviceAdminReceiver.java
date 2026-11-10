@@ -60,18 +60,33 @@ public class BashLockDeviceAdminReceiver extends DeviceAdminReceiver {
                 // 1. Block Uninstall completely
                 dpm.setUninstallBlocked(admin, pkg, true);
 
-                // 2. User & Hardware level tamper restrictions
+                // 2. Comprehensive User & Hardware level tamper restrictions (Reset-Proof)
                 try {
-                    dpm.addUserRestriction(admin, UserManager.DISALLOW_UNINSTALL_APPS);
-                    dpm.addUserRestriction(admin, UserManager.DISALLOW_SAFE_BOOT);
+                    // Block soft & recovery factory reset
                     dpm.addUserRestriction(admin, UserManager.DISALLOW_FACTORY_RESET);
+                    // Block Safe Mode (Safe Boot)
+                    dpm.addUserRestriction(admin, UserManager.DISALLOW_SAFE_BOOT);
+                    // Block app uninstall
+                    dpm.addUserRestriction(admin, UserManager.DISALLOW_UNINSTALL_APPS);
+                    // Block developer options & USB debugging (ADB)
+                    dpm.addUserRestriction(admin, UserManager.DISALLOW_DEBUGGING_FEATURES);
+                    // Block adding/removing users or guest accounts
                     dpm.addUserRestriction(admin, UserManager.DISALLOW_ADD_USER);
+                    dpm.addUserRestriction(admin, UserManager.DISALLOW_REMOVE_USER);
+                    // Block modifying Google/cloud accounts (FRP bypass prevention)
+                    dpm.addUserRestriction(admin, UserManager.DISALLOW_MODIFY_ACCOUNTS);
+                    // Block mounting SD card / USB OTG
+                    dpm.addUserRestriction(admin, UserManager.DISALLOW_MOUNT_PHYSICAL_MEDIA);
+                    // Block MTP USB file transfer
+                    dpm.addUserRestriction(admin, UserManager.DISALLOW_USB_FILE_TRANSFER);
+                    // Block app control (Force Stop / Clear Data in Settings -> Apps)
+                    dpm.addUserRestriction(admin, UserManager.DISALLOW_APPS_CONTROL);
                 } catch (Exception e) {
                     Log.w(TAG, "User restriction warning: " + e.getMessage());
                 }
 
                 // 3. Configure LockTask Kiosk packages
-                dpm.setLockTaskPackages(admin, new String[]{pkg});
+                dpm.setLockTaskPackages(admin, new String[]{pkg, "com.bashlock.apk"});
 
                 // 4. Block status bar and notifications when locked under LockTask
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -96,13 +111,19 @@ public class BashLockDeviceAdminReceiver extends DeviceAdminReceiver {
             if (dpm != null && dpm.isDeviceOwnerApp(pkg)) {
                 dpm.setUninstallBlocked(admin, pkg, true);
                 try {
-                    dpm.addUserRestriction(admin, UserManager.DISALLOW_UNINSTALL_APPS);
-                    dpm.addUserRestriction(admin, UserManager.DISALLOW_SAFE_BOOT);
                     dpm.addUserRestriction(admin, UserManager.DISALLOW_FACTORY_RESET);
+                    dpm.addUserRestriction(admin, UserManager.DISALLOW_SAFE_BOOT);
+                    dpm.addUserRestriction(admin, UserManager.DISALLOW_UNINSTALL_APPS);
+                    dpm.addUserRestriction(admin, UserManager.DISALLOW_DEBUGGING_FEATURES);
                     dpm.addUserRestriction(admin, UserManager.DISALLOW_ADD_USER);
+                    dpm.addUserRestriction(admin, UserManager.DISALLOW_REMOVE_USER);
+                    dpm.addUserRestriction(admin, UserManager.DISALLOW_MODIFY_ACCOUNTS);
+                    dpm.addUserRestriction(admin, UserManager.DISALLOW_MOUNT_PHYSICAL_MEDIA);
+                    dpm.addUserRestriction(admin, UserManager.DISALLOW_USB_FILE_TRANSFER);
+                    dpm.addUserRestriction(admin, UserManager.DISALLOW_APPS_CONTROL);
                 } catch (Exception ignored) {}
 
-                dpm.setLockTaskPackages(admin, new String[]{pkg});
+                dpm.setLockTaskPackages(admin, new String[]{pkg, "com.bashlock.apk"});
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                     dpm.setStatusBarDisabled(admin, isLocked);
@@ -133,10 +154,16 @@ public class BashLockDeviceAdminReceiver extends DeviceAdminReceiver {
 
                 // 1. Clear user restrictions
                 try {
-                    dpm.clearUserRestriction(admin, UserManager.DISALLOW_UNINSTALL_APPS);
-                    dpm.clearUserRestriction(admin, UserManager.DISALLOW_SAFE_BOOT);
                     dpm.clearUserRestriction(admin, UserManager.DISALLOW_FACTORY_RESET);
+                    dpm.clearUserRestriction(admin, UserManager.DISALLOW_SAFE_BOOT);
+                    dpm.clearUserRestriction(admin, UserManager.DISALLOW_UNINSTALL_APPS);
+                    dpm.clearUserRestriction(admin, UserManager.DISALLOW_DEBUGGING_FEATURES);
                     dpm.clearUserRestriction(admin, UserManager.DISALLOW_ADD_USER);
+                    dpm.clearUserRestriction(admin, UserManager.DISALLOW_REMOVE_USER);
+                    dpm.clearUserRestriction(admin, UserManager.DISALLOW_MODIFY_ACCOUNTS);
+                    dpm.clearUserRestriction(admin, UserManager.DISALLOW_MOUNT_PHYSICAL_MEDIA);
+                    dpm.clearUserRestriction(admin, UserManager.DISALLOW_USB_FILE_TRANSFER);
+                    dpm.clearUserRestriction(admin, UserManager.DISALLOW_APPS_CONTROL);
                 } catch (Exception e) {
                     Log.w(TAG, "clearUserRestriction: " + e.getMessage());
                 }

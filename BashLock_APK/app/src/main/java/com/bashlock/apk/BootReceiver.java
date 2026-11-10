@@ -30,20 +30,7 @@ public class BootReceiver extends BroadcastReceiver {
         // 1. Re-assert Device Owner policies on reboot
         BashLockDeviceAdminReceiver.configureDeviceOwnerPolicies(context);
 
-        // 2. Immediately launch persistent 24/7 foreground guard service
-        try {
-            Intent serviceIntent = new Intent(context, BashLockGuardService.class);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                ContextCompat.startForegroundService(context, serviceIntent);
-            } else {
-                context.startService(serviceIntent);
-            }
-            Log.i(TAG, "BashLockGuardService started from BootReceiver");
-        } catch (Exception e) {
-            Log.e(TAG, "Failed to start BashLockGuardService on boot: " + e.getMessage());
-        }
-
-        // 3. Check lock state across Direct Boot (Device Protected) and Standard storage
+        // 2. Check lock state across Direct Boot (Device Protected) and Standard storage
         boolean isLocked = false;
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -62,17 +49,51 @@ public class BootReceiver extends BroadcastReceiver {
             } catch (Exception ignored) {}
         }
 
+        // 3. Immediately launch persistent 24/7 foreground guard service
+        try {
+            Intent serviceIntent = new Intent(context, BashLockGuardService.class);
+            if (isLocked) {
+                serviceIntent.putExtra("FORCE_GUARD_OVERLAY", true);
+                serviceIntent.putExtra("CHECK_NOW", true);
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                ContextCompat.startForegroundService(context, serviceIntent);
+            } else {
+                context.startService(serviceIntent);
+            }
+            Log.i(TAG, "BashLockGuardService started from BootReceiver (isLocked: " + isLocked + ")");
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to start BashLockGuardService on boot: " + e.getMessage());
+        }
+
         // 4. If device was previously in locked state, immediately bring up Kiosk Lock Screen
         if (isLocked) {
             Log.w(TAG, "Device rebooted while in LOCKED state! Forcing MainActivity Kiosk lock immediately.");
+            try {
+                android.os.PowerManager pm = (android.os.PowerManager) context.getSystemService(Context.POWER_SERVICE);
+                if (pm != null) {
+                    android.os.PowerManager.WakeLock wl = pm.newWakeLock(
+                            android.os.PowerManager.FULL_WAKE_LOCK | android.os.PowerManager.ACQUIRE_CAUSES_WAKEUP | android.os.PowerManager.ON_AFTER_RELEASE,
+                            "BashLock::BootWakeLock"
+                    );
+                    wl.acquire(10000L);
+                }
+            } catch (Exception ignored) {}
+
             Intent lockIntent = new Intent(context, MainActivity.class);
+            lockIntent.setAction("com.bashlock.apk.FORCE_LOCK");
             lockIntent.addFlags(
                     Intent.FLAG_ACTIVITY_NEW_TASK
                     | Intent.FLAG_ACTIVITY_CLEAR_TOP
                     | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                    | Intent.FLAG_ACTIVITY_SINGLE_TOP
             );
             lockIntent.putExtra("FORCE_KIOSK_LOCK", true);
-            context.startActivity(lockIntent);
+            try {
+                context.startActivity(lockIntent);
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to start MainActivity on boot: " + e.getMessage());
+            }
         }
     }
 }
