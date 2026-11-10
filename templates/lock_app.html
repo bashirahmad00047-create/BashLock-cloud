@@ -793,19 +793,66 @@
       }, 3000);
     }
 
+    function setConnectionState(state) {
+      const statusEl = document.getElementById("connection-status");
+      const dotEl = document.getElementById("top-dot");
+      if (!statusEl || !dotEl) return;
+
+      switch(state) {
+        case "CONNECTED":
+          statusEl.innerText = "CONNECTED";
+          statusEl.className = "text-[10px] text-emerald-400 font-mono font-bold tracking-wider uppercase";
+          dotEl.className = "w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-md shadow-emerald-400 animate-pulse";
+          break;
+        case "PAIRING PENDING":
+          statusEl.innerText = "PAIRING PENDING";
+          statusEl.className = "text-[10px] text-amber-400 font-mono font-bold tracking-wider uppercase";
+          dotEl.className = "w-2.5 h-2.5 rounded-full bg-amber-400 shadow-md shadow-amber-400 animate-ping";
+          break;
+        case "CONNECTION FAILED":
+          statusEl.innerText = "CONNECTION FAILED";
+          statusEl.className = "text-[10px] text-rose-400 font-mono font-bold tracking-wider uppercase";
+          dotEl.className = "w-2.5 h-2.5 rounded-full bg-rose-500 shadow-md shadow-rose-500";
+          break;
+        case "SERVER UNAVAILABLE":
+          statusEl.innerText = "SERVER UNAVAILABLE";
+          statusEl.className = "text-[10px] text-rose-300 font-mono font-bold tracking-wider uppercase";
+          dotEl.className = "w-2.5 h-2.5 rounded-full bg-rose-400 shadow-md shadow-rose-400";
+          break;
+        case "LOCKED":
+          statusEl.innerText = "LOCKED";
+          statusEl.className = "text-[10px] text-rose-400 font-mono font-bold tracking-wider uppercase";
+          dotEl.className = "w-2.5 h-2.5 rounded-full bg-rose-500 shadow-md shadow-rose-500 animate-pulse";
+          break;
+        case "RELEASED":
+          statusEl.innerText = "RELEASED (NOC)";
+          statusEl.className = "text-[10px] text-purple-400 font-mono font-bold tracking-wider uppercase";
+          dotEl.className = "w-2.5 h-2.5 rounded-full bg-purple-400 shadow-md shadow-purple-400";
+          break;
+        default:
+          statusEl.innerText = state || "STANDBY";
+          statusEl.className = "text-[10px] text-slate-400 font-mono font-bold tracking-wider uppercase";
+          dotEl.className = "w-2.5 h-2.5 rounded-full bg-slate-500";
+          break;
+      }
+    }
+
     function getServerBase() {
+      const customOverride = localStorage.getItem("bashlock_custom_server");
+      if (customOverride && customOverride.startsWith("http")) return customOverride.trim();
+
       const b = getBridge();
       if (b && typeof b.getServerBaseUrl === 'function') {
         const nativeBase = b.getServerBaseUrl();
-        if (nativeBase && nativeBase.startsWith("http")) return nativeBase;
+        if (nativeBase && nativeBase.startsWith("http") && !nativeBase.includes("127.0.0.1")) return nativeBase;
       }
-      if (location.origin && location.origin !== "null" && location.protocol.startsWith("http")) {
+      if (location.origin && location.origin !== "null" && location.protocol.startsWith("http") && !location.origin.includes("127.0.0.1")) {
         return location.origin;
       }
       return "https://scotland-brands-trend-universities.trycloudflare.com";
     }
 
-    // Step 1: Activate with 4-Digit Code
+    // Step 1: Activate with 4-Digit Code (Verified Server-Authoritative Registration)
     async function activateProtection() {
       const codeInput = document.getElementById("input-setup-code");
       const code = codeInput ? codeInput.value.trim() : "";
@@ -817,47 +864,91 @@
       const btn = document.getElementById("btn-activate");
       if (btn) {
         btn.disabled = true;
-        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Activating Protection...`;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Verifying with Server...`;
       }
 
-      showToast("Code submit ho gaya! Server se connect ho raha hai...", true);
+      setConnectionState("PAIRING PENDING");
+      showToast("Server se registration verify ho rahi hai...", true);
 
-      // Save locally immediately so no data is lost
-      currentCode = code;
-      localStorage.setItem("bashlock_paired_code", code);
-
-      const b = getBridge();
-      // Notify native Android bridge immediately
-      try {
-        if (b) {
-          if (typeof b.activateWithCode === 'function') {
-            b.activateWithCode(code);
-          } else if (typeof b.savePairingData === 'function') {
-            b.savePairingData(code, '', '', '');
-          }
-        }
-      } catch (e) {
-        console.error("Bridge activate error:", e);
-      }
-
-      // Asynchronous server pairing notification
       const serverBase = getServerBase();
       try {
-        fetch(serverBase + "/api/pair", {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const res = await fetch(serverBase + "/api/pair", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code: code })
-        }).catch(() => {});
-      } catch (e) {}
+          body: JSON.stringify({ code: code, device_info: navigator.userAgent }),
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
 
-      // Navigate to /lock-app/<code> to load active status
-      setTimeout(() => {
-        if (b && typeof b.loadRemoteUrl === 'function') {
-          b.loadRemoteUrl(serverBase + `/lock-app/${encodeURIComponent(code)}`);
-        } else {
-          window.location.href = serverBase + `/lock-app/${encodeURIComponent(code)}`;
+        if (res.status === 404) {
+          setConnectionState("CONNECTION FAILED");
+          showToast("Ghalat 4-Digit Code! Dashboard par pehle gahak add karein.", false);
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `<i class="fa-solid fa-shield-halved text-sm"></i> <span>Activate Protection (Block Uninstall)</span>`;
+          }
+          return;
         }
-      }, 350);
+
+        const data = await res.json();
+        if (!res.ok || !data.success || !data.device) {
+          setConnectionState("CONNECTION FAILED");
+          showToast(data.error || "Pairing fail! Server ne reject kar diya.", false);
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `<i class="fa-solid fa-shield-halved text-sm"></i> <span>Activate Protection (Block Uninstall)</span>`;
+          }
+          return;
+        }
+
+        // Server confirmed registration!
+        const d = data.device;
+        currentCode = code;
+        savedPin = d.offline_pin;
+        localStorage.setItem("bashlock_paired_code", code);
+        localStorage.setItem("bashlock_setup_code", code);
+        localStorage.setItem("bashlock_is_activated", "true");
+        localStorage.setItem("bashlock_offline_pin", d.offline_pin || "");
+        localStorage.setItem("bashlock_due_date", d.next_due_date || "");
+        localStorage.setItem("bashlock_balance", d.remaining_balance || 0);
+        localStorage.setItem("bashlock_cust_name", d.customer_name || "");
+        localStorage.setItem("bashlock_phone_model", d.phone_model || "");
+        localStorage.setItem("bashlock_monthly", d.monthly_installment || 0);
+        localStorage.setItem("bashlock_shop_name", d.shop_name || "");
+        localStorage.setItem("bashlock_shop_phone", d.shop_phone || "");
+
+        // Notify native Android bridge synchronously
+        const b = getBridge();
+        if (b) {
+          if (typeof b.savePairingData === 'function') {
+            b.savePairingData(code, d.offline_pin || '', d.id || '', d.next_due_date || '');
+          }
+          if (typeof b.activateWithCode === 'function') {
+            b.activateWithCode(code);
+          }
+        }
+
+        setConnectionState("CONNECTED");
+        showToast("Phone kamyabi se ACTIVATE ho gaya!", true);
+
+        if (d.status === "LOCKED" || d.remote_command === "LOCK") {
+          isLockedState = true;
+          renderLockedView(d);
+        } else {
+          isLockedState = false;
+          renderActiveView(d);
+        }
+
+      } catch (err) {
+        setConnectionState("SERVER UNAVAILABLE");
+        showToast("Server se rabta nahi ho saka! Internet ya server URL check karein.", false);
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = `<i class="fa-solid fa-shield-halved text-sm"></i> <span>Activate Protection (Block Uninstall)</span>`;
+        }
+      }
     }
 
     // Anti-Escape & Kiosk Enforcement Tools (Web + Native APK Bridge)
@@ -1133,12 +1224,14 @@
         const serverBase = getServerBase();
         const res = await fetch(`${serverBase}/api/device/by-code/${currentCode}/status?t=${Date.now()}`);
         if (res.status === 404) {
+          setConnectionState("CONNECTION FAILED");
           console.warn("Device code deleted from dashboard (404). Resetting to fresh setup mode.");
           resetToSetupMode();
           return;
         }
         const data = await res.json();
         if (data.status === "NOT_FOUND" || (!data.success && res.status === 404)) {
+          setConnectionState("CONNECTION FAILED");
           console.warn("Device status NOT_FOUND. Resetting to setup mode.");
           resetToSetupMode();
           return;
@@ -1169,6 +1262,7 @@
           );
 
           if (isExplicitNoc) {
+            setConnectionState("RELEASED");
             localStorage.setItem("bashlock_is_released", "true");
             renderReleasedView(d);
             if (d.status === "RELEASE_AND_UNINSTALL") {
@@ -1184,13 +1278,17 @@
 
           if (d.status === "LOCKED" || d.is_overdue || d.remote_command === "LOCK") {
             isLockedState = true;
+            setConnectionState("LOCKED");
             renderLockedView(d);
           } else {
             isLockedState = false;
+            setConnectionState("CONNECTED");
             renderActiveView(d);
           }
         }
-      } catch (err) {}
+      } catch (err) {
+        setConnectionState("SERVER UNAVAILABLE");
+      }
     }
 
     // Touch Keypad Handling
@@ -1238,10 +1336,7 @@
         releaseWakeLock();
         stopSirenAlarm();
         
-        // Extend offline due date by 30 days
-        const futureDate = new Date();
-        futureDate.setDate(futureDate.getDate() + 30);
-        localStorage.setItem("bashlock_due_date", futureDate.toISOString().split("T")[0]);
+        // Temporary diagnostic/emergency unlock (Does not modify server payment/balance)
 
         // Auto-sync unlock state with server if online
         if (currentCode) {

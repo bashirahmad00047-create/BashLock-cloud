@@ -84,12 +84,28 @@ if not redirect_url:
     sys.exit(1)
 
 print("Downloading artifact zip from blob storage...", flush=True)
-req2 = urllib.request.Request(redirect_url, headers={'User-Agent': 'BashLock-Downloader'})
-with urllib.request.urlopen(req2, timeout=120) as resp:
-    zip_bytes = resp.read()
+zip_path = "artifact_download.zip"
+if os.path.exists(zip_path):
+    try:
+        os.remove(zip_path)
+    except Exception:
+        pass
 
-print(f"Downloaded {len(zip_bytes)} bytes. Extracting APK...", flush=True)
-with zipfile.ZipFile(io.BytesIO(zip_bytes)) as z:
+# Use curl.exe for high-speed robust download from Azure blob
+curl_cmd = ['curl.exe', '-fSL', '-o', zip_path, redirect_url]
+res = subprocess.run(curl_cmd)
+if res.returncode != 0 or not os.path.exists(zip_path) or os.path.getsize(zip_path) == 0:
+    print("curl failed, falling back to chunked urllib...", flush=True)
+    req2 = urllib.request.Request(redirect_url, headers={'User-Agent': 'BashLock-Downloader'})
+    with urllib.request.urlopen(req2, timeout=120) as resp, open(zip_path, 'wb') as out_f:
+        while True:
+            chunk = resp.read(65536)
+            if not chunk:
+                break
+            out_f.write(chunk)
+
+print(f"Downloaded {os.path.getsize(zip_path)} bytes. Extracting APK...", flush=True)
+with zipfile.ZipFile(zip_path) as z:
     for filename in z.namelist():
         print("Zip entry:", filename, flush=True)
         if filename.endswith('.apk'):
@@ -104,5 +120,10 @@ with zipfile.ZipFile(io.BytesIO(zip_bytes)) as z:
                 with open(t, 'wb') as f:
                     f.write(apk_data)
                 print(f"Wrote {len(apk_data)} bytes to {t}", flush=True)
+
+try:
+    os.remove(zip_path)
+except Exception:
+    pass
 
 print("All APK files updated successfully!", flush=True)

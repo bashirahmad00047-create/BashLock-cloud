@@ -8,6 +8,7 @@ import hashlib
 import time
 import socket
 import random
+import uuid
 import requests
 import subprocess
 import threading
@@ -760,6 +761,67 @@ def enroll_device():
         "phone_model": phone_model
     })
 
+# ----------------- TEST MODE: DEDICATED QA TEST DEVICE ROUTE ----------------- #
+
+@app.route("/api/test/enroll-test-device", methods=["POST"])
+def api_enroll_test_device():
+    shop_id = get_current_shop_id()
+    now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    test_dev_id = "TEST-DEV-001"
+    test_code = "0047"
+    test_imei = "861234567890047"
+    test_customer_name = "QA Automated Test"
+    test_phone = "03001234567"
+    test_cnic = "35201-0000047-1"
+    test_model = "Galaxy S24 (Test Lab)"
+
+    # Clean previous test device if exists
+    cursor.execute("DELETE FROM devices WHERE id = ? OR setup_code = ? OR imei = ?", (test_dev_id, test_code, test_imei))
+    cursor.execute("DELETE FROM customers WHERE cnic = ? OR full_name = ?", (test_cnic, test_customer_name))
+
+    cursor.execute("""
+        INSERT INTO customers (shop_id, full_name, phone_number, cnic, guarantor_name, guarantor_cnic, created_at)
+        VALUES (?, ?, ?, ?, 'Test Guarantor', '35201-0000047-2', ?)
+    """, (shop_id, test_customer_name, test_phone, test_cnic, now_str))
+    customer_id = cursor.lastrowid
+
+    next_due = (datetime.utcnow()).strftime("%Y-%m-%d")
+    cursor.execute("""
+        INSERT INTO devices (
+            id, shop_id, customer_id, phone_model, imei, setup_code, status, policy_name,
+            total_price, down_payment, remaining_balance, monthly_installment,
+            next_due_date, enrollment_token, qr_payload, last_seen, created_at, remote_command
+        ) VALUES (
+            ?, ?, ?, ?, ?, ?, 'UNLOCKED', 'bashlock_unlocked',
+            50000, 10000, 40000, 10000,
+            ?, 'tok_0047', '{}', ?, ?, 'UNLOCK'
+        )
+    """, (test_dev_id, shop_id, customer_id, test_model, test_imei, test_code, next_due, f"Test device ready at {now_str}", now_str))
+
+    cursor.execute("""
+        INSERT INTO audit_logs (shop_id, event_type, message, created_at)
+        VALUES (?, 'TEST_DEVICE_READY', ?, ?)
+    """, (shop_id, f"Test device {test_dev_id} (Code: {test_code}) ready for automated QA.", now_str))
+
+    conn.commit()
+    conn.close()
+
+    tunnel_url = get_public_tunnel_url()
+    return jsonify({
+        "success": True,
+        "device_id": test_dev_id,
+        "setup_code": test_code,
+        "imei": test_imei,
+        "customer_name": test_customer_name,
+        "remaining_balance": 40000,
+        "monthly_installment": 10000,
+        "status": "UNLOCKED",
+        "lock_app_url": f"{tunnel_url}/lock-app/{test_code}"
+    })
+
 # ----------------- WIPE ALL DEMO DATA ROUTE (Requirement 1) ----------------- #
 
 @app.route("/api/shop/wipe-demo-data", methods=["POST"])
@@ -937,14 +999,17 @@ def record_payment():
 
     now_dt = datetime.utcnow()
     now_str = now_dt.strftime("%Y-%m-%d %H:%M:%S")
-    receipt_num = f"RCP-{now_dt.strftime('%Y%m%d')}-{int(time.time()) % 10000:04d}"
+    receipt_num = f"RCP-{now_dt.strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:4].upper()}"
+
+    new_status = "RELEASED" if new_balance <= 0 else "UNLOCKED"
+    new_policy = "bashlock_released" if new_balance <= 0 else "bashlock_unlocked"
 
     conn.execute("""
         UPDATE devices 
-        SET remaining_balance = ?, next_due_date = ?, status = 'UNLOCKED', policy_name = 'bashlock_unlocked',
-            last_seen = 'Payment Received (Auto-Unlocked)'
+        SET remaining_balance = ?, next_due_date = ?, status = ?, policy_name = ?,
+            remote_command = 'UNLOCK', last_seen = 'Payment Received (Auto-Unlocked)'
         WHERE id = ? AND shop_id = ?
-    """, (new_balance, new_due_date, device_id, shop_id))
+    """, (new_balance, new_due_date, new_status, new_policy, device_id, shop_id))
 
     conn.execute("""
         INSERT INTO payments (
@@ -986,6 +1051,8 @@ def record_payment():
     return jsonify({
         "success": True,
         "message": f"PKR {amount:,.0f} ki wasooli save ho gayi aur phone automatic UNLOCK ho gaya!",
+        "remaining_balance": new_balance,
+        "status": new_status,
         "receipt": receipt_data
     })
 
@@ -1028,7 +1095,7 @@ def unlock_by_pin():
     conn = get_db_connection()
     conn.execute("""
         UPDATE devices 
-        SET status = 'UNLOCKED', policy_name = 'bashlock_unlocked',
+        SET status = 'UNLOCKED', policy_name = 'bashlock_unlocked', remote_command = 'UNLOCK',
             last_seen = 'Offline PIN Verified (Grace Unlock)'
         WHERE id = ? AND shop_id = ?
     """, (device_id, shop_id))
