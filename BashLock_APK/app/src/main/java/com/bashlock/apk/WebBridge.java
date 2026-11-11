@@ -697,6 +697,11 @@ public class WebBridge {
     }
 
     @JavascriptInterface
+    public String getLastStatusJson() {
+        return BashLockGuardService.getLastStatusJson();
+    }
+
+    @JavascriptInterface
     public void loadRemoteUrl(String url) {
         mActivity.runOnUiThread(() -> mActivity.loadUrlExplicit(url));
     }

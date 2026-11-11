@@ -1246,7 +1246,93 @@
       }
     }
 
-    // Enforcement Check (Offline + Online)
+    window.onNativeStatusUpdate = function(data) {
+      if (!data) return;
+      if (typeof data === 'string') {
+        try { data = JSON.parse(data); } catch(e) { return; }
+      }
+      handleStatusResponse(data);
+    };
+
+    function handleStatusResponse(data) {
+      if (!data) return;
+      if (data.status === "NOT_FOUND" || (!data.success && data.status === "NOT_FOUND")) {
+        setConnectionState("CONNECTION FAILED");
+        console.warn("Device status NOT_FOUND. Resetting to setup mode.");
+        resetToSetupMode();
+        return;
+      }
+      if (data.success && data.device) {
+        const d = data.device;
+        savedPin = d.offline_pin;
+        localStorage.setItem("bashlock_offline_pin", d.offline_pin);
+        localStorage.setItem("bashlock_due_date", d.next_due_date);
+        localStorage.setItem("bashlock_balance", d.remaining_balance);
+        localStorage.setItem("bashlock_cust_name", d.customer_name);
+        localStorage.setItem("bashlock_phone_model", d.phone_model);
+        localStorage.setItem("bashlock_monthly", d.monthly_installment);
+        localStorage.setItem("bashlock_shop_name", d.shop_name);
+        localStorage.setItem("bashlock_shop_phone", d.shop_phone);
+
+        const b = getBridge();
+        const isServerLocked = Boolean(
+          (d.status && d.status.toUpperCase() === "LOCKED") ||
+          (data.status && data.status.toUpperCase() === "LOCKED") ||
+          (d.remote_command && d.remote_command.toUpperCase() === "LOCK") ||
+          (data.remote_command && data.remote_command.toUpperCase() === "LOCK") ||
+          d.is_locked === true || d.is_locked === 1 ||
+          data.is_locked === true || data.is_locked === 1
+        );
+
+        if (b && typeof b.saveCompleteDeviceData === 'function') {
+          b.saveCompleteDeviceData(JSON.stringify({
+            setup_code: currentCode,
+            offline_pin: d.offline_pin || '',
+            device_id: d.id || '',
+            due_date: d.next_due_date || '',
+            is_locked: isServerLocked,
+            customer_name: d.customer_name || '',
+            phone_model: d.phone_model || '',
+            monthly_installment: d.monthly_installment || '',
+            remaining_balance: d.remaining_balance || '',
+            shop_name: d.shop_name || '',
+            shop_phone: d.shop_phone || ''
+          }));
+        }
+        if (b && typeof b.savePairingData === 'function') {
+          b.savePairingData(currentCode, d.offline_pin || '', d.id || '', d.next_due_date || '');
+        }
+
+        const isExplicitNoc = (
+          d.status === "noc" ||
+          d.status === "NOC" ||
+          d.status === "RELEASED" ||
+          d.status === "RELEASE_AND_UNINSTALL" ||
+          (parseFloat(d.remaining_balance) === 0 && d.total_amount && parseFloat(d.total_amount) > 0)
+        );
+
+        if (isExplicitNoc) {
+          setConnectionState("RELEASED");
+          localStorage.setItem("bashlock_is_released", "true");
+          renderReleasedView(d);
+          return;
+        } else {
+          localStorage.removeItem("bashlock_is_released");
+        }
+
+        if (isServerLocked) {
+          isLockedState = true;
+          setConnectionState("LOCKED");
+          renderLockedView(d);
+        } else {
+          isLockedState = false;
+          setConnectionState("CONNECTED");
+          renderActiveView(d);
+        }
+      }
+    }
+
+    // Enforcement Check (Real-Time Server Authoritative Poll)
     async function checkEnforcementStatus() {
       // 0. If code is empty or default unassigned, DO NOT show released view; show setup!
       if (!currentCode || currentCode === "4819") {
@@ -1269,27 +1355,12 @@
           customer_name: localStorage.getItem("bashlock_cust_name"),
           phone_model: localStorage.getItem("bashlock_phone_model")
         });
+        return;
       } else {
         localStorage.removeItem("bashlock_is_released");
       }
 
-      // 1. Offline due date check
-      const offlineDueDate = localStorage.getItem("bashlock_due_date");
-      if (offlineDueDate) {
-        const todayStr = new Date().toISOString().split("T")[0];
-        if (todayStr > offlineDueDate) {
-          isLockedState = true;
-          renderLockedView({
-            monthly_installment: localStorage.getItem("bashlock_monthly"),
-            shop_name: localStorage.getItem("bashlock_shop_name"),
-            shop_phone: localStorage.getItem("bashlock_shop_phone"),
-            offline_pin: localStorage.getItem("bashlock_offline_pin")
-          });
-          return;
-        }
-      }
-
-      // 2. Online real-time poll
+      // Online real-time poll (Strictly server-authoritative, no local due date override)
       try {
         const serverBase = getServerBase();
         const controller = new AbortController();
@@ -1306,83 +1377,11 @@
           return;
         }
         const data = await res.json();
-        if (data.status === "NOT_FOUND" || (!data.success && res.status === 404)) {
-          setConnectionState("CONNECTION FAILED");
-          console.warn("Device status NOT_FOUND. Resetting to setup mode.");
-          resetToSetupMode();
-          return;
-        }
-        if (data.success && data.device) {
-          const d = data.device;
-          savedPin = d.offline_pin;
-          localStorage.setItem("bashlock_offline_pin", d.offline_pin);
-          localStorage.setItem("bashlock_due_date", d.next_due_date);
-          localStorage.setItem("bashlock_balance", d.remaining_balance);
-          localStorage.setItem("bashlock_cust_name", d.customer_name);
-          localStorage.setItem("bashlock_phone_model", d.phone_model);
-          localStorage.setItem("bashlock_monthly", d.monthly_installment);
-          localStorage.setItem("bashlock_shop_name", d.shop_name);
-          localStorage.setItem("bashlock_shop_phone", d.shop_phone);
-
-          const isServerLocked = Boolean(
-            (d.status && d.status.toUpperCase() === "LOCKED") ||
-            (data.status && data.status.toUpperCase() === "LOCKED") ||
-            (d.remote_command && d.remote_command.toUpperCase() === "LOCK") ||
-            (data.remote_command && data.remote_command.toUpperCase() === "LOCK") ||
-            d.is_overdue ||
-            d.is_locked === true || d.is_locked === 1 ||
-            data.is_locked === true || data.is_locked === 1
-          );
-
-          if (b && typeof b.saveCompleteDeviceData === 'function') {
-            b.saveCompleteDeviceData(JSON.stringify({
-              setup_code: currentCode,
-              offline_pin: d.offline_pin || '',
-              device_id: d.id || '',
-              due_date: d.next_due_date || '',
-              is_locked: isServerLocked,
-              customer_name: d.customer_name || '',
-              phone_model: d.phone_model || '',
-              monthly_installment: d.monthly_installment || '',
-              remaining_balance: d.remaining_balance || '',
-              shop_name: d.shop_name || '',
-              shop_phone: d.shop_phone || ''
-            }));
-          }
-          if (b && typeof b.savePairingData === 'function') {
-            b.savePairingData(currentCode, d.offline_pin || '', d.id || '', d.next_due_date || '');
-          }
-
-          // Requirement 3: Only show '100% Cleared (NOC)' card when server explicitly returns status == 'noc' or remaining_balance == 0 for existing record
-          const isExplicitNoc = (
-            d.status === "noc" ||
-            d.status === "NOC" ||
-            d.status === "RELEASED" ||
-            d.status === "RELEASE_AND_UNINSTALL" ||
-            (parseFloat(d.remaining_balance) === 0 && d.total_amount && parseFloat(d.total_amount) > 0)
-          );
-
-          if (isExplicitNoc) {
-            setConnectionState("RELEASED");
-            localStorage.setItem("bashlock_is_released", "true");
-            renderReleasedView(d);
-            return;
-          } else {
-            // Actively clear released flag when device is active/unlocked/locked!
-            localStorage.removeItem("bashlock_is_released");
-          }
-
-          if (isServerLocked) {
-            isLockedState = true;
-            setConnectionState("LOCKED");
-            renderLockedView(d);
-          } else {
-            isLockedState = false;
-            setConnectionState("CONNECTED");
-            renderActiveView(d);
-          }
-        }
+        handleStatusResponse(data);
       } catch (err) {
+        setConnectionState("SERVER UNAVAILABLE");
+      }
+    }
         setConnectionState("SERVER UNAVAILABLE");
       }
     }

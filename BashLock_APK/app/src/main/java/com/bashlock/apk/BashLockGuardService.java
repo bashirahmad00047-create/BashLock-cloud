@@ -70,14 +70,26 @@ public class BashLockGuardService extends Service {
     private WindowManager mWindowManager;
     private final StringBuilder mOverlayEnteredPin = new StringBuilder();
     private static volatile String sLastWorkingUrl = null;
+    public static final String LAN_BASE_URL = "http://10.186.85.239:5000";
+    public static final String TUNNEL_BASE_URL = "https://interim-simpson-encryption-floral.trycloudflare.com";
+    private static volatile String sWorkingUrl = null;
+    private static volatile String sLastStatusJson = "{}";
+    private final java.util.concurrent.ExecutorService mParallelExecutor = java.util.concurrent.Executors.newFixedThreadPool(2);
     private final java.util.concurrent.atomic.AtomicBoolean mIsPollingInProgress = new java.util.concurrent.atomic.AtomicBoolean(false);
     private int mUrlFailures = 0;
 
     public static String getLastWorkingUrl() {
+        if (sWorkingUrl != null && !sWorkingUrl.isEmpty()) {
+            return sWorkingUrl;
+        }
         if (sLastWorkingUrl != null && !sLastWorkingUrl.isEmpty()) {
             return sLastWorkingUrl;
         }
-        return MainActivity.DEFAULT_LAN_HTTP_URL.replaceAll("/lock-app.*", "");
+        return LAN_BASE_URL;
+    }
+
+    public static String getLastStatusJson() {
+        return sLastStatusJson;
     }
 
     @Override
@@ -322,8 +334,8 @@ public class BashLockGuardService extends Service {
         }
 
         mScheduler = Executors.newSingleThreadScheduledExecutor();
-        // Fix 1: Ultra-fast 1000ms (1 second) Native Background Polling
-        mScheduler.scheduleWithFixedDelay(this::checkLockStatusSafely, 0, 1000, TimeUnit.MILLISECONDS);
+        // Fix 3: Sub-second 800ms Native Parallel Polling
+        mScheduler.scheduleWithFixedDelay(this::checkLockStatusSafely, 0, 800, TimeUnit.MILLISECONDS);
     }
 
     private void checkLockStatusSafely() {
@@ -371,42 +383,159 @@ public class BashLockGuardService extends Service {
             return;
         }
 
-        // 1. Offline due date enforcement check
-        String offlineDueDate = mPrefs.getString("due_date", "").trim();
-        if (!offlineDueDate.isEmpty()) {
-            String todayStr = new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date());
-            if (todayStr.compareTo(offlineDueDate) > 0) {
-                Log.w(TAG, "Device overdue offline! Today: " + todayStr + " > Due: " + offlineDueDate);
-                triggerImmediateLockPopup();
-                return;
-            }
-        }
-
-        // 2. Online Server check
         String setupCode = mPrefs.getString("setup_code", "").trim();
         if (setupCode.isEmpty()) {
             setupCode = mPrefs.getString("device_code", "").trim();
         }
-        String activeUrl = resolveLiveServerUrl();
-
-        if (activeUrl == null || activeUrl.isEmpty()) {
+        if (setupCode.isEmpty() || "4819".equals(setupCode)) {
             return;
         }
 
-        // Target endpoint: <baseUrl>/api/device/by-code/<setupCode>/status
-        String endpoint;
-        if (!setupCode.isEmpty()) {
-            endpoint = activeUrl.replaceAll("/lock-app.*", "") + "/api/device/by-code/" + setupCode + "/status";
-        } else {
+        JSONObject json = null;
+        String winningBaseUrl = null;
+
+        // 1. If we have a sticky working URL, poll it directly with strict 1000ms timeout
+        if (sWorkingUrl != null && !sWorkingUrl.isEmpty()) {
+            json = fetchStatusHttp(sWorkingUrl, setupCode);
+            if (json != null) {
+                winningBaseUrl = sWorkingUrl;
+            } else {
+                sWorkingUrl = null; // Cleared on failure so parallel race triggers immediately!
+            }
+        }
+
+        // 2. Parallel Race: Race LAN IP and Cloudflare Tunnel concurrently if no sticky URL
+        if (json == null) {
+            final String sc = setupCode;
+            java.util.List<java.util.concurrent.Callable<android.util.Pair<String, JSONObject>>> tasks = new java.util.ArrayList<>();
+            tasks.add(() -> {
+                JSONObject r = fetchStatusHttp(LAN_BASE_URL, sc);
+                if (r != null) return new android.util.Pair<>(LAN_BASE_URL, r);
+                throw new Exception("LAN offline");
+            });
+            tasks.add(() -> {
+                JSONObject r = fetchStatusHttp(TUNNEL_BASE_URL, sc);
+                if (r != null) return new android.util.Pair<>(TUNNEL_BASE_URL, r);
+                throw new Exception("Tunnel offline");
+            });
+
+            try {
+                android.util.Pair<String, JSONObject> winner = mParallelExecutor.invokeAny(tasks, 1200, TimeUnit.MILLISECONDS);
+                if (winner != null && winner.second != null) {
+                    winningBaseUrl = winner.first;
+                    json = winner.second;
+                    sWorkingUrl = winningBaseUrl;
+                    sLastWorkingUrl = winningBaseUrl;
+                    mPrefs.edit().putString("last_working_url", winningBaseUrl).commit();
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                        try {
+                            createDeviceProtectedStorageContext()
+                                    .getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE)
+                                    .edit().putString("last_working_url", winningBaseUrl).commit();
+                        } catch (Exception ignored) {}
+                    }
+                }
+            } catch (Exception e) {
+                mUrlFailures++;
+                if (mUrlFailures % 35 == 0) {
+                    new Thread(this::refreshLiveUrlFromGitHub).start();
+                }
+                return;
+            }
+        }
+
+        if (json == null) return;
+
+        sLastWorkingUrl = winningBaseUrl;
+        sWorkingUrl = winningBaseUrl;
+        mUrlFailures = 0;
+
+        // Broadcast raw status JSON to MainActivity -> WebView for instant DOM update without redundant fetch
+        sLastStatusJson = json.toString();
+        Intent statusBroadcast = new Intent("com.bashlock.ACTION_STATUS_DATA");
+        statusBroadcast.putExtra("status_json", sLastStatusJson);
+        statusBroadcast.setPackage(getPackageName());
+        sendBroadcast(statusBroadcast);
+
+        if (json.optString("status", "").equals("NOT_FOUND")) {
+            Log.i(TAG, "Device deleted (404) -> resetting pairing and unlocking");
+            syncLockState(false);
+            notifyUnlockState();
+            resetPairingPreferences();
             return;
         }
 
+        if (json.optBoolean("success", false)) {
+            boolean rootIsLocked = json.optBoolean("is_locked", false);
+            String rootStatus = json.optString("status", "");
+            String rootCommand = json.optString("remote_command", "");
+
+            JSONObject device = json.optJSONObject("device");
+            String status = device != null ? device.optString("status", rootStatus) : rootStatus;
+            boolean isLocked = device != null ? device.optBoolean("is_locked", rootIsLocked) : rootIsLocked;
+            String remoteCommand = device != null ? device.optString("remote_command", rootCommand) : rootCommand;
+
+            String dueDate = device != null ? device.optString("next_due_date", "") : "";
+            String pin = device != null ? device.optString("offline_pin", "") : "";
+
+            SharedPreferences.Editor editor = mPrefs.edit();
+            if (!dueDate.isEmpty()) editor.putString("due_date", dueDate);
+            if (!pin.isEmpty()) editor.putString("bashlock_offline_pin", pin);
+            editor.apply();
+
+            if ("WAKE_DEVICE".equalsIgnoreCase(remoteCommand)
+                    || "OPEN_APP".equalsIgnoreCase(remoteCommand)
+                    || "WAKE".equalsIgnoreCase(status)) {
+                wakeUpDeviceAndOpenApp();
+            }
+
+            if ("RELEASE_AND_UNINSTALL".equalsIgnoreCase(status)
+                    || "RELEASED".equalsIgnoreCase(status)
+                    || "UNENROLLED".equalsIgnoreCase(status)) {
+                Log.i(TAG, "Server returned status: " + status + " -> COMMENCING FULL REMOTE RELEASE");
+                syncLockState(false);
+                mPrefs.edit().putBoolean("is_released", true).putBoolean("is_locked", false).commit();
+                triggerRemoteReleaseSequence(false);
+                return;
+            } else if ("LOCKED".equalsIgnoreCase(status) || "LOCK".equalsIgnoreCase(remoteCommand) || isLocked) {
+                mPrefs.edit().putBoolean("is_released", false).putBoolean("is_locked", true).commit();
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    try {
+                        createDeviceProtectedStorageContext()
+                                .getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE)
+                                .edit().putBoolean("is_released", false).putBoolean("is_locked", true).commit();
+                    } catch (Exception ignored) {}
+                }
+                syncLockState(true);
+                showGuardLockOverlay();
+            } else {
+                // UNLOCKED
+                boolean wasLocked = mPrefs.getBoolean("is_locked", false);
+                mPrefs.edit().putBoolean("is_released", false).putBoolean("is_locked", false).commit();
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    try {
+                        createDeviceProtectedStorageContext()
+                                .getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE)
+                                .edit().putBoolean("is_released", false).putBoolean("is_locked", false).commit();
+                    } catch (Exception ignored) {}
+                }
+                syncLockState(false);
+                if (wasLocked || mGuardLockOverlayView != null) {
+                    Log.i(TAG, "Server returned UNLOCKED and device was locked -> Immediately removing WindowManager overlay");
+                    notifyUnlockState();
+                }
+            }
+        }
+    }
+
+    private JSONObject fetchStatusHttp(String baseUrl, String setupCode) {
         HttpURLConnection conn = null;
         try {
-            URL url = new URL(endpoint + (endpoint.contains("?") ? "&t=" : "?t=") + System.currentTimeMillis());
+            String endpoint = baseUrl.replaceAll("/lock-app.*", "") + "/api/device/by-code/" + setupCode + "/status?t=" + System.currentTimeMillis();
+            URL url = new URL(endpoint);
             conn = (HttpURLConnection) url.openConnection();
-            conn.setConnectTimeout(1500);
-            conn.setReadTimeout(1500);
+            conn.setConnectTimeout(1000);
+            conn.setReadTimeout(1000);
             conn.setRequestMethod("GET");
             conn.setUseCaches(false);
             conn.setRequestProperty("User-Agent", "BashLock-Background-Guard");
@@ -415,19 +544,7 @@ public class BashLockGuardService extends Service {
             conn.setRequestProperty("Connection", "close");
 
             int responseCode = conn.getResponseCode();
-
             if (responseCode == HttpURLConnection.HTTP_OK) {
-                sLastWorkingUrl = activeUrl;
-                mUrlFailures = 0;
-                mPrefs.edit().putString("last_working_url", activeUrl).commit();
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    try {
-                        createDeviceProtectedStorageContext()
-                                .getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE)
-                                .edit().putString("last_working_url", activeUrl).commit();
-                    } catch (Exception ignored) {}
-                }
-
                 BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
                 StringBuilder sb = new StringBuilder();
                 String line;
@@ -435,93 +552,19 @@ public class BashLockGuardService extends Service {
                     sb.append(line);
                 }
                 reader.close();
-
-                JSONObject json = new JSONObject(sb.toString());
-                if (json.optBoolean("success", false)) {
-                    boolean rootIsLocked = json.optBoolean("is_locked", false);
-                    String rootStatus = json.optString("status", "");
-                    String rootCommand = json.optString("remote_command", "");
-
-                    JSONObject device = json.optJSONObject("device");
-                    String status = device != null ? device.optString("status", rootStatus) : rootStatus;
-                    boolean isLocked = device != null ? device.optBoolean("is_locked", rootIsLocked) : rootIsLocked;
-                    boolean isOverdue = device != null && device.optBoolean("is_overdue", false);
-                    String remoteCommand = device != null ? device.optString("remote_command", rootCommand) : rootCommand;
-
-                    String dueDate = device != null ? device.optString("next_due_date", "") : "";
-                    String pin = device != null ? device.optString("offline_pin", "") : "";
-
-                    SharedPreferences.Editor editor = mPrefs.edit();
-                    if (!dueDate.isEmpty()) editor.putString("due_date", dueDate);
-                    if (!pin.isEmpty()) editor.putString("bashlock_offline_pin", pin);
-                    editor.apply();
-
-                    // Check for Remote Wake / Open App command from shopkeeper
-                    if ("WAKE_DEVICE".equalsIgnoreCase(remoteCommand)
-                            || "OPEN_APP".equalsIgnoreCase(remoteCommand)
-                            || "WAKE".equalsIgnoreCase(status)) {
-                        wakeUpDeviceAndOpenApp();
-                    }
-
-                    if ("RELEASE_AND_UNINSTALL".equalsIgnoreCase(status)
-                            || "RELEASED".equalsIgnoreCase(status)
-                            || "UNENROLLED".equalsIgnoreCase(status)) {
-                        Log.i(TAG, "Server returned status: " + status + " -> COMMENCING FULL REMOTE RELEASE");
-                        syncLockState(false);
-                        mPrefs.edit().putBoolean("is_released", true).putBoolean("is_locked", false).commit();
-                        triggerRemoteReleaseSequence(false);
-                        return;
-                    } else if ("LOCKED".equalsIgnoreCase(status) || "LOCK".equalsIgnoreCase(remoteCommand) || isLocked || isOverdue) {
-                        mPrefs.edit().putBoolean("is_released", false).putBoolean("is_locked", true).commit();
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                            try {
-                                createDeviceProtectedStorageContext()
-                                        .getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE)
-                                        .edit().putBoolean("is_released", false).putBoolean("is_locked", true).commit();
-                            } catch (Exception ignored) {}
-                        }
-                        Log.w(TAG, "Server returned status: " + status + " -> Immediately ENFORCING WindowManager Lock Overlay");
-                        syncLockState(true);
-                        triggerImmediateLockPopup();
-                    } else {
-                        // Unlocked (is_locked=false / status="unlocked" / status="active" / remote_command="UNLOCK")
-                        boolean wasLocked = mPrefs.getBoolean("is_locked", false);
-                        mPrefs.edit().putBoolean("is_released", false).putBoolean("is_locked", false).commit();
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                            try {
-                                createDeviceProtectedStorageContext()
-                                        .getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE)
-                                        .edit().putBoolean("is_released", false).putBoolean("is_locked", false).commit();
-                            } catch (Exception ignored) {}
-                        }
-                        syncLockState(false);
-                        if (wasLocked || mGuardLockOverlayView != null) {
-                            Log.i(TAG, "Server returned UNLOCKED and device was locked -> Immediately removing WindowManager overlay & releasing Kiosk");
-                            notifyUnlockState();
-                        }
-                    }
-                }
+                return new JSONObject(sb.toString());
             } else if (responseCode == HttpURLConnection.HTTP_NOT_FOUND) {
-                // If device record was deleted (404 / not found), immediately save is_locked=false, clear pairing, and return to setup mode!
-                Log.i(TAG, "Server returned 404 (Device deleted by shopkeeper) -> Immediately unlocking device and resetting to setup screen");
-                syncLockState(false);
-                notifyUnlockState();
-                resetPairingPreferences();
-            } else {
-                mUrlFailures++;
-                tryFallbackLanPolling(setupCode);
-                refreshLiveUrlFromGitHub();
+                JSONObject notFound = new JSONObject();
+                notFound.put("success", false);
+                notFound.put("status", "NOT_FOUND");
+                return notFound;
             }
-        } catch (Exception e) {
-            mUrlFailures++;
-            Log.d(TAG, "Polling check server reachability: " + e.getMessage());
-            tryFallbackLanPolling(setupCode);
-            refreshLiveUrlFromGitHub();
+        } catch (Exception ignored) {
         } finally {
-            if (conn != null) {
-                conn.disconnect();
-            }
+            if (conn != null) conn.disconnect();
         }
+        return null;
+    }
     }
 
     private void tryFallbackLanPolling(String setupCode) {
@@ -785,18 +828,6 @@ public class BashLockGuardService extends Service {
         broadcast.putExtra("is_locked", false);
         broadcast.setPackage(getPackageName());
         sendBroadcast(broadcast);
-
-        // 3. Send FORCE_KIOSK_UNLOCK to MainActivity
-        Intent unlockIntent = new Intent(this, MainActivity.class);
-        unlockIntent.addFlags(
-                Intent.FLAG_ACTIVITY_NEW_TASK
-                | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
-                | Intent.FLAG_ACTIVITY_SINGLE_TOP
-        );
-        unlockIntent.putExtra("FORCE_KIOSK_UNLOCK", true);
-        try {
-            startActivity(unlockIntent);
-        } catch (Exception ignored) {}
 
         NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm != null) {

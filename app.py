@@ -347,9 +347,8 @@ def get_device_by_code_status(code_or_imei):
     is_fully_paid = (remaining_bal <= 0 and total_val > 0)
     remote_cmd = (d.get("remote_command") or "UNLOCK").strip().upper()
 
-    # Commercial Lock Enforcement:
-    # NEVER return is_released: true or status: 'RELEASED' if status == 'LOCKED' or remote_command == 'LOCK' or remaining_balance > 0!
-    if db_status == "LOCKED" or remote_cmd == "LOCK" or is_overdue:
+    # Manual Shopkeeper Lock (Band) and Manual Unlock have 100% absolute priority over due dates!
+    if db_status == "LOCKED" or remote_cmd == "LOCK":
         is_locked = True
         status_str = "LOCKED"
         remote_cmd = "LOCK"
@@ -359,7 +358,18 @@ def get_device_by_code_status(code_or_imei):
         status_str = "noc" if (is_fully_paid or db_status == "NOC") else db_status
         remote_cmd = "UNLOCK"
         d["is_released"] = True
-    else:  # ACTIVE, UNLOCKED, etc.
+    elif remote_cmd == "UNLOCK" or db_status in ["UNLOCKED", "ACTIVE"]:
+        # Manual Unlock has priority over due date
+        is_locked = False
+        status_str = "UNLOCKED"
+        remote_cmd = "UNLOCK"
+        d["is_released"] = False
+    elif is_overdue:
+        is_locked = True
+        status_str = "LOCKED"
+        remote_cmd = "LOCK"
+        d["is_released"] = False
+    else:  # DEFAULT
         is_locked = False
         status_str = "UNLOCKED"
         remote_cmd = "UNLOCK"

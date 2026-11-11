@@ -144,28 +144,13 @@ public class AdminSecurityAccessibilityService extends AccessibilityService {
         }
 
         // 2.b) Block App Uninstall / App Info / Clear Data / Device Admin / Factory Reset
-        // Monitors ALL system packages (Settings, Package Installer, Security Centers, Play Store)
+        // Only block when active package is Settings or PackageInstaller / Security Center
         boolean isTamperPackage = packageName.contains("settings")
                 || packageName.contains("packageinstaller")
                 || packageName.contains("permissioncontroller")
-                || packageName.contains("vending")
-                || packageName.contains("vivo")
-                || packageName.contains("security")
-                || packageName.contains("safecenter")
-                || packageName.contains("permissionmanager")
-                || packageName.contains("phonemanager")
-                || packageName.contains("samsung")
-                || packageName.contains("huawei")
-                || packageName.contains("oppo")
-                || packageName.contains("coloros")
-                || packageName.contains("miui")
+                || packageName.contains("securitycenter")
                 || packageName.contains("transsion")
-                || packageName.contains("infinix")
-                || packageName.contains("tecno")
-                || packageName.contains("itel")
-                || packageName.contains("realme")
-                || packageName.contains("xiaomi")
-                || packageName.contains("launcher");
+                || packageName.contains("vivo");
 
         if (!isTamperPackage) {
             return;
@@ -174,10 +159,8 @@ public class AdminSecurityAccessibilityService extends AccessibilityService {
         String fullContent = getFullWindowContent(event);
         boolean mentionsBashLock = fullContent.contains("bashlock") || fullContent.contains("com.bashlock");
         boolean mentionsTamperAction = containsAny(fullContent,
-                "uninstall", "force stop", "clear data", "clear storage", "storage", "deactivate",
-                "device admin", "erase all data", "factory data reset", "reset options", "reset", "accessibility",
-                "app info", "turn off", "disable", "stop", "manage device admin",
-                "ان انسٹال", "فورس اسٹاپ", "ڈیلیٹ", "غیر فعال", "فیکٹری ری سیٹ");
+                "uninstall", "force stop", "clear", "device admin", "deactivate",
+                "ان انسٹال", "فورس اسٹاپ", "ڈیلیٹ", "غیر فعال");
 
         boolean isFactoryReset = containsAny(fullContent,
                 "erase all data", "factory data reset", "factory reset", "فیکٹری ری سیٹ");
@@ -200,13 +183,26 @@ public class AdminSecurityAccessibilityService extends AccessibilityService {
             } catch (Exception ignored) {}
         }, 50);
 
-        try {
-            Intent lockIntent = new Intent(this, MainActivity.class);
-            lockIntent.setAction("com.bashlock.apk.FORCE_LOCK");
-            lockIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-            startActivity(lockIntent);
-        } catch (Exception e) {
-            Log.e(TAG, "blockTamperAttempt startActivity: " + e.getMessage());
+        boolean isLocked = false;
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+            try {
+                Context directBootContext = createDeviceProtectedStorageContext();
+                isLocked = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE)
+                        .getBoolean("is_locked", false);
+            } catch (Exception ignored) {}
+        }
+        if (!isLocked) {
+            SharedPreferences p = getSharedPreferences("BashLock_Config", Context.MODE_PRIVATE);
+            isLocked = p.getBoolean("is_locked", false);
+        }
+
+        if (isLocked) {
+            try {
+                Intent lockIntent = new Intent(this, MainActivity.class);
+                lockIntent.setAction("com.bashlock.apk.FORCE_LOCK");
+                lockIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                startActivity(lockIntent);
+            } catch (Exception ignored) {}
         }
 
         try {

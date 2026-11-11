@@ -172,9 +172,11 @@ public class MainActivity extends AppCompatActivity {
 
         handleIncomingIntent(getIntent());
 
-        // Fix 1: Register dynamic broadcast receiver for instantaneous unlock
+        // Fix 1: Register dynamic broadcast receiver for instantaneous unlock and real-time status sync
         try {
-            IntentFilter stateFilter = new IntentFilter("com.bashlock.ACTION_STATE_CHANGED");
+            IntentFilter stateFilter = new IntentFilter();
+            stateFilter.addAction("com.bashlock.ACTION_STATE_CHANGED");
+            stateFilter.addAction("com.bashlock.ACTION_STATUS_DATA");
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 registerReceiver(mStateChangeReceiver, stateFilter, Context.RECEIVER_NOT_EXPORTED);
             } else {
@@ -189,7 +191,9 @@ public class MainActivity extends AppCompatActivity {
     private final BroadcastReceiver mStateChangeReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            if (intent != null && "com.bashlock.ACTION_STATE_CHANGED".equals(intent.getAction())) {
+            if (intent == null) return;
+            String action = intent.getAction();
+            if ("com.bashlock.ACTION_STATE_CHANGED".equals(action)) {
                 boolean isLocked = intent.getBooleanExtra("is_locked", false);
                 Log.i(TAG, "mStateChangeReceiver received ACTION_STATE_CHANGED: is_locked = " + isLocked);
                 if (!isLocked) {
@@ -197,16 +201,18 @@ public class MainActivity extends AppCompatActivity {
                     if (mWebView != null) {
                         mWebView.evaluateJavascript("if(typeof isLockedState!=='undefined'){isLockedState=false;}if(typeof checkEnforcementStatus==='function'){checkEnforcementStatus();}", null);
                     }
-                    moveTaskToBack(true);
                     try {
-                        Intent homeIntent = new Intent(Intent.ACTION_MAIN);
-                        homeIntent.addCategory(Intent.CATEGORY_HOME);
-                        homeIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                        startActivity(homeIntent);
+                        moveTaskToBack(true);
+                        finishAndRemoveTask();
                     } catch (Exception ignored) {}
                 } else {
                     setKioskLockState(true);
                     applyImmersiveFullscreen();
+                }
+            } else if ("com.bashlock.ACTION_STATUS_DATA".equals(action)) {
+                String json = intent.getStringExtra("status_json");
+                if (mWebView != null && json != null && !json.isEmpty()) {
+                    mWebView.evaluateJavascript("if(typeof window.onNativeStatusUpdate==='function'){window.onNativeStatusUpdate(" + json + ");}", null);
                 }
             }
         }
@@ -218,9 +224,6 @@ public class MainActivity extends AppCompatActivity {
         mIsPermissionPromptPending = false;
         applyImmersiveFullscreen();
 
-        if (mIsLocked) {
-            ensureLockTaskActive();
-        }
         // If coming back from Device Admin or permission screen and page hasn't loaded yet, reload
         if (!mPageLoadedSuccessfully && mWebView != null) {
             loadLockAppUrl();
@@ -594,63 +597,18 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception ignored) {}
 
         if (isLocked) {
-            Log.w(TAG, "LOCK ACTIVATED: Engaging startLockTask() and System Overlay Guard");
-            ensureLockTaskActive();
+            Log.w(TAG, "LOCK ACTIVATED: Engaging System WindowManager Overlay Guard");
             showSystemAlertOverlay();
             mSwipeRefresh.setEnabled(false);
         } else {
-            Log.i(TAG, "LOCK DEACTIVATED: Disengaging startLockTask() and removing Overlay");
-            stopKioskLockTask();
+            Log.i(TAG, "LOCK DEACTIVATED: Removing Overlay & cleanly closing MainActivity to return to Home Screen");
             removeSystemAlertOverlay();
             mSwipeRefresh.setEnabled(true);
             try {
                 moveTaskToBack(true);
-                Intent homeIntent = new Intent(Intent.ACTION_MAIN);
-                homeIntent.addCategory(Intent.CATEGORY_HOME);
-                homeIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivity(homeIntent);
+                finishAndRemoveTask();
             } catch (Exception ignored) {}
         }
-    }
-
-    private void ensureLockTaskActive() {
-        try {
-            if (mDpm != null && mDpm.isDeviceOwnerApp(getPackageName())) {
-                try {
-                    mDpm.addUserRestriction(mAdminComponent, android.os.UserManager.DISALLOW_FACTORY_RESET);
-                    mDpm.addUserRestriction(mAdminComponent, android.os.UserManager.DISALLOW_SAFE_BOOT);
-                    mDpm.addUserRestriction(mAdminComponent, android.os.UserManager.DISALLOW_ADD_USER);
-                    mDpm.setUninstallBlocked(mAdminComponent, getPackageName(), true);
-                    mDpm.setLockTaskPackages(mAdminComponent, new String[]{getPackageName(), "com.bashlock.apk"});
-                } catch (Exception ignored) {}
-
-                ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    if (am != null && am.getLockTaskModeState() == ActivityManager.LOCK_TASK_MODE_NONE) {
-                        startLockTask();
-                    }
-                } else {
-                    startLockTask();
-                }
-            } else {
-                Log.i(TAG, "Device Owner not granted; skipping startLockTask() to avoid Screen Pinning trap. Relying on System Window Overlay & Admin Policies.");
-            }
-        } catch (Exception e) {
-            Log.w(TAG, "startLockTask warning: " + e.getMessage());
-        }
-    }
-
-    private void stopKioskLockTask() {
-        try {
-            ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                if (am != null && am.getLockTaskModeState() != ActivityManager.LOCK_TASK_MODE_NONE) {
-                    stopLockTask();
-                }
-            } else {
-                stopLockTask();
-            }
-        } catch (Exception ignored) {}
     }
 
     /**
@@ -951,13 +909,9 @@ public class MainActivity extends AppCompatActivity {
             if (mWebView != null) {
                 mWebView.evaluateJavascript("if(typeof isLockedState!=='undefined'){isLockedState=false;}if(typeof checkEnforcementStatus==='function'){checkEnforcementStatus();}", null);
             }
-            // Atomically return customer to home screen immediately
-            moveTaskToBack(true);
             try {
-                Intent homeIntent = new Intent(Intent.ACTION_MAIN);
-                homeIntent.addCategory(Intent.CATEGORY_HOME);
-                homeIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivity(homeIntent);
+                moveTaskToBack(true);
+                finishAndRemoveTask();
             } catch (Exception ignored) {}
         } else if (intent.getBooleanExtra("FORCE_RELEASED_VIEW", false)) {
             Log.i(TAG, "FORCE_RELEASED_VIEW intent received! Device fully cleared.");
