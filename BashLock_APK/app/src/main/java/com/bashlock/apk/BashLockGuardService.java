@@ -531,7 +531,7 @@ public class BashLockGuardService extends Service {
     private String resolveLiveServerUrl() {
         // First check locally cached live URL
         String url = mPrefs.getString("cached_live_url", "").trim();
-        if (url.startsWith("https://") && !url.contains("10.")) {
+        if ((url.startsWith("https://") || url.startsWith("http://")) && !url.contains("127.0.0.1") && !url.contains("localhost")) {
             return url;
         }
         return MainActivity.DEFAULT_PUBLIC_HTTPS_URL;
@@ -555,7 +555,7 @@ public class BashLockGuardService extends Service {
 
                 if (line != null) {
                     String fetched = line.trim();
-                    if (fetched.startsWith("https://") && !fetched.contains("10.")) {
+                    if ((fetched.startsWith("https://") || fetched.startsWith("http://")) && !fetched.contains("127.0.0.1")) {
                         if (!fetched.endsWith("/lock-app")) {
                             fetched = fetched + "/lock-app";
                         }

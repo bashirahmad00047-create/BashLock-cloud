@@ -593,7 +593,7 @@
         </div>
 
         <div class="pt-1">
-          <button onclick="promptShopkeeperReset()" class="w-full py-3 rounded-2xl bg-slate-900/90 hover:bg-slate-800 active:scale-95 text-indigo-400 font-extrabold text-xs transition flex items-center justify-center gap-2 border border-indigo-500/30 shadow-md">
+          <button onclick="resetToSetupMode()" class="w-full py-3 rounded-2xl bg-slate-900/90 hover:bg-slate-800 active:scale-95 text-indigo-400 font-extrabold text-xs transition flex items-center justify-center gap-2 border border-indigo-500/30 shadow-md">
             <i class="fa-solid fa-rotate text-sm"></i>
             <span>🔄 Change / Enter New 4-Digit Code (Shopkeeper)</span>
           </button>
@@ -1165,6 +1165,7 @@
         try { codeInput.focus(); } catch(e) {}
       }
       document.getElementById("connection-status").innerText = "Setup Mode";
+      showToast("Setup screen ready! Naya 4-digit code darj karein.", true);
     }
 
     function promptShopkeeperReset() {

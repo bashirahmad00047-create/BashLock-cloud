@@ -341,25 +341,28 @@ def get_device_by_code_status(code_or_imei):
 
     d = dict(row)
     db_status = (d.get("status") or "UNLOCKED").strip().upper()
-    is_overdue = (d.get("next_due_date", "") < today_str and float(d.get("remaining_balance", 0) or 0) > 0)
-    is_fully_paid = (float(d.get("remaining_balance", 0) or 0) <= 0 and float(d.get("total_amount", 0) or 0) > 0)
+    remaining_bal = float(d.get("remaining_balance", 0) or 0)
+    total_val = float(d.get("total_price", 0) or 0) or float(d.get("total_amount", 0) or 0)
+    is_overdue = (d.get("next_due_date", "") < today_str and remaining_bal > 0)
+    is_fully_paid = (remaining_bal <= 0 and total_val > 0)
+    remote_cmd = (d.get("remote_command") or "UNLOCK").strip().upper()
 
     # Commercial Lock Enforcement:
-    # A device is ONLY locked if the shopkeeper explicitly locked it OR installment is overdue!
-    if db_status in ["RELEASED", "RELEASE_AND_UNINSTALL", "NOC"] or is_fully_paid:
+    # NEVER return is_released: true or status: 'RELEASED' if status == 'LOCKED' or remote_command == 'LOCK' or remaining_balance > 0!
+    if db_status == "LOCKED" or remote_cmd == "LOCK" or is_overdue:
+        is_locked = True
+        status_str = "LOCKED"
+        remote_cmd = "LOCK"
+        d["is_released"] = False
+    elif (db_status in ["RELEASED", "RELEASE_AND_UNINSTALL", "NOC"] or is_fully_paid) and remaining_bal <= 0:
         is_locked = False
         status_str = "noc" if (is_fully_paid or db_status == "NOC") else db_status
         remote_cmd = "UNLOCK"
         d["is_released"] = True
-    elif db_status == "LOCKED" or is_overdue:
-        is_locked = True
-        status_str = "LOCKED"
-        remote_cmd = d.get("remote_command") or "LOCK"
-        d["is_released"] = False
     else:  # ACTIVE, UNLOCKED, etc.
         is_locked = False
         status_str = "UNLOCKED"
-        remote_cmd = d.get("remote_command") or "UNLOCK"
+        remote_cmd = "UNLOCK"
         d["is_released"] = False
 
     d["status"] = status_str

@@ -64,6 +64,7 @@ public class MainActivity extends AppCompatActivity {
     // Dynamic GitHub Remote Config URL - Allows 1-time permanent APK install!
     public static final String GITHUB_RAW_LIVE_URL = "https://raw.githubusercontent.com/bashirahmad00047-create/BashLock-cloud/main/live_url.txt";
     public static final String DEFAULT_PUBLIC_HTTPS_URL = "https://scotland-brands-trend-universities.trycloudflare.com/lock-app";
+    public static final String DEFAULT_LAN_HTTP_URL = "http://10.223.143.239:5000/lock-app";
 
     private WebView mWebView;
     private ProgressBar mProgressBar;
@@ -322,6 +323,38 @@ public class MainActivity extends AppCompatActivity {
             public void onProgressChanged(WebView view, int newProgress) {
                 mProgressBar.setProgress(newProgress);
             }
+
+            @Override
+            public boolean onJsAlert(WebView view, String url, String message, android.webkit.JsResult result) {
+                Toast.makeText(MainActivity.this, message, Toast.LENGTH_SHORT).show();
+                result.confirm();
+                return true;
+            }
+
+            @Override
+            public boolean onJsConfirm(WebView view, String url, String message, android.webkit.JsResult result) {
+                new androidx.appcompat.app.AlertDialog.Builder(MainActivity.this)
+                        .setMessage(message)
+                        .setPositiveButton("OK", (d, w) -> result.confirm())
+                        .setNegativeButton("Cancel", (d, w) -> result.cancel())
+                        .setCancelable(false)
+                        .show();
+                return true;
+            }
+
+            @Override
+            public boolean onJsPrompt(WebView view, String url, String message, String defaultValue, android.webkit.JsPromptResult result) {
+                final android.widget.EditText input = new android.widget.EditText(MainActivity.this);
+                input.setText(defaultValue);
+                new androidx.appcompat.app.AlertDialog.Builder(MainActivity.this)
+                        .setMessage(message)
+                        .setView(input)
+                        .setPositiveButton("OK", (d, w) -> result.confirm(input.getText().toString()))
+                        .setNegativeButton("Cancel", (d, w) -> result.cancel())
+                        .setCancelable(false)
+                        .show();
+                return true;
+            }
         });
     }
 
@@ -395,7 +428,7 @@ public class MainActivity extends AppCompatActivity {
 
     private String getActiveBaseUrl() {
         String cached = mPrefs.getString("cached_live_url", "").trim();
-        if (cached.startsWith("https://") && !cached.contains("10.")) {
+        if ((cached.startsWith("https://") || cached.startsWith("http://")) && !cached.contains("127.0.0.1") && !cached.contains("localhost")) {
             return cached;
         }
         return DEFAULT_PUBLIC_HTTPS_URL;
