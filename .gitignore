@@ -16,6 +16,8 @@ npm-debug.log*
 
 # Android / Gradle
 *.apk
+*.zip
+backup_*/
 .gradle/
 build/
 app/build/

@@ -149,10 +149,6 @@ public class MainActivity extends AppCompatActivity {
                 }
             } catch (Exception ignored) {}
         }
-        if ("4819".equals(setupCode)) {
-            setupCode = "";
-        }
-
         // Restore previous lock state ONLY if device was paired & activated!
         // During initial setup (permission granting), NEVER engage kiosk lock!
         boolean isActivated = mPrefs.getBoolean("is_activated", false);
@@ -164,7 +160,7 @@ public class MainActivity extends AppCompatActivity {
             } catch (Exception ignored) {}
         }
 
-        if (!isActivated || setupCode.isEmpty() || "4819".equals(setupCode)) {
+        if (!isActivated || setupCode.isEmpty()) {
             mIsLocked = false;
         } else {
             mIsLocked = mPrefs.getBoolean("is_locked", false);

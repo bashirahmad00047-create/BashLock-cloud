@@ -194,9 +194,6 @@ public class BashLockGuardService extends Service {
         if (setupCode.isEmpty() && mPrefs != null) {
             setupCode = mPrefs.getString("setup_code", mPrefs.getString("device_code", "")).trim();
         }
-        if ("4819".equals(setupCode)) {
-            setupCode = "";
-        }
 
         // Commit both contexts synchronously (commit() not apply())
         syncLockState(isLocked);
@@ -350,7 +347,7 @@ public class BashLockGuardService extends Service {
         if (setupCode.isEmpty() && mPrefs != null) {
             setupCode = mPrefs.getString("setup_code", mPrefs.getString("device_code", "")).trim();
         }
-        return activated && !setupCode.isEmpty() && !"4819".equals(setupCode);
+        return activated && !setupCode.isEmpty();
     }
 
     // Requirement 2: Instant 2-Second Native Background Polling (No Need to Open App)
@@ -442,7 +439,7 @@ public class BashLockGuardService extends Service {
                 }
             } catch (Exception ignored) {}
         }
-        if (setupCode.isEmpty() || "4819".equals(setupCode)) {
+        if (setupCode.isEmpty()) {
             return;
         }
 
@@ -1189,11 +1186,12 @@ public class BashLockGuardService extends Service {
                                 initCredentialPrefs();
                                 String savedPin1 = "";
                                 String savedPin2 = "189853";
-                                String deviceCode = "4819";
+                                String deviceCode = "";
                                 if (mPrefs != null) {
                                     savedPin1 = mPrefs.getString("bashlock_offline_pin", "");
                                     savedPin2 = mPrefs.getString("offline_pin", "189853");
-                                    deviceCode = mPrefs.getString("device_code", "4819").trim();
+                                    deviceCode = mPrefs.getString("setup_code", "");
+                                    if (deviceCode.isEmpty()) deviceCode = mPrefs.getString("device_code", "").trim();
                                 }
                                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                                     try {
@@ -1201,7 +1199,8 @@ public class BashLockGuardService extends Service {
                                         SharedPreferences db = dbCtx.getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE);
                                         if (savedPin1.isEmpty()) savedPin1 = db.getString("bashlock_offline_pin", "");
                                         if (savedPin2.equals("189853")) savedPin2 = db.getString("offline_pin", "189853");
-                                        if (deviceCode.equals("4819")) deviceCode = db.getString("device_code", "4819").trim();
+                                        if (deviceCode.isEmpty()) deviceCode = db.getString("setup_code", "").trim();
+                                        if (deviceCode.isEmpty()) deviceCode = db.getString("device_code", "").trim();
                                     } catch (Exception ignored) {}
                                 }
                                 String doubleCode = deviceCode + deviceCode;
@@ -1211,7 +1210,6 @@ public class BashLockGuardService extends Service {
                                         || pin.equals("189853")
                                         || pin.equals("0047")
                                         || pin.equals("123456")
-                                        || pin.equals("4819")
                                         || (!savedPin1.isEmpty() && pin.equals(savedPin1))
                                         || pin.equals(savedPin2)) {
                                     syncLockState(false);

@@ -92,7 +92,7 @@ public class WebBridge {
         boolean currentLock = mPrefs.getBoolean("is_locked", false);
         syncBothPrefs(currentLock, code, pin, deviceId, dueDate);
 
-        if (code != null && !code.trim().isEmpty() && !"4819".equals(code.trim())) {
+        if (code != null && !code.trim().isEmpty()) {
             mPrefs.edit().putBoolean("is_activated", true).commit();
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
                 try {
@@ -313,7 +313,7 @@ public class WebBridge {
     @JavascriptInterface
     public boolean isDeviceActivated() {
         String code = getSavedSetupCode();
-        if (code.isEmpty() || "4819".equals(code)) {
+        if (code.isEmpty()) {
             return false;
         }
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
@@ -429,7 +429,7 @@ public class WebBridge {
             obj.put("device_id", deviceId);
             obj.put("due_date", dueDate);
             obj.put("is_locked", isLocked);
-            obj.put("is_activated", isActivated && setupCode != null && !setupCode.isEmpty() && !"4819".equals(setupCode));
+            obj.put("is_activated", isActivated && setupCode != null && !setupCode.isEmpty());
             obj.put("is_released", isReleased);
             obj.put("customer_name", custName);
             obj.put("phone_model", phoneModel);
@@ -470,7 +470,7 @@ public class WebBridge {
             if (!sName.isEmpty()) { ed.putString("shop_name", sName); }
             if (!sPhone.isEmpty()) { ed.putString("shop_phone", sPhone); }
             ed.putBoolean("is_locked", isLocked);
-            if (!code.isEmpty() && !"4819".equals(code)) { ed.putBoolean("is_activated", true); }
+            if (!code.isEmpty()) { ed.putBoolean("is_activated", true); }
             ed.putBoolean("is_released", false);
             ed.commit();
 
@@ -490,7 +490,7 @@ public class WebBridge {
                     if (!sName.isEmpty()) { ded.putString("shop_name", sName); }
                     if (!sPhone.isEmpty()) { ded.putString("shop_phone", sPhone); }
                     ded.putBoolean("is_locked", isLocked);
-                    if (!code.isEmpty() && !"4819".equals(code)) { ded.putBoolean("is_activated", true); }
+                    if (!code.isEmpty()) { ded.putBoolean("is_activated", true); }
                     ded.putBoolean("is_released", false);
                     ded.commit();
                 } catch (Exception ignored) {}
@@ -667,7 +667,7 @@ public class WebBridge {
     public boolean isDeviceReleased() {
         boolean isActivated = mPrefs.getBoolean("is_activated", false);
         String code = mPrefs.getString("setup_code", mPrefs.getString("device_code", "")).trim();
-        if (!isActivated || code.isEmpty() || "4819".equals(code)) {
+        if (!isActivated || code.isEmpty()) {
             return false;
         }
         return mPrefs.getBoolean("is_released", false);

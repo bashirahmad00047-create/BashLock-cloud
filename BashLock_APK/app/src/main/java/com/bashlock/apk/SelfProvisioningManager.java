@@ -81,7 +81,7 @@ public class SelfProvisioningManager {
                 Intent intent = new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
                 intent.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, admin);
                 intent.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-                        "BashLock Device Administrator policy prevents unauthorized uninstallation under installment terms.");
+                        "BashLock Device Administrator policy activates installment compliance and status monitoring.");
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 activity.startActivity(intent);
                 Toast.makeText(activity, "Step 1: Activate Device Administrator", Toast.LENGTH_SHORT).show();

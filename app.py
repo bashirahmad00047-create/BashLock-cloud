@@ -518,12 +518,33 @@ def get_provisioning_qr():
         if code:
             admin_extras["setup_code"] = code
 
+        # Dynamically determine APK SHA-256 checksum and package name for Android Enterprise Setup Wizard
+        apk_path = os.path.join(BASE_DIR, "bashlock.apk")
+        if not os.path.exists(apk_path):
+            apk_path = os.path.join(BASE_DIR, "BashLock_APK", "app", "build", "outputs", "apk", "debug", "app-debug.apk")
+
+        checksum = ""
+        pkg_name = "com.bashlock.apk"
+        if os.path.exists(apk_path):
+            try:
+                with open(apk_path, "rb") as f:
+                    apk_bytes = f.read()
+                    raw_hash = hashlib.sha256(apk_bytes).digest()
+                    checksum = base64.urlsafe_b64encode(raw_hash).decode("ascii").rstrip("=")
+                    if b"com.bashlock.apk.debug" in apk_bytes:
+                        pkg_name = "com.bashlock.apk.debug"
+            except Exception as e:
+                print(f"[!] Checksum calculation error: {e}")
+
         payload = {
-            "android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME": "com.bashlock.apk/com.bashlock.apk.BashLockDeviceAdminReceiver",
+            "android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME": f"{pkg_name}/com.bashlock.apk.BashLockDeviceAdminReceiver",
             "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION": apk_download_url,
             "android.app.extra.PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED": True,
             "android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE": admin_extras
         }
+        if checksum:
+            payload["android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_CHECKSUM"] = checksum
+
         if wifi_ssid:
             payload["android.app.extra.PROVISIONING_WIFI_SSID"] = wifi_ssid
             payload["android.app.extra.PROVISIONING_WIFI_PASSWORD"] = wifi_password
@@ -781,13 +802,25 @@ def enroll_device():
     if not next_due_date:
         next_due_date = (now_dt.date() + timedelta(days=30)).strftime("%Y-%m-%d")
 
-    # Generate a simple 4-Digit Setup Code (Requirement 3)
-    setup_code = f"{random.randint(1000, 9999)}"
-    device_id = f"dev-{int(time.time())}-{imei[-4:]}"
-    lan_ip = get_lan_ip()
-
     conn = get_db_connection()
     cursor = conn.cursor()
+
+    # Generate a collision-free 4-Digit Setup Code (avoiding reserved "4819")
+    candidate_code = None
+    for _ in range(500):
+        code_try = f"{random.randint(1000, 9999)}"
+        if code_try == "4819":
+            continue
+        exists = cursor.execute("SELECT 1 FROM devices WHERE setup_code = ?", (code_try,)).fetchone()
+        if not exists:
+            candidate_code = code_try
+            break
+    if not candidate_code:
+        candidate_code = f"{int(time.time()) % 9000 + 1000}"
+    setup_code = candidate_code
+
+    device_id = f"dev-{int(time.time())}-{imei[-4:]}"
+    lan_ip = get_lan_ip()
 
     cursor.execute("""
         INSERT INTO customers (shop_id, full_name, cnic, phone_number, guarantor_name, guarantor_cnic, created_at)

@@ -62,9 +62,6 @@ public class BootReceiver extends BroadcastReceiver {
                 }
             } catch (Exception ignored) {}
         }
-        if ("4819".equals(setupCode)) {
-            setupCode = "";
-        }
 
         // 3. Immediately start BashLockGuardService via startForegroundService() with CHECK_NOW = true
         // Even if is_locked == false before reboot, immediately poll server status upon boot

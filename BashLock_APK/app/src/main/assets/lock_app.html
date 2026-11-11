@@ -496,16 +496,25 @@
               type="text" 
               id="input-setup-code" 
               maxlength="15" 
-              placeholder="e.g. 4819" 
+              placeholder="e.g. 1234" 
               value=""
               class="w-full py-3 px-4 bg-slate-950 border-2 border-indigo-500/70 rounded-2xl text-center text-2xl font-black tracking-widest text-white font-mono focus:outline-none focus:border-cyan-400 shadow-inner"
             >
           </div>
 
+          <!-- Customer Installment Consent Notice -->
+          <div class="p-2.5 rounded-xl bg-slate-900/90 border border-white/10 text-[10px] text-slate-400 text-left space-y-1">
+            <div class="flex items-center gap-1.5 text-amber-400 font-bold">
+              <i class="fa-solid fa-file-contract"></i>
+              <span>Installment Consent & Compliance Notice</span>
+            </div>
+            <p>By pairing, the customer confirms receipt of this smartphone under installment terms. Non-payment may trigger remote device compliance lock until dues are settled.</p>
+          </div>
+
           <!-- ONE BIG GREEN BUTTON -->
           <button onclick="activateProtection()" id="btn-activate" class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-400 active:scale-95 text-white font-extrabold text-xs shadow-xl glow-emerald transition flex items-center justify-center gap-2 ring-1 ring-emerald-400/30">
             <i class="fa-solid fa-shield-halved text-sm"></i>
-            <span>Activate Protection (Block Uninstall)</span>
+            <span>Activate Compliance Protection</span>
           </button>
         </div>
 
@@ -779,7 +788,7 @@
                         ((b && typeof b.getSavedOfflinePin === "function") ? b.getSavedOfflinePin() : "");
 
       const code = (nativeData && nativeData.setup_code) || nativeCode || "";
-      if (code && code !== "4819") {
+      if (code) {
         currentCode = code;
         localStorage.setItem("bashlock_paired_code", code);
         localStorage.setItem("bashlock_setup_code", code);
@@ -816,10 +825,6 @@
 
     if (!currentCode) {
       currentCode = localStorage.getItem("bashlock_paired_code") || "";
-      if (currentCode === "4819") {
-        currentCode = "";
-        localStorage.removeItem("bashlock_paired_code");
-      }
     }
     if (!activeDeviceId) activeDeviceId = localStorage.getItem("bashlock_device_id") || null;
     if (!savedDueDate) savedDueDate = localStorage.getItem("bashlock_due_date") || null;
@@ -995,8 +1000,7 @@
           }
           if (typeof b.savePairingData === 'function') {
             b.savePairingData(code, d.offline_pin || '', d.id || '', d.next_due_date || '');
-          }
-          if (typeof b.activateWithCode === 'function') {
+          } else if (typeof b.activateWithCode === 'function') {
             b.activateWithCode(code);
           }
         }
@@ -1017,7 +1021,7 @@
         showToast("Server se rabta nahi ho saka! Internet ya server URL check karein.", false);
         if (btn) {
           btn.disabled = false;
-          btn.innerHTML = `<i class="fa-solid fa-shield-halved text-sm"></i> <span>Activate Protection (Block Uninstall)</span>`;
+          btn.innerHTML = `<i class="fa-solid fa-shield-halved text-sm"></i> <span>Activate Compliance Protection</span>`;
         }
       }
     }
@@ -1337,7 +1341,7 @@
     // Enforcement Check (Real-Time Server Authoritative Poll)
     async function checkEnforcementStatus() {
       // 0. If code is empty or default unassigned, DO NOT show released view; show setup!
-      if (!currentCode || currentCode === "4819") {
+      if (!currentCode) {
         localStorage.removeItem("bashlock_is_released");
         document.getElementById("view-released").classList.add("hidden");
         document.getElementById("view-locked").classList.add("hidden");
@@ -1653,7 +1657,7 @@
           shop_phone: localStorage.getItem("bashlock_shop_phone"),
           offline_pin: localStorage.getItem("bashlock_offline_pin")
         });
-      } else if (currentCode && currentCode !== "4819") {
+      } else if (currentCode) {
         renderActiveView({
           customer_name: localStorage.getItem("bashlock_cust_name"),
           phone_model: localStorage.getItem("bashlock_phone_model"),
@@ -1668,7 +1672,7 @@
         document.getElementById("connection-status").innerText = "Setup Mode";
       }
 
-      if (currentCode && currentCode !== "4819") {
+      if (currentCode) {
         checkEnforcementStatus();
       }
       setInterval(checkEnforcementStatus, 1500);

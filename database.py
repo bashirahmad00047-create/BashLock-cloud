@@ -97,6 +97,17 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
+    # Ensure setup_code has an index to prevent cross-talk and speed up lookups
+    try:
+        cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_devices_setup_code ON devices(setup_code) WHERE setup_code IS NOT NULL AND setup_code != ''")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_devices_imei ON devices(imei)")
+    except sqlite3.OperationalError:
+        pass
+
     # Ensure counter_pin column exists in shops table
     try:
         cursor.execute("ALTER TABLE shops ADD COLUMN counter_pin TEXT DEFAULT '1234'")
