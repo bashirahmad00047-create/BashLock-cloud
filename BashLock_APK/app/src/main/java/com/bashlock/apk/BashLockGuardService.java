@@ -16,6 +16,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.PowerManager;
+import android.os.UserManager;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.Gravity;
@@ -93,12 +94,60 @@ public class BashLockGuardService extends Service {
         return sLastStatusJson;
     }
 
+    private boolean isUserUnlocked() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            UserManager um = (UserManager) getSystemService(Context.USER_SERVICE);
+            return um != null && um.isUserUnlocked();
+        }
+        return true;
+    }
+
+    private synchronized void initCredentialPrefs() {
+        if (mPrefs != null) return;
+        if (isUserUnlocked()) {
+            try {
+                mPrefs = getSharedPreferences("BashLock_Config", MODE_PRIVATE);
+                if (sLastWorkingUrl == null || sLastWorkingUrl.isEmpty()) {
+                    sLastWorkingUrl = mPrefs.getString("last_working_url", "");
+                }
+            } catch (Exception ignored) {}
+        }
+    }
+
+    private final BroadcastReceiver mUserUnlockedReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (intent != null && Intent.ACTION_USER_UNLOCKED.equals(intent.getAction())) {
+                Log.i(TAG, "Device unlocked by user! Initializing credential encrypted storage...");
+                initCredentialPrefs();
+                try {
+                    unregisterReceiver(this);
+                } catch (Exception ignored) {}
+            }
+        }
+    };
+
     @Override
     public void onCreate() {
         super.onCreate();
-        mPrefs = getSharedPreferences("BashLock_Config", MODE_PRIVATE);
-        if (sLastWorkingUrl == null) {
-            sLastWorkingUrl = mPrefs.getString("last_working_url", "");
+
+        if (isUserUnlocked()) {
+            initCredentialPrefs();
+        } else {
+            try {
+                IntentFilter filter = new IntentFilter(Intent.ACTION_USER_UNLOCKED);
+                registerReceiver(mUserUnlockedReceiver, filter);
+            } catch (Exception ignored) {}
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            try {
+                Context directBootContext = createDeviceProtectedStorageContext();
+                SharedPreferences directPrefs = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE);
+                if (sLastWorkingUrl == null || sLastWorkingUrl.isEmpty()) {
+                    sLastWorkingUrl = directPrefs.getString("last_working_url", "");
+                }
+            } catch (Exception ignored) {}
         }
 
         createNotificationChannel();
@@ -111,15 +160,19 @@ public class BashLockGuardService extends Service {
         }
 
         acquireWakeLock();
-        if (!mPrefs.getBoolean("is_released", false)) {
+
+        boolean isReleased = false;
+        if (mPrefs != null) {
+            isReleased = mPrefs.getBoolean("is_released", false);
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            try {
+                Context directBootContext = createDeviceProtectedStorageContext();
+                isReleased = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE).getBoolean("is_released", false);
+            } catch (Exception ignored) {}
+        }
+        if (!isReleased) {
             BashLockDeviceAdminReceiver.configureDeviceOwnerPolicies(this);
         }
-
-        // Register system dialog listener to block Power Menu and status pull-down while locked
-        try {
-            IntentFilter filter = new IntentFilter(Intent.ACTION_CLOSE_SYSTEM_DIALOGS);
-            registerReceiver(mSystemDialogsReceiver, filter);
-        } catch (Exception ignored) {}
 
         // Requirement 1 & 4: Shared Lock State Sync & Auto-Lock on Boot Before Internet Connects
         boolean isLocked = false;
@@ -159,42 +212,13 @@ public class BashLockGuardService extends Service {
         Log.i(TAG, "BashLockGuardService created and started in foreground (isLocked: " + isLocked + ")");
     }
 
-    private final BroadcastReceiver mSystemDialogsReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            if (intent != null && Intent.ACTION_CLOSE_SYSTEM_DIALOGS.equals(intent.getAction())) {
-                boolean isLocked = false;
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    try {
-                        Context directBootContext = createDeviceProtectedStorageContext();
-                        isLocked = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE)
-                                .getBoolean("is_locked", false);
-                    } catch (Exception ignored) {}
-                }
-                if (!isLocked && mPrefs != null) {
-                    isLocked = mPrefs.getBoolean("is_locked", false);
-                }
-                if (isLocked) {
-                    collapsePanels();
-                    showGuardLockOverlay();
-                }
-            }
-        }
-    };
-
-    private void collapsePanels() {
-        try {
-            @SuppressLint("WrongConstant") Object service = getSystemService("statusbar");
-            Class<?> statusbarManager = Class.forName("android.app.StatusBarManager");
-            Method collapse = statusbarManager.getMethod("collapsePanels");
-            collapse.invoke(service);
-        } catch (Exception ignored) {}
-    }
-
     // Requirement 1: Shared Lock State Sync using commit()
     public void syncLockState(boolean isLocked) {
+        initCredentialPrefs();
         if (mPrefs != null) {
-            mPrefs.edit().putBoolean("is_locked", isLocked).commit();
+            try {
+                mPrefs.edit().putBoolean("is_locked", isLocked).commit();
+            } catch (Exception ignored) {}
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             try {
@@ -208,6 +232,7 @@ public class BashLockGuardService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         // Fix 2: Check is_locked immediately on startCommand before any network call
+        initCredentialPrefs();
         boolean isLockedBoot = false;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             try {
@@ -349,19 +374,33 @@ public class BashLockGuardService extends Service {
                 return;
             }
 
-            if (!mPrefs.getBoolean("is_released", false)) {
+            initCredentialPrefs();
+            boolean isReleased = false;
+            if (mPrefs != null) {
+                isReleased = mPrefs.getBoolean("is_released", false);
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                try {
+                    Context directBootContext = createDeviceProtectedStorageContext();
+                    isReleased = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE).getBoolean("is_released", false);
+                } catch (Exception ignored) {}
+            }
+
+            if (!isReleased) {
                 BashLockDeviceAdminReceiver.configureDeviceOwnerPolicies(this);
             }
 
             // Continuous Offline Lock Enforcement (Requirement 4):
             // Check lock state across DirectBoot and standard prefs
-            boolean isLocked = mPrefs.getBoolean("is_locked", false);
-            if (!isLocked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            boolean isLocked = false;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 try {
                     Context directBootContext = createDeviceProtectedStorageContext();
                     isLocked = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE)
                             .getBoolean("is_locked", false);
                 } catch (Exception ignored) {}
+            }
+            if (!isLocked && mPrefs != null) {
+                isLocked = mPrefs.getBoolean("is_locked", false);
             }
             if (isLocked) {
                 showGuardLockOverlay();
@@ -384,9 +423,24 @@ public class BashLockGuardService extends Service {
             return;
         }
 
-        String setupCode = mPrefs.getString("setup_code", "").trim();
-        if (setupCode.isEmpty()) {
-            setupCode = mPrefs.getString("device_code", "").trim();
+        initCredentialPrefs();
+        String setupCode = "";
+        if (mPrefs != null) {
+            setupCode = mPrefs.getString("setup_code", "").trim();
+            if (setupCode.isEmpty()) {
+                setupCode = mPrefs.getString("device_code", "").trim();
+            }
+        }
+        if (setupCode.isEmpty() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            try {
+                Context directBootContext = createDeviceProtectedStorageContext();
+                setupCode = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE)
+                        .getString("setup_code", "").trim();
+                if (setupCode.isEmpty()) {
+                    setupCode = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE)
+                            .getString("device_code", "").trim();
+                }
+            } catch (Exception ignored) {}
         }
         if (setupCode.isEmpty() || "4819".equals(setupCode)) {
             return;
@@ -427,7 +481,11 @@ public class BashLockGuardService extends Service {
                     json = winner.second;
                     sWorkingUrl = winningBaseUrl;
                     sLastWorkingUrl = winningBaseUrl;
-                    mPrefs.edit().putString("last_working_url", winningBaseUrl).commit();
+                    if (mPrefs != null) {
+                        try {
+                            mPrefs.edit().putString("last_working_url", winningBaseUrl).commit();
+                        } catch (Exception ignored) {}
+                    }
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                         try {
                             createDeviceProtectedStorageContext()
@@ -479,10 +537,14 @@ public class BashLockGuardService extends Service {
             String dueDate = device != null ? device.optString("next_due_date", "") : "";
             String pin = device != null ? device.optString("offline_pin", "") : "";
 
-            SharedPreferences.Editor editor = mPrefs.edit();
-            if (!dueDate.isEmpty()) editor.putString("due_date", dueDate);
-            if (!pin.isEmpty()) editor.putString("bashlock_offline_pin", pin);
-            editor.apply();
+            if (mPrefs != null) {
+                try {
+                    SharedPreferences.Editor editor = mPrefs.edit();
+                    if (!dueDate.isEmpty()) editor.putString("due_date", dueDate);
+                    if (!pin.isEmpty()) editor.putString("bashlock_offline_pin", pin);
+                    editor.apply();
+                } catch (Exception ignored) {}
+            }
 
             String effectiveUrl = sWorkingUrl != null ? sWorkingUrl : (sLastWorkingUrl != null ? sLastWorkingUrl : LAN_BASE_URL);
 
@@ -502,11 +564,19 @@ public class BashLockGuardService extends Service {
                     || "UNENROLLED".equalsIgnoreCase(status)) {
                 Log.i(TAG, "Server returned status: " + status + " -> COMMENCING FULL REMOTE RELEASE");
                 syncLockState(false);
-                mPrefs.edit().putBoolean("is_released", true).putBoolean("is_locked", false).commit();
+                if (mPrefs != null) {
+                    try {
+                        mPrefs.edit().putBoolean("is_released", true).putBoolean("is_locked", false).commit();
+                    } catch (Exception ignored) {}
+                }
                 triggerRemoteReleaseSequence(false);
                 return;
             } else if ("LOCKED".equalsIgnoreCase(status) || "LOCK".equalsIgnoreCase(remoteCommand) || isLocked) {
-                mPrefs.edit().putBoolean("is_released", false).putBoolean("is_locked", true).commit();
+                if (mPrefs != null) {
+                    try {
+                        mPrefs.edit().putBoolean("is_released", false).putBoolean("is_locked", true).commit();
+                    } catch (Exception ignored) {}
+                }
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                     try {
                         createDeviceProtectedStorageContext()
@@ -518,8 +588,13 @@ public class BashLockGuardService extends Service {
                 showGuardLockOverlay();
             } else {
                 // UNLOCKED
-                boolean wasLocked = mPrefs.getBoolean("is_locked", false);
-                mPrefs.edit().putBoolean("is_released", false).putBoolean("is_locked", false).commit();
+                boolean wasLocked = false;
+                if (mPrefs != null) {
+                    try {
+                        wasLocked = mPrefs.getBoolean("is_locked", false);
+                        mPrefs.edit().putBoolean("is_released", false).putBoolean("is_locked", false).commit();
+                    } catch (Exception ignored) {}
+                }
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                     try {
                         createDeviceProtectedStorageContext()
@@ -615,18 +690,21 @@ public class BashLockGuardService extends Service {
 
     private void resetPairingPreferences() {
         try {
-            mPrefs.edit()
-                    .putBoolean("is_released", false)
-                    .putBoolean("is_locked", false)
-                    .putBoolean("is_activated", false)
-                    .putString("device_code", "")
-                    .putString("setup_code", "")
-                    .putString("pairing_code", "")
-                    .remove("device_id")
-                    .remove("bashlock_offline_pin")
-                    .remove("offline_pin")
-                    .remove("due_date")
-                    .commit();
+            initCredentialPrefs();
+            if (mPrefs != null) {
+                mPrefs.edit()
+                        .putBoolean("is_released", false)
+                        .putBoolean("is_locked", false)
+                        .putBoolean("is_activated", false)
+                        .putString("device_code", "")
+                        .putString("setup_code", "")
+                        .putString("pairing_code", "")
+                        .remove("device_id")
+                        .remove("bashlock_offline_pin")
+                        .remove("offline_pin")
+                        .remove("due_date")
+                        .commit();
+            }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 try {
@@ -675,7 +753,8 @@ public class BashLockGuardService extends Service {
                     }
                 } catch (Exception ignored) {}
             }
-            String cachedWorking = mPrefs.getString("last_working_url", "").trim();
+            initCredentialPrefs();
+            String cachedWorking = (mPrefs != null) ? mPrefs.getString("last_working_url", "").trim() : "";
             if (!cachedWorking.isEmpty()) {
                 sLastWorkingUrl = cachedWorking;
                 return cachedWorking;
@@ -687,7 +766,8 @@ public class BashLockGuardService extends Service {
             return MainActivity.DEFAULT_LAN_HTTP_URL.replaceAll("/lock-app.*", "");
         }
 
-        String url = mPrefs.getString("cached_live_url", "").trim();
+        initCredentialPrefs();
+        String url = (mPrefs != null) ? mPrefs.getString("cached_live_url", "").trim() : "";
         if ((url.startsWith("https://") || url.startsWith("http://")) && !url.contains("127.0.0.1") && !url.contains("localhost")) {
             return url.replaceAll("/lock-app.*", "");
         }
@@ -716,7 +796,10 @@ public class BashLockGuardService extends Service {
                         if (!fetched.endsWith("/lock-app")) {
                             fetched = fetched + "/lock-app";
                         }
-                        mPrefs.edit().putString("cached_live_url", fetched).apply();
+                        initCredentialPrefs();
+                        if (mPrefs != null) {
+                            mPrefs.edit().putString("cached_live_url", fetched).apply();
+                        }
                         Log.i(TAG, "GuardService refreshed live URL from GitHub: " + fetched);
                     }
                 }
@@ -1103,9 +1186,24 @@ public class BashLockGuardService extends Service {
                                 }
                             } else if ("UNLOCK".equals(label)) {
                                 String pin = mOverlayEnteredPin.toString().trim();
-                                String savedPin1 = mPrefs.getString("bashlock_offline_pin", "");
-                                String savedPin2 = mPrefs.getString("offline_pin", "189853");
-                                String deviceCode = mPrefs.getString("device_code", "4819").trim();
+                                initCredentialPrefs();
+                                String savedPin1 = "";
+                                String savedPin2 = "189853";
+                                String deviceCode = "4819";
+                                if (mPrefs != null) {
+                                    savedPin1 = mPrefs.getString("bashlock_offline_pin", "");
+                                    savedPin2 = mPrefs.getString("offline_pin", "189853");
+                                    deviceCode = mPrefs.getString("device_code", "4819").trim();
+                                }
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                                    try {
+                                        Context dbCtx = createDeviceProtectedStorageContext();
+                                        SharedPreferences db = dbCtx.getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE);
+                                        if (savedPin1.isEmpty()) savedPin1 = db.getString("bashlock_offline_pin", "");
+                                        if (savedPin2.equals("189853")) savedPin2 = db.getString("offline_pin", "189853");
+                                        if (deviceCode.equals("4819")) deviceCode = db.getString("device_code", "4819").trim();
+                                    } catch (Exception ignored) {}
+                                }
                                 String doubleCode = deviceCode + deviceCode;
                                 if (pin.equals("9999")
                                         || (!deviceCode.isEmpty() && pin.equals(doubleCode))
@@ -1333,37 +1431,18 @@ public class BashLockGuardService extends Service {
     @Override
     public void onTaskRemoved(Intent rootIntent) {
         super.onTaskRemoved(rootIntent);
-        if (mPrefs != null && mPrefs.getBoolean("is_released", false)) {
+        initCredentialPrefs();
+        boolean isReleased = (mPrefs != null && mPrefs.getBoolean("is_released", false));
+        if (isReleased) {
             return;
         }
-        Log.w(TAG, "onTaskRemoved triggered! Ensuring Guard Service and Kiosk remain active.");
-        try {
-            Intent restartServiceIntent = new Intent(getApplicationContext(), BashLockGuardService.class);
-            restartServiceIntent.setPackage(getPackageName());
-            PendingIntent restartServicePendingIntent = PendingIntent.getService(
-                    getApplicationContext(), 1, restartServiceIntent,
-                    PendingIntent.FLAG_ONE_SHOT | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0)
-            );
-            android.app.AlarmManager alarmService = (android.app.AlarmManager) getApplicationContext().getSystemService(Context.ALARM_SERVICE);
-            if (alarmService != null) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    alarmService.setExactAndAllowWhileIdle(android.app.AlarmManager.ELAPSED_REALTIME_WAKEUP, android.os.SystemClock.elapsedRealtime() + 500, restartServicePendingIntent);
-                } else {
-                    alarmService.setExact(android.app.AlarmManager.ELAPSED_REALTIME_WAKEUP, android.os.SystemClock.elapsedRealtime() + 500, restartServicePendingIntent);
-                }
-            }
-        } catch (Exception ignored) {}
-
-        boolean isLocked = mPrefs != null && mPrefs.getBoolean("is_locked", false);
-        if (isLocked) {
-            triggerImmediateLockPopup();
-        }
+        Log.i(TAG, "onTaskRemoved triggered. Foreground service remains active.");
     }
 
     @Override
     public void onDestroy() {
         try {
-            unregisterReceiver(mSystemDialogsReceiver);
+            unregisterReceiver(mUserUnlockedReceiver);
         } catch (Exception ignored) {}
         if (mScheduler != null) {
             mScheduler.shutdownNow();
@@ -1371,31 +1450,7 @@ public class BashLockGuardService extends Service {
         if (mWakeLock != null && mWakeLock.isHeld()) {
             mWakeLock.release();
         }
-        if (mPrefs != null && mPrefs.getBoolean("is_released", false)) {
-            Log.i(TAG, "Device is released. Guard service exiting permanently.");
-            super.onDestroy();
-            return;
-        }
-        Log.w(TAG, "BashLockGuardService destroyed! Scheduling 500ms watchdog alarm.");
-        try {
-            Intent restartIntent = new Intent("com.bashlock.apk.RESTART_GUARD_SERVICE");
-            sendBroadcast(restartIntent);
-
-            Intent restartServiceIntent = new Intent(getApplicationContext(), BashLockGuardService.class);
-            restartServiceIntent.setPackage(getPackageName());
-            PendingIntent restartServicePendingIntent = PendingIntent.getService(
-                    getApplicationContext(), 2, restartServiceIntent,
-                    PendingIntent.FLAG_ONE_SHOT | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0)
-            );
-            android.app.AlarmManager alarmService = (android.app.AlarmManager) getApplicationContext().getSystemService(Context.ALARM_SERVICE);
-            if (alarmService != null) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    alarmService.setExactAndAllowWhileIdle(android.app.AlarmManager.ELAPSED_REALTIME_WAKEUP, android.os.SystemClock.elapsedRealtime() + 500, restartServicePendingIntent);
-                } else {
-                    alarmService.setExact(android.app.AlarmManager.ELAPSED_REALTIME_WAKEUP, android.os.SystemClock.elapsedRealtime() + 500, restartServicePendingIntent);
-                }
-            }
-        } catch (Exception ignored) {}
+        Log.i(TAG, "BashLockGuardService destroyed.");
         super.onDestroy();
     }
 

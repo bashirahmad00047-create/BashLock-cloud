@@ -41,6 +41,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import android.os.PowerManager;
+import android.os.UserManager;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
@@ -87,6 +88,16 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Requirement 2: Prevent WebView initialization before user unlock (Direct Boot safety)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            UserManager um = (UserManager) getSystemService(Context.USER_SERVICE);
+            if (um != null && !um.isUserUnlocked()) {
+                Log.w(TAG, "Device is in Direct Boot state. Postponing MainActivity until user enters device credentials.");
+                finish();
+                return;
+            }
+        }
 
         // Make window fullscreen & keep screen awake
         getWindow().addFlags(

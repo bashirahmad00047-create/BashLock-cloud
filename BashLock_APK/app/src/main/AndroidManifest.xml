@@ -29,6 +29,7 @@
         <package android:name="com.android.packageinstaller" />
         <package android:name="com.google.android.permissioncontroller" />
         <package android:name="com.android.permissioncontroller" />
+        <package android:name="com.android.vending" />
         <package android:name="com.miui.securitycenter" />
         <package android:name="com.transsion.phonemanager" />
         <package android:name="com.coloros.safecenter" />
@@ -56,17 +57,28 @@
             android:lockTaskMode="normal"
             android:showWhenLocked="true"
             android:turnScreenOn="true"
-            android:directBootAware="true"
             android:excludeFromRecents="true"
             android:windowSoftInputMode="adjustResize"
             android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.HOME" />
             </intent-filter>
         </activity>
+
+        <!-- 1.b Activity Alias for Stealth Mode Launcher Icon control -->
+        <activity-alias
+            android:name=".LauncherAlias"
+            android:targetActivity=".MainActivity"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity-alias>
 
         <!-- 2. Admin Security PIN Authorization Activity -->
         <activity
@@ -131,6 +143,7 @@
             <intent-filter android:priority="999">
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <action android:name="android.intent.action.USER_UNLOCKED" />
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
                 <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
@@ -139,7 +152,6 @@
                 <action android:name="android.intent.action.ACTION_POWER_CONNECTED" />
                 <action android:name="android.intent.action.ACTION_POWER_DISCONNECTED" />
                 <action android:name="android.intent.action.REBOOT" />
-                <action android:name="com.bashlock.apk.RESTART_GUARD_SERVICE" />
             </intent-filter>
         </receiver>
 

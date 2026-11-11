@@ -142,68 +142,7 @@ public class AdminSecurityAccessibilityService extends AccessibilityService {
                 return;
             }
         }
-
-        // 2.b) Block App Uninstall / App Info / Clear Data / Device Admin / Factory Reset
-        // Only block when active package is Settings or PackageInstaller / Security Center
-        boolean isTamperPackage = packageName.contains("settings")
-                || packageName.contains("packageinstaller")
-                || packageName.contains("permissioncontroller")
-                || packageName.contains("securitycenter")
-                || packageName.contains("transsion")
-                || packageName.contains("vivo");
-
-        if (!isTamperPackage) {
-            return;
-        }
-
-        String fullContent = getFullWindowContent(event);
-        boolean mentionsBashLock = fullContent.contains("bashlock") || fullContent.contains("com.bashlock");
-        boolean mentionsTamperAction = containsAny(fullContent,
-                "uninstall", "force stop", "clear", "device admin", "deactivate",
-                "ان انسٹال", "فورس اسٹاپ", "ڈیلیٹ", "غیر فعال");
-
-        boolean isFactoryReset = containsAny(fullContent,
-                "erase all data", "factory data reset", "factory reset", "فیکٹری ری سیٹ");
-
-        if ((mentionsBashLock && mentionsTamperAction) || isFactoryReset) {
-            Log.w(TAG, "Security Policy: Tamper attempt detected on BashLock! Action: " + fullContent);
-            blockTamperAttempt();
-        }
     }
-
-    private void blockTamperAttempt() {
-        // Immediately execute performGlobalAction(GLOBAL_ACTION_BACK) followed by GLOBAL_ACTION_HOME within 50ms
-        try {
-            performGlobalAction(GLOBAL_ACTION_BACK);
-        } catch (Exception ignored) {}
-
-        new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            try {
-                performGlobalAction(GLOBAL_ACTION_HOME);
-            } catch (Exception ignored) {}
-        }, 50);
-
-        boolean isLocked = false;
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
-            try {
-                Context directBootContext = createDeviceProtectedStorageContext();
-                isLocked = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE)
-                        .getBoolean("is_locked", false);
-            } catch (Exception ignored) {}
-        }
-        if (!isLocked) {
-            SharedPreferences p = getSharedPreferences("BashLock_Config", Context.MODE_PRIVATE);
-            isLocked = p.getBoolean("is_locked", false);
-        }
-
-        if (isLocked) {
-            try {
-                Intent lockIntent = new Intent(this, MainActivity.class);
-                lockIntent.setAction("com.bashlock.apk.FORCE_LOCK");
-                lockIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                startActivity(lockIntent);
-            } catch (Exception ignored) {}
-        }
 
         try {
             Toast.makeText(getApplicationContext(), "Protected by Shopkeeper", Toast.LENGTH_SHORT).show();

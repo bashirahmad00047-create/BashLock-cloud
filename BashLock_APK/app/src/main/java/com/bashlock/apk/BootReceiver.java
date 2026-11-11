@@ -44,7 +44,13 @@ public class BootReceiver extends BroadcastReceiver {
             }
         } catch (Exception ignored) {}
 
-        if (!isActivated) {
+        boolean isUserUnlocked = true;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            android.os.UserManager um = (android.os.UserManager) context.getSystemService(Context.USER_SERVICE);
+            isUserUnlocked = (um != null && um.isUserUnlocked());
+        }
+
+        if (!isActivated && isUserUnlocked) {
             try {
                 SharedPreferences normalPrefs = context.getSharedPreferences("BashLock_Config", Context.MODE_PRIVATE);
                 isActivated = normalPrefs.getBoolean("is_activated", false);
@@ -76,9 +82,9 @@ public class BootReceiver extends BroadcastReceiver {
             Log.e(TAG, "Failed to start BashLockGuardService on boot: " + e.getMessage());
         }
 
-        // 4. Fix 4: ONLY launch MainActivity if the device is explicitly LOCKED!
-        // When UNLOCKED, BashLock remains 100% silent and invisible in the background!
-        if (isActivated && isLocked) {
+        // 4. Fix 4: ONLY launch MainActivity if the device is explicitly LOCKED and user has unlocked credential storage!
+        // During Direct Boot, BashLockGuardService enforces the lock via native overlay, preventing WebView CE crashes.
+        if (isActivated && isLocked && isUserUnlocked) {
             try {
                 android.os.PowerManager pm = (android.os.PowerManager) context.getSystemService(Context.POWER_SERVICE);
                 if (pm != null) {

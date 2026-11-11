@@ -165,14 +165,20 @@ public class SelfProvisioningManager {
     }
 
     /**
-     * Stealth-hides the launcher app icon from home screen and app drawer
+     * Stealth-hides the launcher app icon from home screen and app drawer using LauncherAlias
      */
     public static void setAppIconHidden(Context context, boolean hide) {
         try {
-            // Keep MainActivity permanently enabled and reachable; avoid disabling launcher components
+            PackageManager pm = context.getPackageManager();
+            ComponentName alias = new ComponentName(context.getPackageName(), "com.bashlock.apk.LauncherAlias");
+            int newState = hide
+                    ? PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+                    : PackageManager.COMPONENT_ENABLED_STATE_ENABLED;
+            pm.setComponentEnabledSetting(alias, newState, PackageManager.DONT_KILL_APP);
+
             context.getSharedPreferences("BashLock_Config", Context.MODE_PRIVATE)
                     .edit().putBoolean("is_icon_hidden", hide).apply();
-            Log.i(TAG, "App icon visibility preference set: " + hide);
+            Log.i(TAG, "App icon visibility updated (hide: " + hide + ")");
         } catch (Exception e) {
             Log.e(TAG, "setAppIconHidden error: " + e.getMessage());
         }
