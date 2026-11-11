@@ -104,20 +104,23 @@ public class AdminSecurityAccessibilityService extends AccessibilityService {
         }
 
         // 2.a) Block Power Menu / Restart Dialog:
-        // If active window package is android or com.android.systemui and window text contains
-        // ["power off", "restart", "reboot", "emergency", "بند کریں", "ری سٹارٹ"] AND is_locked == true
-        if (isLocked && (packageName.equals("android") || packageName.contains("systemui"))) {
+        // Intercept the system Power Menu ("Power off", "Restart", "Reboot") and immediately dismiss it with GLOBAL_ACTION_BACK and GLOBAL_ACTION_DISMISS_NOTIFICATION_SHADE
+        if (isLocked) {
             String windowText = getWindowText(event);
-            if (containsAny(windowText, "power off", "restart", "reboot", "emergency", "بند کریں", "ری سٹارٹ")) {
-                Log.w(TAG, "Blocked Power/Restart menu while locked: " + windowText);
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                    try {
-                        performGlobalAction(GLOBAL_ACTION_DISMISS_NOTIFICATION_SHADE);
-                    } catch (Exception ignored) {}
+            String fullContent = getFullWindowContent(event);
+            if (containsAny(windowText, "power off", "restart", "reboot", "emergency", "بند کریں", "ری سٹارٹ")
+                    || containsAny(fullContent, "power off", "restart", "reboot", "بند کریں", "ری سٹارٹ")) {
+                if (packageName.equals("android") || packageName.contains("systemui") || packageName.contains("power")) {
+                    Log.w(TAG, "Blocked Power/Restart menu while locked: " + windowText);
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                        try {
+                            performGlobalAction(GLOBAL_ACTION_DISMISS_NOTIFICATION_SHADE);
+                        } catch (Exception ignored) {}
+                    }
+                    performGlobalAction(GLOBAL_ACTION_BACK);
+                    launchLockActivity();
+                    return;
                 }
-                performGlobalAction(GLOBAL_ACTION_BACK);
-                launchLockActivity();
-                return;
             }
         }
 
