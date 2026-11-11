@@ -907,6 +907,7 @@
         const d = data.device;
         currentCode = code;
         savedPin = d.offline_pin;
+        localStorage.removeItem("bashlock_is_released");
         localStorage.setItem("bashlock_paired_code", code);
         localStorage.setItem("bashlock_setup_code", code);
         localStorage.setItem("bashlock_is_activated", "true");
@@ -1265,11 +1266,6 @@
             setConnectionState("RELEASED");
             localStorage.setItem("bashlock_is_released", "true");
             renderReleasedView(d);
-            if (d.status === "RELEASE_AND_UNINSTALL") {
-              setTimeout(() => {
-                uninstallAppNow();
-              }, 600);
-            }
             return;
           } else {
             // Actively clear released flag when device is active/unlocked/locked!

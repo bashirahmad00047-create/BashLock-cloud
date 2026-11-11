@@ -44,6 +44,7 @@ public class WebBridge {
         if (dueDate != null && !dueDate.isEmpty()) {
             editor.putString("due_date", dueDate);
         }
+        editor.putBoolean("is_released", false);
         editor.putBoolean("is_locked", isLocked);
         editor.commit(); // Synchronous persistent write
 
@@ -67,6 +68,7 @@ public class WebBridge {
                 if (dueDate != null && !dueDate.isEmpty()) {
                     directEditor.putString("due_date", dueDate);
                 }
+                directEditor.putBoolean("is_released", false);
                 directEditor.putBoolean("is_locked", isLocked);
                 directEditor.commit(); // Synchronous persistent write
             } catch (Exception ignored) {}
@@ -436,18 +438,7 @@ public class WebBridge {
             } catch (Exception ignored) {}
         }
 
-        // 3. Re-enable launcher icon for setup mode
-        try {
-            android.content.pm.PackageManager pm = mActivity.getPackageManager();
-            android.content.ComponentName alias = new android.content.ComponentName(mActivity.getPackageName(), "com.bashlock.apk.LauncherAlias");
-            pm.setComponentEnabledSetting(
-                    alias,
-                    android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-                    android.content.pm.PackageManager.DONT_KILL_APP
-            );
-        } catch (Exception ignored) {}
-
-        // 4. UI Thread: unlock kiosk & reload setup screen
+        // 3. UI Thread: unlock kiosk & reload setup screen
         mActivity.runOnUiThread(() -> {
             try {
                 mActivity.setKioskLockState(false);

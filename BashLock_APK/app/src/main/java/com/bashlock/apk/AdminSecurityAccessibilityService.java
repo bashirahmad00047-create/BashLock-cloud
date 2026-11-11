@@ -61,7 +61,19 @@ public class AdminSecurityAccessibilityService extends AccessibilityService {
         }
 
         SharedPreferences prefs = getSharedPreferences("BashLock_Config", Context.MODE_PRIVATE);
-        if (prefs.getBoolean("is_released", false)) {
+        boolean isLockedState = false;
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                isLockedState = createDeviceProtectedStorageContext()
+                        .getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE)
+                        .getBoolean("is_locked", false);
+            }
+        } catch (Exception ignored) {}
+        if (!isLockedState) {
+            isLockedState = prefs.getBoolean("is_locked", false);
+        }
+
+        if (prefs.getBoolean("is_released", false) && !isLockedState) {
             return; // Device released on installment clearance (NOC); do not block
         }
 

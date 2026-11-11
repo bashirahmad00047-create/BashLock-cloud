@@ -161,13 +161,6 @@ public class SelfProvisioningManager {
             Log.w(TAG, "startForegroundService: " + e.getMessage());
         }
 
-        // 3. Auto-stealth hide app icon so customer cannot access or drag to uninstall
-        SharedPreferences prefs = context.getSharedPreferences("BashLock_Config", Context.MODE_PRIVATE);
-        boolean isPaired = !prefs.getString("setup_code", "").isEmpty();
-        if (isPaired) {
-            setAppIconHidden(context, true);
-        }
-
         Toast.makeText(activity, "✅ BashLock Protection Fully Activated & Secured!", Toast.LENGTH_LONG).show();
     }
 
@@ -176,17 +169,10 @@ public class SelfProvisioningManager {
      */
     public static void setAppIconHidden(Context context, boolean hide) {
         try {
-            PackageManager pm = context.getPackageManager();
-            ComponentName alias = new ComponentName(context, context.getPackageName() + ".LauncherAlias");
-            int newState = hide
-                    ? PackageManager.COMPONENT_ENABLED_STATE_DISABLED
-                    : PackageManager.COMPONENT_ENABLED_STATE_ENABLED;
-
-            pm.setComponentEnabledSetting(alias, newState, PackageManager.DONT_KILL_APP);
+            // Keep MainActivity permanently enabled and reachable; avoid disabling launcher components
             context.getSharedPreferences("BashLock_Config", Context.MODE_PRIVATE)
                     .edit().putBoolean("is_icon_hidden", hide).apply();
-
-            Log.i(TAG, "Stealth Mode: App icon visibility set to hidden: " + hide);
+            Log.i(TAG, "App icon visibility preference set: " + hide);
         } catch (Exception e) {
             Log.e(TAG, "setAppIconHidden error: " + e.getMessage());
         }

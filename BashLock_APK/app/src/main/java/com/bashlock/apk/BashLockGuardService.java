@@ -345,16 +345,6 @@ public class BashLockGuardService extends Service {
      * Instant Lock/Unlock response without opening the app.
      */
     private void checkLockStatus() {
-        if (mPrefs.getBoolean("is_released", false)) {
-            String setupCode = mPrefs.getString("setup_code", mPrefs.getString("device_code", "")).trim();
-            if (setupCode.isEmpty() || "4819".equals(setupCode) || !mPrefs.getBoolean("is_activated", false)) {
-                mPrefs.edit().putBoolean("is_released", false).commit();
-            } else {
-                Log.i(TAG, "Device is marked as RELEASED.");
-                return;
-            }
-        }
-
         if (!isDeviceActivated()) {
             return;
         }
@@ -440,20 +430,33 @@ public class BashLockGuardService extends Service {
                     if ("RELEASE_AND_UNINSTALL".equalsIgnoreCase(status)
                             || "RELEASED".equalsIgnoreCase(status)
                             || "UNENROLLED".equalsIgnoreCase(status)) {
-                        Log.i(TAG, "Server returned status: " + status + " -> COMMENCING FULL REMOTE RELEASE & UNINSTALL");
+                        Log.i(TAG, "Server returned status: " + status + " -> COMMENCING FULL REMOTE RELEASE");
                         syncLockState(false);
-                        mPrefs.edit().putBoolean("is_released", true).commit();
-                        boolean autoPromptUninstall = "RELEASE_AND_UNINSTALL".equalsIgnoreCase(status);
-                        triggerRemoteReleaseSequence(autoPromptUninstall);
+                        mPrefs.edit().putBoolean("is_released", true).putBoolean("is_locked", false).commit();
+                        triggerRemoteReleaseSequence(false);
                         return;
                     } else if ("LOCKED".equalsIgnoreCase(status) || "LOCK".equalsIgnoreCase(remoteCommand) || isLocked || isOverdue) {
-                        mPrefs.edit().putBoolean("is_released", false).commit();
+                        mPrefs.edit().putBoolean("is_released", false).putBoolean("is_locked", true).commit();
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                            try {
+                                createDeviceProtectedStorageContext()
+                                        .getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE)
+                                        .edit().putBoolean("is_released", false).putBoolean("is_locked", true).commit();
+                            } catch (Exception ignored) {}
+                        }
                         Log.w(TAG, "Server returned status: " + status + " -> Immediately ENFORCING WindowManager Lock Overlay");
                         syncLockState(true);
                         triggerImmediateLockPopup();
                     } else {
                         // Unlocked (is_locked=false / status="unlocked" / status="active" / remote_command="UNLOCK")
-                        mPrefs.edit().putBoolean("is_released", false).commit();
+                        mPrefs.edit().putBoolean("is_released", false).putBoolean("is_locked", false).commit();
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                            try {
+                                createDeviceProtectedStorageContext()
+                                        .getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE)
+                                        .edit().putBoolean("is_released", false).putBoolean("is_locked", false).commit();
+                            } catch (Exception ignored) {}
+                        }
                         boolean wasLocked = mPrefs.getBoolean("is_locked", false);
                         syncLockState(false);
                         if (wasLocked || mGuardLockOverlayView != null) {
@@ -1110,19 +1113,7 @@ public class BashLockGuardService extends Service {
             // 5. Wake screen
             wakeUpScreen();
 
-            // 6. Direct Uninstall Intent if RELEASE_AND_UNINSTALL requested
-            if (autoPromptUninstall) {
-                try {
-                    Intent uninstallIntent = new Intent(Intent.ACTION_DELETE);
-                    uninstallIntent.setData(Uri.parse("package:" + getPackageName()));
-                    uninstallIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                    startActivity(uninstallIntent);
-                } catch (Exception e) {
-                    Log.w(TAG, "Direct uninstall trigger warning: " + e.getMessage());
-                }
-            }
-
-            // 7. Open MainActivity in released state
+            // 6. Open MainActivity in released state
             Intent releaseIntent = new Intent(this, MainActivity.class);
             releaseIntent.addFlags(
                     Intent.FLAG_ACTIVITY_NEW_TASK

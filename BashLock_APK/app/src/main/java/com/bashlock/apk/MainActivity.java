@@ -171,18 +171,6 @@ public class MainActivity extends AppCompatActivity {
 
         // 1. Immediately initiate loading the UI (ensures ZERO black screen)
         loadLockAppUrl();
-
-        // 2. Check if device was released
-        boolean isReleased = mPrefs.getBoolean("is_released", false);
-        if (isReleased) {
-            String setupCodeVal = mPrefs.getString("setup_code", mPrefs.getString("device_code", "")).trim();
-            if (setupCodeVal.isEmpty() || "4819".equals(setupCodeVal) || !mPrefs.getBoolean("is_activated", false)) {
-                mPrefs.edit().putBoolean("is_released", false).apply();
-            } else {
-                BashLockDeviceAdminReceiver.releaseDeviceCompletely(this);
-                SelfProvisioningManager.setAppIconHidden(this, false);
-            }
-        }
     }
 
     @Override
