@@ -585,6 +585,36 @@ public class MainActivity extends AppCompatActivity {
         // Apply Device Owner hardware lock enforcement (status bar / keyguard disable)
         BashLockDeviceAdminReceiver.setKioskEnforcement(this, isLocked);
 
+        // Android Enterprise LockTask Mode Gating:
+        // ONLY call startLockTask if the app is genuine Device Owner and permitted.
+        // If not DO (e.g. Sideloaded / regular Device Admin), NEVER call startLockTask to prevent Android App Pinning trap!
+        try {
+            android.app.admin.DevicePolicyManager dpm = (android.app.admin.DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
+            boolean isDeviceOwner = (dpm != null && dpm.isDeviceOwnerApp(getPackageName()));
+            boolean isPermitted = false;
+            if (isDeviceOwner && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                isPermitted = dpm.isLockTaskPermitted(getPackageName());
+            }
+
+            if (isLocked) {
+                if (isDeviceOwner && isPermitted) {
+                    try {
+                        startLockTask();
+                    } catch (Exception e) {
+                        Log.w(TAG, "startLockTask warning: " + e.getMessage());
+                    }
+                }
+            } else {
+                if (isDeviceOwner) {
+                    try {
+                        stopLockTask();
+                    } catch (Exception ignored) {}
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "LockTask handling warning: " + e.getMessage());
+        }
+
         // Sync with background Guard Service
         try {
             Intent guardIntent = new Intent(this, BashLockGuardService.class);

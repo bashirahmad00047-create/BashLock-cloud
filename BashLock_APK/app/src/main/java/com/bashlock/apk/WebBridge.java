@@ -213,7 +213,7 @@ public class WebBridge {
                                 String dueDate = device.optString("next_due_date", "");
                                 String deviceId = device.optString("id", "");
                                 String status = device.optString("status", "ACTIVE");
-                                boolean isLocked = "LOCKED".equalsIgnoreCase(status) || device.optBoolean("is_overdue", false);
+                                boolean isLocked = json.optBoolean("is_locked", device.optBoolean("is_locked", "LOCKED".equalsIgnoreCase(status)));
 
                                 syncBothPrefs(isLocked, code, pin, deviceId, dueDate);
 

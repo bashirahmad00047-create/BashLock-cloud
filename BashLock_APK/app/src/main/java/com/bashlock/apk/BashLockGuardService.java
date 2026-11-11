@@ -74,6 +74,7 @@ public class BashLockGuardService extends Service {
     public static final String TUNNEL_BASE_URL = "https://interim-simpson-encryption-floral.trycloudflare.com";
     private static volatile String sWorkingUrl = null;
     private static volatile String sLastStatusJson = "{}";
+    private static volatile String sLastAckedCommand = "";
     private final java.util.concurrent.ExecutorService mParallelExecutor = java.util.concurrent.Executors.newFixedThreadPool(2);
     private final java.util.concurrent.atomic.AtomicBoolean mIsPollingInProgress = new java.util.concurrent.atomic.AtomicBoolean(false);
     private int mUrlFailures = 0;
@@ -483,6 +484,14 @@ public class BashLockGuardService extends Service {
             if (!pin.isEmpty()) editor.putString("bashlock_offline_pin", pin);
             editor.apply();
 
+            String effectiveUrl = sWorkingUrl != null ? sWorkingUrl : (sLastWorkingUrl != null ? sLastWorkingUrl : LAN_BASE_URL);
+            String setupCode = mPrefs.getString("setup_code", mPrefs.getString("device_code", ""));
+
+            if (!remoteCommand.isEmpty() && !remoteCommand.equalsIgnoreCase(sLastAckedCommand)) {
+                sLastAckedCommand = remoteCommand;
+                acknowledgeCommandAsync(effectiveUrl, setupCode, remoteCommand, "APPLIED");
+            }
+
             if ("WAKE_DEVICE".equalsIgnoreCase(remoteCommand)
                     || "OPEN_APP".equalsIgnoreCase(remoteCommand)
                     || "WAKE".equalsIgnoreCase(status)) {
@@ -526,6 +535,45 @@ public class BashLockGuardService extends Service {
                 }
             }
         }
+    }
+
+    private void acknowledgeCommandAsync(String baseUrl, String setupCode, String command, String status) {
+        if (baseUrl == null || baseUrl.isEmpty() || setupCode == null || setupCode.isEmpty() || command == null || command.isEmpty()) {
+            return;
+        }
+        new Thread(() -> {
+            HttpURLConnection conn = null;
+            try {
+                String endpoint = baseUrl.replaceAll("/lock-app.*", "") + "/api/device/ack-command";
+                URL url = new URL(endpoint);
+                conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setConnectTimeout(2000);
+                conn.setReadTimeout(2000);
+                conn.setDoOutput(true);
+                conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+                conn.setRequestProperty("User-Agent", "BashLock-Background-Guard");
+
+                JSONObject body = new JSONObject();
+                body.put("setup_code", setupCode);
+                body.put("command", command);
+                body.put("status", status);
+                body.put("timestamp", System.currentTimeMillis());
+
+                byte[] outputBytes = body.toString().getBytes("UTF-8");
+                try (java.io.OutputStream os = conn.getOutputStream()) {
+                    os.write(outputBytes);
+                    os.flush();
+                }
+
+                int code = conn.getResponseCode();
+                Log.d(TAG, "Command ack for " + command + " returned HTTP " + code);
+            } catch (Exception e) {
+                Log.w(TAG, "Command ack failed for " + command + ": " + e.getMessage());
+            } finally {
+                if (conn != null) conn.disconnect();
+            }
+        }).start();
     }
 
     private JSONObject fetchStatusHttp(String baseUrl, String setupCode) {
@@ -1131,6 +1179,30 @@ public class BashLockGuardService extends Service {
                     Executors.newSingleThreadExecutor().execute(this::checkLockStatusSafely);
                 });
                 content.addView(btnRefreshStatus, refreshLp);
+
+                // Emergency Call Access (112)
+                Button btnEmergency = new Button(this);
+                btnEmergency.setText("🚨 Emergency Call (112)");
+                btnEmergency.setBackgroundColor(Color.parseColor("#991B1B")); // Deep Emergency Red
+                btnEmergency.setTextColor(Color.WHITE);
+                btnEmergency.setTextSize(12);
+                btnEmergency.setTypeface(null, android.graphics.Typeface.BOLD);
+                LinearLayout.LayoutParams emergencyLp = new LinearLayout.LayoutParams(
+                        maxKeypadWidth,
+                        dpToPx(40)
+                );
+                emergencyLp.setMargins(0, 0, 0, dpToPx(8));
+                btnEmergency.setOnClickListener(v -> {
+                    try {
+                        Intent dialIntent = new Intent(Intent.ACTION_DIAL);
+                        dialIntent.setData(Uri.parse("tel:112"));
+                        dialIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(dialIntent);
+                    } catch (Exception e) {
+                        Toast.makeText(BashLockGuardService.this, "Emergency dialer error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    }
+                });
+                content.addView(btnEmergency, emergencyLp);
 
                 // 8. Open Full Dashboard Button
                 TextView openDash = new TextView(this);

@@ -805,6 +805,8 @@
 
       if (nativeLocked || (nativeData && nativeData.is_locked)) {
         isLockedState = true;
+      } else {
+        isLockedState = false;
       }
       return nativeData;
     }

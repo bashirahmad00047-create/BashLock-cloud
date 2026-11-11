@@ -405,6 +405,56 @@ def get_device_by_code_status(code_or_imei):
     resp.headers["Expires"] = "0"
     return resp, 200
 
+@app.route("/api/device/ack-command", methods=["POST"])
+def ack_device_command():
+    """Receives command acknowledgment from BashLock device (Phase 3)."""
+    try:
+        data = request.get_json(silent=True) or {}
+        setup_code = (data.get("setup_code") or "").strip()
+        command = (data.get("command") or "").strip().upper()
+        status = (data.get("status") or "APPLIED").strip().upper()
+
+        if not setup_code:
+            return jsonify({"success": False, "error": "Missing setup_code"}), 400
+
+        conn = get_db_connection()
+        device = conn.execute(
+            "SELECT id, status, remote_command FROM devices WHERE setup_code = ? OR imei = ?",
+            (setup_code, setup_code)
+        ).fetchone()
+        if not device:
+            conn.close()
+            return jsonify({"success": False, "error": "Device not found"}), 404
+
+        now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        ack_log = f"Ack: {command} ({status}) at {now_str}"
+
+        # If wake device command was acknowledged, clear remote_command in DB
+        if command in ("WAKE_DEVICE", "OPEN_APP", "WAKE"):
+            conn.execute(
+                "UPDATE devices SET remote_command = NULL, last_seen = ? WHERE id = ?",
+                (ack_log, device["id"])
+            )
+        else:
+            conn.execute(
+                "UPDATE devices SET last_seen = ? WHERE id = ?",
+                (ack_log, device["id"])
+            )
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            "success": True,
+            "acknowledged": True,
+            "setup_code": setup_code,
+            "command": command,
+            "status": status,
+            "last_seen": ack_log
+        }), 200
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @app.route("/download/apk")
 @app.route("/download/bashlock.apk")
 def download_apk():
@@ -1606,11 +1656,12 @@ def index():
     return render_template("index.html", lan_ip=lan_ip, public_tunnel_url=tunnel_url)
 
 if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
     lan_ip = get_lan_ip()
     print("=" * 70)
     print("  BashLock Cloud - Ultra-Simple Shopkeeper Edition")
-    print(f"  Laptop URL: http://127.0.0.1:5000")
-    print(f"  Local Wi-Fi: http://{lan_ip}:5000")
-    print(f"  Easy Mobile Lock App: http://{lan_ip}:5000/lock-app")
+    print(f"  Laptop URL: http://127.0.0.1:{port}")
+    print(f"  Local Wi-Fi: http://{lan_ip}:{port}")
+    print(f"  Easy Mobile Lock App: http://{lan_ip}:{port}/lock-app")
     print("=" * 70)
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    app.run(host="0.0.0.0", port=port, debug=False)

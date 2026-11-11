@@ -7,9 +7,11 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Build;
+import android.os.PersistableBundle;
 import android.os.UserManager;
 import android.util.Log;
 import android.widget.Toast;
+import androidx.core.content.ContextCompat;
 
 /**
  * BashLockDeviceAdminReceiver:
@@ -39,6 +41,63 @@ public class BashLockDeviceAdminReceiver extends DeviceAdminReceiver {
         super.onProfileProvisioningComplete(context, intent);
         Log.i(TAG, "Device Owner provisioning complete");
         configureDeviceOwnerPolicies(context);
+
+        // Extract Enterprise QR provisioning extras (Zero-Touch Enrollment)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                PersistableBundle extras = intent.getParcelableExtra(DevicePolicyManager.EXTRA_PROVISIONING_ADMIN_EXTRAS_BUNDLE);
+                if (extras != null) {
+                    String serverUrl = extras.getString("server_url", "");
+                    String setupCode = extras.getString("setup_code", "");
+                    Log.i(TAG, "Provisioning extras extracted: code=" + setupCode + ", url=" + serverUrl);
+
+                    if (setupCode != null && !setupCode.trim().isEmpty()) {
+                        SharedPreferences prefs = context.getSharedPreferences("BashLock_Config", Context.MODE_PRIVATE);
+                        SharedPreferences.Editor ed = prefs.edit();
+                        ed.putString("setup_code", setupCode.trim());
+                        ed.putString("device_code", setupCode.trim());
+                        if (serverUrl != null && !serverUrl.trim().isEmpty()) {
+                            ed.putString("last_working_url", serverUrl.trim());
+                        }
+                        ed.putBoolean("is_activated", true);
+                        ed.putBoolean("is_released", false);
+                        ed.putBoolean("is_locked", false);
+                        ed.commit();
+
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                            try {
+                                Context directBootContext = context.createDeviceProtectedStorageContext();
+                                SharedPreferences dbPrefs = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE);
+                                SharedPreferences.Editor dbed = dbPrefs.edit();
+                                dbed.putString("setup_code", setupCode.trim());
+                                dbed.putString("device_code", setupCode.trim());
+                                if (serverUrl != null && !serverUrl.trim().isEmpty()) {
+                                    dbed.putString("last_working_url", serverUrl.trim());
+                                }
+                                dbed.putBoolean("is_activated", true);
+                                dbed.putBoolean("is_released", false);
+                                dbed.putBoolean("is_locked", false);
+                                dbed.commit();
+                            } catch (Exception ignored) {}
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Provisioning bundle extraction warning: " + e.getMessage());
+        }
+
+        // Start background guard service immediately
+        try {
+            Intent guardIntent = new Intent(context, BashLockGuardService.class);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                ContextCompat.startForegroundService(context, guardIntent);
+            } else {
+                context.startService(guardIntent);
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to start BashLockGuardService after provisioning: " + e.getMessage());
+        }
     }
 
     /**
