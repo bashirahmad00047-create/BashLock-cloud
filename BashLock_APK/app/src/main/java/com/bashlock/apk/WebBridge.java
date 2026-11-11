@@ -11,6 +11,7 @@ import android.widget.Toast;
  * Native JavaScript Bridge connecting WebKit WebView with Android APIs.
  */
 public class WebBridge {
+    private static final String TAG = "BashLock_WebBridge";
     private final MainActivity mActivity;
     private final SharedPreferences mPrefs;
     private final Vibrator mVibrator;
