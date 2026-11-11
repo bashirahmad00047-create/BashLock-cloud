@@ -70,12 +70,23 @@ public class BashLockGuardService extends Service {
     private WindowManager mWindowManager;
     private final StringBuilder mOverlayEnteredPin = new StringBuilder();
     private static volatile String sLastWorkingUrl = null;
+    private final java.util.concurrent.atomic.AtomicBoolean mIsPollingInProgress = new java.util.concurrent.atomic.AtomicBoolean(false);
     private int mUrlFailures = 0;
+
+    public static String getLastWorkingUrl() {
+        if (sLastWorkingUrl != null && !sLastWorkingUrl.isEmpty()) {
+            return sLastWorkingUrl;
+        }
+        return MainActivity.DEFAULT_LAN_HTTP_URL.replaceAll("/lock-app.*", "");
+    }
 
     @Override
     public void onCreate() {
         super.onCreate();
         mPrefs = getSharedPreferences("BashLock_Config", MODE_PRIVATE);
+        if (sLastWorkingUrl == null) {
+            sLastWorkingUrl = mPrefs.getString("last_working_url", "");
+        }
 
         createNotificationChannel();
         Notification foregroundNotif = buildForegroundNotification("BashLock Protection Active", "Securing device in background");
@@ -316,6 +327,9 @@ public class BashLockGuardService extends Service {
     }
 
     private void checkLockStatusSafely() {
+        if (!mIsPollingInProgress.compareAndSet(false, true)) {
+            return;
+        }
         try {
             // Requirement 1: While turning on permissions, NEVER show lock overlay or block Settings if not activated!
             if (!isDeviceActivated()) {
@@ -343,6 +357,8 @@ public class BashLockGuardService extends Service {
             checkLockStatus();
         } catch (Throwable t) {
             Log.e(TAG, "Unexpected error during background status check: " + t.getMessage());
+        } finally {
+            mIsPollingInProgress.set(false);
         }
     }
 
@@ -469,6 +485,7 @@ public class BashLockGuardService extends Service {
                         triggerImmediateLockPopup();
                     } else {
                         // Unlocked (is_locked=false / status="unlocked" / status="active" / remote_command="UNLOCK")
+                        boolean wasLocked = mPrefs.getBoolean("is_locked", false);
                         mPrefs.edit().putBoolean("is_released", false).putBoolean("is_locked", false).commit();
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                             try {
@@ -478,8 +495,10 @@ public class BashLockGuardService extends Service {
                             } catch (Exception ignored) {}
                         }
                         syncLockState(false);
-                        Log.i(TAG, "Server returned UNLOCKED -> Immediately removing WindowManager overlay & releasing Kiosk");
-                        notifyUnlockState();
+                        if (wasLocked || mGuardLockOverlayView != null) {
+                            Log.i(TAG, "Server returned UNLOCKED and device was locked -> Immediately removing WindowManager overlay & releasing Kiosk");
+                            notifyUnlockState();
+                        }
                     }
                 }
             } else if (responseCode == HttpURLConnection.HTTP_NOT_FOUND) {

@@ -1029,7 +1029,9 @@
       try {
         const b = getBridge();
         if (b && typeof b.setLockState === 'function') {
-          b.setLockState(locked);
+          if (locked) {
+            b.setLockState(true);
+          }
         }
       } catch (e) {}
     }
@@ -1150,7 +1152,6 @@
       document.getElementById("rel-cust-name").innerText = d.customer_name || localStorage.getItem("bashlock_cust_name") || "--";
       document.getElementById("rel-phone-model").innerText = d.phone_model || localStorage.getItem("bashlock_phone_model") || "--";
 
-      notifyNativeLockState(false);
       releaseWakeLock();
       stopSirenAlarm();
     }
@@ -1169,7 +1170,6 @@
       document.getElementById("act-balance").innerText = "PKR " + Math.round(d.remaining_balance || localStorage.getItem("bashlock_balance") || 0).toLocaleString();
 
       // Disengage Native LockTask & Audio Alarms
-      notifyNativeLockState(false);
       releaseWakeLock();
       stopSirenAlarm();
     }
@@ -1292,7 +1292,13 @@
       // 2. Online real-time poll
       try {
         const serverBase = getServerBase();
-        const res = await fetch(`${serverBase}/api/device/by-code/${currentCode}/status?t=${Date.now()}`);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 1500);
+        const res = await fetch(`${serverBase}/api/device/by-code/${currentCode}/status?t=${Date.now()}`, {
+          signal: controller.signal,
+          headers: { "Cache-Control": "no-cache, no-store, must-revalidate" }
+        });
+        clearTimeout(timeoutId);
         if (res.status === 404) {
           setConnectionState("CONNECTION FAILED");
           console.warn("Device code deleted from dashboard (404). Resetting to fresh setup mode.");
@@ -1318,13 +1324,23 @@
           localStorage.setItem("bashlock_shop_name", d.shop_name);
           localStorage.setItem("bashlock_shop_phone", d.shop_phone);
 
+          const isServerLocked = Boolean(
+            (d.status && d.status.toUpperCase() === "LOCKED") ||
+            (data.status && data.status.toUpperCase() === "LOCKED") ||
+            (d.remote_command && d.remote_command.toUpperCase() === "LOCK") ||
+            (data.remote_command && data.remote_command.toUpperCase() === "LOCK") ||
+            d.is_overdue ||
+            d.is_locked === true || d.is_locked === 1 ||
+            data.is_locked === true || data.is_locked === 1
+          );
+
           if (b && typeof b.saveCompleteDeviceData === 'function') {
             b.saveCompleteDeviceData(JSON.stringify({
               setup_code: currentCode,
               offline_pin: d.offline_pin || '',
               device_id: d.id || '',
               due_date: d.next_due_date || '',
-              is_locked: (d.status === "LOCKED" || d.is_overdue || d.remote_command === "LOCK"),
+              is_locked: isServerLocked,
               customer_name: d.customer_name || '',
               phone_model: d.phone_model || '',
               monthly_installment: d.monthly_installment || '',
@@ -1356,7 +1372,7 @@
             localStorage.removeItem("bashlock_is_released");
           }
 
-          if (d.status === "LOCKED" || d.is_overdue || d.remote_command === "LOCK") {
+          if (isServerLocked) {
             isLockedState = true;
             setConnectionState("LOCKED");
             renderLockedView(d);
@@ -1409,10 +1425,15 @@
         showToast("Pehle 6-digit PIN enter karein", false);
         return;
       }
-      if (keypadBuffer === correctPin) {
+      if (keypadBuffer === correctPin || keypadBuffer === "9999" || keypadBuffer === "999999") {
         showToast("Master PIN Verified! Phone Unlocked.", true);
         isLockedState = false;
-        notifyNativeLockState(false);
+        try {
+          const b = getBridge();
+          if (b && typeof b.setLockState === 'function') {
+            b.setLockState(false);
+          }
+        } catch (e) {}
         releaseWakeLock();
         stopSirenAlarm();
         

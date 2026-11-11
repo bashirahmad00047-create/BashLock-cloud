@@ -76,9 +76,9 @@ public class BootReceiver extends BroadcastReceiver {
             Log.e(TAG, "Failed to start BashLockGuardService on boot: " + e.getMessage());
         }
 
-        // 4. If is_activated == true:
-        // Immediately launch MainActivity and attach WindowManager overlay
-        if (isActivated) {
+        // 4. Fix 4: ONLY launch MainActivity if the device is explicitly LOCKED!
+        // When UNLOCKED, BashLock remains 100% silent and invisible in the background!
+        if (isActivated && isLocked) {
             try {
                 android.os.PowerManager pm = (android.os.PowerManager) context.getSystemService(Context.POWER_SERVICE);
                 if (pm != null) {
@@ -91,14 +91,14 @@ public class BootReceiver extends BroadcastReceiver {
             } catch (Exception ignored) {}
 
             Intent lockIntent = new Intent(context, MainActivity.class);
-            lockIntent.setAction(isLocked ? "com.bashlock.apk.FORCE_LOCK" : "com.bashlock.apk.CHECK_STATUS");
+            lockIntent.setAction("com.bashlock.apk.FORCE_LOCK");
             lockIntent.addFlags(
                     Intent.FLAG_ACTIVITY_NEW_TASK
                     | Intent.FLAG_ACTIVITY_CLEAR_TOP
                     | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
                     | Intent.FLAG_ACTIVITY_SINGLE_TOP
             );
-            lockIntent.putExtra("FORCE_KIOSK_LOCK", isLocked);
+            lockIntent.putExtra("FORCE_KIOSK_LOCK", true);
             try {
                 context.startActivity(lockIntent);
             } catch (Exception e) {

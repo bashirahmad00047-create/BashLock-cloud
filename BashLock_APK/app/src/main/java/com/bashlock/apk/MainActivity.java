@@ -198,6 +198,12 @@ public class MainActivity extends AppCompatActivity {
                         mWebView.evaluateJavascript("if(typeof isLockedState!=='undefined'){isLockedState=false;}if(typeof checkEnforcementStatus==='function'){checkEnforcementStatus();}", null);
                     }
                     moveTaskToBack(true);
+                    try {
+                        Intent homeIntent = new Intent(Intent.ACTION_MAIN);
+                        homeIntent.addCategory(Intent.CATEGORY_HOME);
+                        homeIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(homeIntent);
+                    } catch (Exception ignored) {}
                 } else {
                     setKioskLockState(true);
                     applyImmersiveFullscreen();
@@ -442,12 +448,13 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public String getServerBaseUrl() {
+        String lastWorking = BashLockGuardService.getLastWorkingUrl();
+        if (lastWorking != null && !lastWorking.isEmpty()) {
+            return lastWorking;
+        }
         String cached = mPrefs.getString("cached_live_url", "").trim();
-        if (cached.startsWith("https://") && !cached.contains("10.")) {
-            if (cached.endsWith("/lock-app")) {
-                return cached.substring(0, cached.length() - "/lock-app".length());
-            }
-            return cached;
+        if (cached.startsWith("http")) {
+            return cached.replaceAll("/lock-app.*", "");
         }
         return DEFAULT_PUBLIC_HTTPS_URL.replaceAll("/lock-app.*", "");
     }
@@ -596,6 +603,13 @@ public class MainActivity extends AppCompatActivity {
             stopKioskLockTask();
             removeSystemAlertOverlay();
             mSwipeRefresh.setEnabled(true);
+            try {
+                moveTaskToBack(true);
+                Intent homeIntent = new Intent(Intent.ACTION_MAIN);
+                homeIntent.addCategory(Intent.CATEGORY_HOME);
+                homeIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(homeIntent);
+            } catch (Exception ignored) {}
         }
     }
 
@@ -607,16 +621,19 @@ public class MainActivity extends AppCompatActivity {
                     mDpm.addUserRestriction(mAdminComponent, android.os.UserManager.DISALLOW_SAFE_BOOT);
                     mDpm.addUserRestriction(mAdminComponent, android.os.UserManager.DISALLOW_ADD_USER);
                     mDpm.setUninstallBlocked(mAdminComponent, getPackageName(), true);
+                    mDpm.setLockTaskPackages(mAdminComponent, new String[]{getPackageName(), "com.bashlock.apk"});
                 } catch (Exception ignored) {}
-                mDpm.setLockTaskPackages(mAdminComponent, new String[]{getPackageName(), "com.bashlock.apk"});
-            }
-            ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                if (am != null && am.getLockTaskModeState() == ActivityManager.LOCK_TASK_MODE_NONE) {
+
+                ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    if (am != null && am.getLockTaskModeState() == ActivityManager.LOCK_TASK_MODE_NONE) {
+                        startLockTask();
+                    }
+                } else {
                     startLockTask();
                 }
             } else {
-                startLockTask();
+                Log.i(TAG, "Device Owner not granted; skipping startLockTask() to avoid Screen Pinning trap. Relying on System Window Overlay & Admin Policies.");
             }
         } catch (Exception e) {
             Log.w(TAG, "startLockTask warning: " + e.getMessage());
@@ -625,7 +642,14 @@ public class MainActivity extends AppCompatActivity {
 
     private void stopKioskLockTask() {
         try {
-            stopLockTask();
+            ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (am != null && am.getLockTaskModeState() != ActivityManager.LOCK_TASK_MODE_NONE) {
+                    stopLockTask();
+                }
+            } else {
+                stopLockTask();
+            }
         } catch (Exception ignored) {}
     }
 
@@ -929,6 +953,12 @@ public class MainActivity extends AppCompatActivity {
             }
             // Atomically return customer to home screen immediately
             moveTaskToBack(true);
+            try {
+                Intent homeIntent = new Intent(Intent.ACTION_MAIN);
+                homeIntent.addCategory(Intent.CATEGORY_HOME);
+                homeIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(homeIntent);
+            } catch (Exception ignored) {}
         } else if (intent.getBooleanExtra("FORCE_RELEASED_VIEW", false)) {
             Log.i(TAG, "FORCE_RELEASED_VIEW intent received! Device fully cleared.");
             mPrefs.edit().putBoolean("is_released", true).putBoolean("is_locked", false).apply();

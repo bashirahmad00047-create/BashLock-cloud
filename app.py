@@ -384,7 +384,7 @@ def get_device_by_code_status(code_or_imei):
 
     resp = jsonify({
         "success": True,
-        "status": status_str.lower(),
+        "status": status_str.upper(),
         "is_locked": is_locked,
         "locked": 1 if is_locked else 0,
         "remote_command": remote_cmd,
