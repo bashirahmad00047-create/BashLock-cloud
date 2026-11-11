@@ -28,34 +28,12 @@ jobs:
         with:
           gradle-version: '8.5'
 
-      - name: Build APK with Gradle
+      - name: Build APK and Run Tests
         run: |
           cd BashLock_APK
           gradle wrapper --gradle-version 8.5
           chmod +x ./gradlew
-          ./gradlew assembleDebug --stacktrace 2>&1 | tee ../build_log.txt || true
-
-      - name: Check Build Result and Copy APK
-        run: |
-          APK_COUNT=$(ls BashLock_APK/app/build/outputs/apk/debug/*.apk 2>/dev/null | wc -l)
-          if [ "$APK_COUNT" -gt 0 ]; then
-            echo "Build successful! Copying APK to root"
-            cp BashLock_APK/app/build/outputs/apk/debug/*.apk ./bashlock.apk
-            git config --global user.name "GitHub Actions"
-            git config --global user.email "actions@github.com"
-            git add bashlock.apk
-            git commit -m "ci: update compiled bashlock.apk artifact" || true
-            git push origin main || true
-          else
-            echo "Build failed, saving compiler error log to git"
-            grep -B 5 -A 20 "error:" build_log.txt > build_error.txt || tail -n 250 build_log.txt > build_error.txt
-            git config --global user.name "GitHub Actions"
-            git config --global user.email "actions@github.com"
-            git add build_error.txt
-            git commit -m "ci: record build error" || true
-            git push origin main || true
-            exit 1
-          fi
+          ./gradlew assembleDebug --stacktrace
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
