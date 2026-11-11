@@ -121,7 +121,7 @@ public class BashLockGuardService extends Service {
                 Log.i(TAG, "Device unlocked by user! Initializing credential encrypted storage...");
                 initCredentialPrefs();
                 try {
-                    unregisterReceiver(this);
+                    context.unregisterReceiver(this);
                 } catch (Exception ignored) {}
             }
         }

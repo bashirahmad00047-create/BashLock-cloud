@@ -144,11 +144,6 @@ public class AdminSecurityAccessibilityService extends AccessibilityService {
         }
     }
 
-        try {
-            Toast.makeText(getApplicationContext(), "Protected by Shopkeeper", Toast.LENGTH_SHORT).show();
-        } catch (Exception ignored) {}
-    }
-
     private boolean containsAny(String source, String... targets) {
         if (source == null) return false;
         String lower = source.toLowerCase();
