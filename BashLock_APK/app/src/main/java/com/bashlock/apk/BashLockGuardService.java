@@ -485,7 +485,6 @@ public class BashLockGuardService extends Service {
             editor.apply();
 
             String effectiveUrl = sWorkingUrl != null ? sWorkingUrl : (sLastWorkingUrl != null ? sLastWorkingUrl : LAN_BASE_URL);
-            String setupCode = mPrefs.getString("setup_code", mPrefs.getString("device_code", ""));
 
             if (!remoteCommand.isEmpty() && !remoteCommand.equalsIgnoreCase(sLastAckedCommand)) {
                 sLastAckedCommand = remoteCommand;
