@@ -745,7 +745,7 @@
   <!-- JAVASCRIPT PHONE GUARD ENGINE -->
   <script>
     function getBridge() {
-      return window.BashLockBridge || window.BashLockNative || window.BashLock || window.Android || null;
+      return window.bridge || window.BashLockBridge || window.BashLockNative || window.BashLock || window.Android || null;
     }
 
     let initialFromUrl = "";
@@ -769,10 +769,14 @@
         console.warn("Failed to parse native config json:", e);
       }
 
-      const nativeLocked = (b && typeof b.isDeviceLocked === "function") ? b.isDeviceLocked() : false;
-      const nativeActivated = (b && typeof b.isDeviceActivated === "function") ? b.isDeviceActivated() : false;
-      const nativeCode = (b && typeof b.getSavedSetupCode === "function") ? b.getSavedSetupCode() : "";
-      const nativePin = (b && typeof b.getSavedOfflinePin === "function") ? b.getSavedOfflinePin() : "";
+      const nativeLocked = (b && typeof b.isLocked === "function") ? b.isLocked() :
+                           ((b && typeof b.isDeviceLocked === "function") ? b.isDeviceLocked() : false);
+      const nativeActivated = (b && typeof b.isActivated === "function") ? b.isActivated() :
+                              ((b && typeof b.isDeviceActivated === "function") ? b.isDeviceActivated() : false);
+      const nativeCode = (b && typeof b.getSetupCode === "function") ? b.getSetupCode() :
+                         ((b && typeof b.getSavedSetupCode === "function") ? b.getSavedSetupCode() : "");
+      const nativePin = (b && typeof b.getOfflinePin === "function") ? b.getOfflinePin() :
+                        ((b && typeof b.getSavedOfflinePin === "function") ? b.getSavedOfflinePin() : "");
 
       const code = (nativeData && nativeData.setup_code) || nativeCode || "";
       if (code && code !== "4819") {

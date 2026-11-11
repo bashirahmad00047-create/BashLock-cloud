@@ -382,14 +382,18 @@ def get_device_by_code_status(code_or_imei):
         except Exception:
             pass
 
-    return jsonify({
+    resp = jsonify({
         "success": True,
         "status": status_str.lower(),
         "is_locked": is_locked,
         "locked": 1 if is_locked else 0,
         "remote_command": remote_cmd,
         "device": d
-    }), 200
+    })
+    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp, 200
 
 @app.route("/download/apk")
 @app.route("/download/bashlock.apk")

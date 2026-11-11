@@ -306,6 +306,11 @@ public class WebBridge {
     }
 
     @JavascriptInterface
+    public boolean isLocked() {
+        return isDeviceLocked();
+    }
+
+    @JavascriptInterface
     public boolean isDeviceActivated() {
         String code = getSavedSetupCode();
         if (code.isEmpty() || "4819".equals(code)) {
@@ -319,6 +324,11 @@ public class WebBridge {
             } catch (Exception ignored) {}
         }
         return mPrefs.getBoolean("is_activated", false);
+    }
+
+    @JavascriptInterface
+    public boolean isActivated() {
+        return isDeviceActivated();
     }
 
     @JavascriptInterface
@@ -351,6 +361,11 @@ public class WebBridge {
             pin = mPrefs.getString("offline_pin", mPrefs.getString("bashlock_offline_pin", "189853"));
         }
         return pin != null ? pin.trim() : "189853";
+    }
+
+    @JavascriptInterface
+    public String getOfflinePin() {
+        return getSavedOfflinePin();
     }
 
     @JavascriptInterface
@@ -577,10 +592,7 @@ public class WebBridge {
 
     @JavascriptInterface
     public String getSetupCode() {
-        boolean isActivated = mPrefs.getBoolean("is_activated", false);
-        if (!isActivated) return "";
-        String code = mPrefs.getString("setup_code", mPrefs.getString("device_code", "")).trim();
-        return "4819".equals(code) ? "" : code;
+        return getSavedSetupCode();
     }
 
     @JavascriptInterface

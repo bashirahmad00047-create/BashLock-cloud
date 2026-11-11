@@ -170,9 +170,39 @@ public class MainActivity extends AppCompatActivity {
 
         handleIncomingIntent(getIntent());
 
+        // Fix 1: Register dynamic broadcast receiver for instantaneous unlock
+        try {
+            IntentFilter stateFilter = new IntentFilter("com.bashlock.ACTION_STATE_CHANGED");
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(mStateChangeReceiver, stateFilter, Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                registerReceiver(mStateChangeReceiver, stateFilter);
+            }
+        } catch (Exception ignored) {}
+
         // 1. Immediately initiate loading the UI (ensures ZERO black screen)
         loadLockAppUrl();
     }
+
+    private final BroadcastReceiver mStateChangeReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (intent != null && "com.bashlock.ACTION_STATE_CHANGED".equals(intent.getAction())) {
+                boolean isLocked = intent.getBooleanExtra("is_locked", false);
+                Log.i(TAG, "mStateChangeReceiver received ACTION_STATE_CHANGED: is_locked = " + isLocked);
+                if (!isLocked) {
+                    setKioskLockState(false);
+                    if (mWebView != null) {
+                        mWebView.evaluateJavascript("if(typeof isLockedState!=='undefined'){isLockedState=false;}if(typeof checkEnforcementStatus==='function'){checkEnforcementStatus();}", null);
+                    }
+                    moveTaskToBack(true);
+                } else {
+                    setKioskLockState(true);
+                    applyImmersiveFullscreen();
+                }
+            }
+        }
+    };
 
     @Override
     protected void onResume() {
@@ -259,6 +289,7 @@ public class MainActivity extends AppCompatActivity {
         mWebView.addJavascriptInterface(bridge, "BashLockNative");
         mWebView.addJavascriptInterface(bridge, "BashLock");
         mWebView.addJavascriptInterface(bridge, "Android");
+        mWebView.addJavascriptInterface(bridge, "bridge");
 
         mWebView.setWebViewClient(new WebViewClient() {
             @Override
@@ -955,6 +986,9 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        try {
+            unregisterReceiver(mStateChangeReceiver);
+        } catch (Exception ignored) {}
         removeSystemAlertOverlay();
         if (mIsLocked && mPrefs != null && !mPrefs.getBoolean("is_released", false)) {
             // Restart-Proof: If MainActivity is ever destroyed while locked, immediately respawn it

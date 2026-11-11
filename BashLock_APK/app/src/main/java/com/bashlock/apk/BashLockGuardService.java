@@ -69,6 +69,8 @@ public class BashLockGuardService extends Service {
     private View mGuardLockOverlayView;
     private WindowManager mWindowManager;
     private final StringBuilder mOverlayEnteredPin = new StringBuilder();
+    private static volatile String sLastWorkingUrl = null;
+    private int mUrlFailures = 0;
 
     @Override
     public void onCreate() {
@@ -119,12 +121,12 @@ public class BashLockGuardService extends Service {
             setupCode = "";
         }
 
-        // Commit both contexts synchronously (Requirement 1: commit() not apply())
+        // Commit both contexts synchronously (commit() not apply())
         syncLockState(isLocked);
 
-        // Requirement 1 & 4: Auto-Lock on Boot Before Internet Connects (ONLY if activated and locked)
-        if (isDeviceActivated() && isLocked) {
-            Log.w(TAG, "BashLockGuardService started with active lock state! Enforcing lock immediately on boot.");
+        // Fix 2: Auto-Lock on Boot Before Internet Connects (Within 100ms of boot)
+        if (isLocked) {
+            Log.w(TAG, "BashLockGuardService started with active lock state! Enforcing Native Lock Overlay immediately on boot.");
             showGuardLockOverlay();
             triggerImmediateLockPopup();
         }
@@ -181,6 +183,23 @@ public class BashLockGuardService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        // Fix 2: Check is_locked immediately on startCommand before any network call
+        boolean isLockedBoot = false;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            try {
+                Context directBootContext = createDeviceProtectedStorageContext();
+                isLockedBoot = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE)
+                        .getBoolean("is_locked", false);
+            } catch (Exception ignored) {}
+        }
+        if (!isLockedBoot && mPrefs != null) {
+            isLockedBoot = mPrefs.getBoolean("is_locked", false);
+        }
+        if (isLockedBoot) {
+            showGuardLockOverlay();
+            triggerImmediateLockPopup();
+        }
+
         if (intent != null) {
             if (intent.getBooleanExtra("RESTART_FAST_POLL", false)) {
                 if (mScheduler != null && !mScheduler.isShutdown()) {
@@ -195,21 +214,8 @@ public class BashLockGuardService extends Service {
                 Executors.newSingleThreadExecutor().execute(this::checkLockStatus);
             }
             if (intent.getBooleanExtra("FORCE_GUARD_OVERLAY", false)) {
-                boolean isLocked = false;
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    try {
-                        Context directBootContext = createDeviceProtectedStorageContext();
-                        isLocked = directBootContext.getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE)
-                                .getBoolean("is_locked", false);
-                    } catch (Exception ignored) {}
-                }
-                if (!isLocked && mPrefs != null) {
-                    isLocked = mPrefs.getBoolean("is_locked", false);
-                }
-                if (isLocked) {
-                    showGuardLockOverlay();
-                    triggerImmediateLockPopup();
-                }
+                showGuardLockOverlay();
+                triggerImmediateLockPopup();
             }
         }
         return START_STICKY;
@@ -305,8 +311,8 @@ public class BashLockGuardService extends Service {
         }
 
         mScheduler = Executors.newSingleThreadScheduledExecutor();
-        // Check every 2 seconds for instant, sub-second response to laptop lock/unlock commands
-        mScheduler.scheduleWithFixedDelay(this::checkLockStatusSafely, 0, 2, TimeUnit.SECONDS);
+        // Fix 1: Ultra-fast 1000ms (1 second) Native Background Polling
+        mScheduler.scheduleWithFixedDelay(this::checkLockStatusSafely, 0, 1000, TimeUnit.MILLISECONDS);
     }
 
     private void checkLockStatusSafely() {
@@ -381,19 +387,31 @@ public class BashLockGuardService extends Service {
 
         HttpURLConnection conn = null;
         try {
-            URL url = new URL(endpoint + "?t=" + System.currentTimeMillis());
+            URL url = new URL(endpoint + (endpoint.contains("?") ? "&t=" : "?t=") + System.currentTimeMillis());
             conn = (HttpURLConnection) url.openConnection();
-            conn.setConnectTimeout(2000);
-            conn.setReadTimeout(2000);
+            conn.setConnectTimeout(1500);
+            conn.setReadTimeout(1500);
             conn.setRequestMethod("GET");
             conn.setUseCaches(false);
             conn.setRequestProperty("User-Agent", "BashLock-Background-Guard");
-            conn.setRequestProperty("Cache-Control", "no-cache");
+            conn.setRequestProperty("Cache-Control", "no-cache, no-store, must-revalidate");
             conn.setRequestProperty("Pragma", "no-cache");
+            conn.setRequestProperty("Connection", "close");
 
             int responseCode = conn.getResponseCode();
 
             if (responseCode == HttpURLConnection.HTTP_OK) {
+                sLastWorkingUrl = activeUrl;
+                mUrlFailures = 0;
+                mPrefs.edit().putString("last_working_url", activeUrl).commit();
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    try {
+                        createDeviceProtectedStorageContext()
+                                .getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE)
+                                .edit().putString("last_working_url", activeUrl).commit();
+                    } catch (Exception ignored) {}
+                }
+
                 BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
                 StringBuilder sb = new StringBuilder();
                 String line;
@@ -465,16 +483,18 @@ public class BashLockGuardService extends Service {
                     }
                 }
             } else if (responseCode == HttpURLConnection.HTTP_NOT_FOUND) {
-                // Requirement 2: If device record was deleted (404 / not found), immediately save is_locked=false, clear pairing, and return to setup mode!
+                // If device record was deleted (404 / not found), immediately save is_locked=false, clear pairing, and return to setup mode!
                 Log.i(TAG, "Server returned 404 (Device deleted by shopkeeper) -> Immediately unlocking device and resetting to setup screen");
                 syncLockState(false);
                 notifyUnlockState();
                 resetPairingPreferences();
             } else {
+                mUrlFailures++;
                 tryFallbackLanPolling(setupCode);
                 refreshLiveUrlFromGitHub();
             }
         } catch (Exception e) {
+            mUrlFailures++;
             Log.d(TAG, "Polling check server reachability: " + e.getMessage());
             tryFallbackLanPolling(setupCode);
             refreshLiveUrlFromGitHub();
@@ -590,12 +610,40 @@ public class BashLockGuardService extends Service {
     }
 
     private String resolveLiveServerUrl() {
-        // First check locally cached live URL
+        if (sLastWorkingUrl != null && !sLastWorkingUrl.isEmpty() && mUrlFailures < 2) {
+            return sLastWorkingUrl;
+        }
+
+        // Check DirectBoot and standard preferences for last_working_url
+        if (mUrlFailures < 2) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                try {
+                    String directWorking = createDeviceProtectedStorageContext()
+                            .getSharedPreferences("BashLock_Config_DirectBoot", MODE_PRIVATE)
+                            .getString("last_working_url", "");
+                    if (!directWorking.isEmpty()) {
+                        sLastWorkingUrl = directWorking;
+                        return directWorking;
+                    }
+                } catch (Exception ignored) {}
+            }
+            String cachedWorking = mPrefs.getString("last_working_url", "").trim();
+            if (!cachedWorking.isEmpty()) {
+                sLastWorkingUrl = cachedWorking;
+                return cachedWorking;
+            }
+        }
+
+        // If failures >= 2, alternate between LAN IP and Cloudflare Tunnel
+        if (mUrlFailures >= 2 && (mUrlFailures % 2 == 0)) {
+            return MainActivity.DEFAULT_LAN_HTTP_URL.replaceAll("/lock-app.*", "");
+        }
+
         String url = mPrefs.getString("cached_live_url", "").trim();
         if ((url.startsWith("https://") || url.startsWith("http://")) && !url.contains("127.0.0.1") && !url.contains("localhost")) {
-            return url;
+            return url.replaceAll("/lock-app.*", "");
         }
-        return MainActivity.DEFAULT_PUBLIC_HTTPS_URL;
+        return MainActivity.DEFAULT_PUBLIC_HTTPS_URL.replaceAll("/lock-app.*", "");
     }
 
     private void refreshLiveUrlFromGitHub() {
@@ -698,8 +746,28 @@ public class BashLockGuardService extends Service {
     private void notifyUnlockState() {
         syncLockState(false);
 
-        removeGuardLockOverlay();
+        // 1. Immediately remove WindowManager lock overlay on main UI thread
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+            if (mGuardLockOverlayView != null && mWindowManager != null) {
+                try {
+                    mWindowManager.removeViewImmediate(mGuardLockOverlayView);
+                    Log.i(TAG, "Guard overlay removed via removeViewImmediate");
+                } catch (Exception e) {
+                    try {
+                        mWindowManager.removeView(mGuardLockOverlayView);
+                    } catch (Exception ignored) {}
+                }
+                mGuardLockOverlayView = null;
+            }
+        });
 
+        // 2. Broadcast com.bashlock.ACTION_STATE_CHANGED with is_locked = false
+        Intent broadcast = new Intent("com.bashlock.ACTION_STATE_CHANGED");
+        broadcast.putExtra("is_locked", false);
+        broadcast.setPackage(getPackageName());
+        sendBroadcast(broadcast);
+
+        // 3. Send FORCE_KIOSK_UNLOCK to MainActivity
         Intent unlockIntent = new Intent(this, MainActivity.class);
         unlockIntent.addFlags(
                 Intent.FLAG_ACTIVITY_NEW_TASK
@@ -707,7 +775,9 @@ public class BashLockGuardService extends Service {
                 | Intent.FLAG_ACTIVITY_SINGLE_TOP
         );
         unlockIntent.putExtra("FORCE_KIOSK_UNLOCK", true);
-        startActivity(unlockIntent);
+        try {
+            startActivity(unlockIntent);
+        } catch (Exception ignored) {}
 
         NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm != null) {
@@ -1129,9 +1199,13 @@ public class BashLockGuardService extends Service {
         new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
             if (mGuardLockOverlayView != null && mWindowManager != null) {
                 try {
-                    mWindowManager.removeView(mGuardLockOverlayView);
-                    Log.i(TAG, "Guard SYSTEM_ALERT_WINDOW overlay removed");
-                } catch (Exception ignored) {}
+                    mWindowManager.removeViewImmediate(mGuardLockOverlayView);
+                    Log.i(TAG, "Guard SYSTEM_ALERT_WINDOW overlay removed via removeViewImmediate");
+                } catch (Exception e) {
+                    try {
+                        mWindowManager.removeView(mGuardLockOverlayView);
+                    } catch (Exception ignored) {}
+                }
                 mGuardLockOverlayView = null;
             }
         });

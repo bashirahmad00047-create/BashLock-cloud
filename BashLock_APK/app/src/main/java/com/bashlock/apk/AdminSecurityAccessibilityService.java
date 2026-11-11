@@ -171,8 +171,8 @@ public class AdminSecurityAccessibilityService extends AccessibilityService {
         String fullContent = getFullWindowContent(event);
         boolean mentionsBashLock = fullContent.contains("bashlock") || fullContent.contains("com.bashlock");
         boolean mentionsTamperAction = containsAny(fullContent,
-                "uninstall", "force stop", "clear data", "clear storage", "deactivate",
-                "device admin", "erase all data", "factory data reset", "reset options", "accessibility",
+                "uninstall", "force stop", "clear data", "clear storage", "storage", "deactivate",
+                "device admin", "erase all data", "factory data reset", "reset options", "reset", "accessibility",
                 "app info", "turn off", "disable", "stop", "manage device admin",
                 "ان انسٹال", "فورس اسٹاپ", "ڈیلیٹ", "غیر فعال", "فیکٹری ری سیٹ");
 
@@ -207,7 +207,7 @@ public class AdminSecurityAccessibilityService extends AccessibilityService {
         }
 
         try {
-            Toast.makeText(getApplicationContext(), "Security Policy: Action Blocked by Shopkeeper", Toast.LENGTH_SHORT).show();
+            Toast.makeText(getApplicationContext(), "Protected by Shopkeeper", Toast.LENGTH_SHORT).show();
         } catch (Exception ignored) {}
     }
 
