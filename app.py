@@ -355,7 +355,7 @@ def get_device_by_code_status(code_or_imei):
         d["is_released"] = False
     elif (db_status in ["RELEASED", "RELEASE_AND_UNINSTALL", "NOC"] or is_fully_paid) and remaining_bal <= 0:
         is_locked = False
-        status_str = "noc" if (is_fully_paid or db_status == "NOC") else db_status
+        status_str = "RELEASED" if (is_fully_paid or db_status in ["NOC", "RELEASED"]) else db_status
         remote_cmd = "UNLOCK"
         d["is_released"] = True
     elif remote_cmd == "UNLOCK" or db_status in ["UNLOCKED", "ACTIVE"]:
