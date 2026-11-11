@@ -565,67 +565,6 @@ public class BashLockGuardService extends Service {
         }
         return null;
     }
-    }
-
-    private void tryFallbackLanPolling(String setupCode) {
-        if (setupCode == null || setupCode.isEmpty()) return;
-        HttpURLConnection lanConn = null;
-        try {
-            String lanEndpoint = MainActivity.DEFAULT_LAN_HTTP_URL.replaceAll("/lock-app.*", "") + "/api/device/by-code/" + setupCode + "/status?t=" + System.currentTimeMillis();
-            URL lanUrl = new URL(lanEndpoint);
-            lanConn = (HttpURLConnection) lanUrl.openConnection();
-            lanConn.setConnectTimeout(1500);
-            lanConn.setReadTimeout(1500);
-            lanConn.setRequestMethod("GET");
-            lanConn.setUseCaches(false);
-            lanConn.setRequestProperty("Cache-Control", "no-cache");
-            if (lanConn.getResponseCode() == HttpURLConnection.HTTP_OK) {
-                BufferedReader reader = new BufferedReader(new InputStreamReader(lanConn.getInputStream()));
-                StringBuilder sb = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) { sb.append(line); }
-                reader.close();
-                JSONObject json = new JSONObject(sb.toString());
-                if (json.optBoolean("success", false)) {
-                    boolean rootIsLocked = json.optBoolean("is_locked", false);
-                    String rootStatus = json.optString("status", "");
-                    String rootCommand = json.optString("remote_command", "");
-                    JSONObject device = json.optJSONObject("device");
-                    String status = device != null ? device.optString("status", rootStatus) : rootStatus;
-                    boolean isLocked = device != null ? device.optBoolean("is_locked", rootIsLocked) : rootIsLocked;
-                    boolean isOverdue = device != null && device.optBoolean("is_overdue", false);
-                    String remoteCommand = device != null ? device.optString("remote_command", rootCommand) : rootCommand;
-
-                    if ("LOCKED".equalsIgnoreCase(status) || "LOCK".equalsIgnoreCase(remoteCommand) || isLocked || isOverdue) {
-                        mPrefs.edit().putBoolean("is_released", false).putBoolean("is_locked", true).commit();
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                            try {
-                                createDeviceProtectedStorageContext().getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE)
-                                        .edit().putBoolean("is_released", false).putBoolean("is_locked", true).commit();
-                            } catch (Exception ignored) {}
-                        }
-                        syncLockState(true);
-                        triggerImmediateLockPopup();
-                    } else if ("UNLOCKED".equalsIgnoreCase(status) || "UNLOCK".equalsIgnoreCase(remoteCommand) || !isLocked) {
-                        mPrefs.edit().putBoolean("is_released", false).putBoolean("is_locked", false).commit();
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                            try {
-                                createDeviceProtectedStorageContext().getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE)
-                                        .edit().putBoolean("is_released", false).putBoolean("is_locked", false).commit();
-                            } catch (Exception ignored) {}
-                        }
-                        syncLockState(false);
-                        notifyUnlockState();
-                    }
-                }
-            }
-        } catch (Exception ignored) {}
-        finally {
-            if (lanConn != null) {
-                lanConn.disconnect();
-            }
-        }
-    }
 
     private void resetPairingPreferences() {
         try {
