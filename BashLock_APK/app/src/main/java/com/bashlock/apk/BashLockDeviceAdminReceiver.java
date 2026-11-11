@@ -45,10 +45,12 @@ public class BashLockDeviceAdminReceiver extends DeviceAdminReceiver {
         // Extract Enterprise QR provisioning extras (Zero-Touch Enrollment)
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                PersistableBundle extras = intent.getParcelableExtra(DevicePolicyManager.EXTRA_PROVISIONING_ADMIN_EXTRAS_BUNDLE);
+                PersistableBundle extras = (PersistableBundle) intent.getParcelableExtra(DevicePolicyManager.EXTRA_PROVISIONING_ADMIN_EXTRAS_BUNDLE);
                 if (extras != null) {
-                    String serverUrl = extras.getString("server_url", "");
-                    String setupCode = extras.getString("setup_code", "");
+                    String serverUrl = extras.getString("server_url");
+                    if (serverUrl == null) serverUrl = "";
+                    String setupCode = extras.getString("setup_code");
+                    if (setupCode == null) setupCode = "";
                     Log.i(TAG, "Provisioning extras extracted: code=" + setupCode + ", url=" + serverUrl);
 
                     if (setupCode != null && !setupCode.trim().isEmpty()) {
