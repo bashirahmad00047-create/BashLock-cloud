@@ -15,7 +15,7 @@ import threading
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, jsonify, session, Response, redirect, send_file
 import qrcode
-from database import get_db_connection, hash_password, init_db, wipe_all_demo_data
+from database import get_db_connection, hash_password, init_db, wipe_all_demo_data, log_audit_event
 
 app = Flask(__name__)
 app.secret_key = "bashlock_cloud_production_super_secret_key_2026"
@@ -219,6 +219,19 @@ def calculate_offline_pin(device_id: str, date_str: str = None) -> str:
     pin_int = int(h[:8], 16) % 1000000
     return f"{pin_int:06d}"
 
+def generate_unique_setup_code(conn_or_cursor, max_attempts=500):
+    """Generates a collision-safe 4-digit setup code avoiding existing active setup codes."""
+    cur = conn_or_cursor.cursor() if hasattr(conn_or_cursor, "cursor") else conn_or_cursor
+    for _ in range(max_attempts):
+        code_try = f"{random.randint(1000, 9999)}"
+        exists = cur.execute(
+            "SELECT 1 FROM devices WHERE setup_code = ? AND (enrollment_status != 'CANCELLED' OR enrollment_status IS NULL)",
+            (code_try,)
+        ).fetchone()
+        if not exists:
+            return code_try
+    return f"{int(time.time()) % 9000 + 1000}"
+
 # ----------------- EASY 4-DIGIT CODE MOBILE LOCK APP (Requirement 3) ----------------- #
 
 @app.route("/sw.js")
@@ -340,6 +353,47 @@ def get_device_by_code_status(code_or_imei):
         }), 404
 
     d = dict(row)
+    now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Check enrollment lifecycle: CANCELLED or EXPIRED
+    enrollment_status = (d.get("enrollment_status") or "ACTIVATED").strip().upper()
+    enrollment_expires = d.get("enrollment_expires_at")
+
+    if enrollment_status == "CANCELLED":
+        return jsonify({
+            "success": False,
+            "status": "CANCELLED",
+            "enrollment_status": "CANCELLED",
+            "is_locked": False,
+            "locked": 0,
+            "remote_command": "UNLOCK",
+            "is_released": False,
+            "recoverable": True,
+            "device_id": d["id"],
+            "error": "This device enrollment was cancelled by the shopkeeper."
+        }), 403
+
+    if enrollment_status == "PENDING" and enrollment_expires and now_str > enrollment_expires:
+        try:
+            c_exp = get_db_connection()
+            c_exp.execute("UPDATE devices SET enrollment_status = 'EXPIRED' WHERE id = ?", (d["id"],))
+            c_exp.commit()
+            c_exp.close()
+        except Exception:
+            pass
+        return jsonify({
+            "success": False,
+            "status": "EXPIRED",
+            "enrollment_status": "EXPIRED",
+            "is_locked": False,
+            "locked": 0,
+            "remote_command": "UNLOCK",
+            "is_released": False,
+            "recoverable": True,
+            "device_id": d["id"],
+            "error": "Enrollment setup window has timed out (24h). Shopkeeper can recover/renew the setup."
+        }), 410
+
     db_status = (d.get("status") or "UNLOCKED").strip().upper()
     remaining_bal = float(d.get("remaining_balance", 0) or 0)
     total_val = float(d.get("total_price", 0) or 0) or float(d.get("total_amount", 0) or 0)
@@ -578,19 +632,31 @@ def activate_device_by_code(code_or_imei):
         return jsonify({"success": False, "error": "Ghalat 4-Digit Setup Code!"}), 404
 
     d = dict(row)
+    enrollment_status = (d.get("enrollment_status") or "ACTIVATED").strip().upper()
+    if enrollment_status == "CANCELLED":
+        conn.close()
+        return jsonify({"success": False, "error": "This device enrollment was cancelled by the shopkeeper."}), 403
+    if enrollment_status == "PENDING" and d.get("enrollment_expires_at") and now_str > d["enrollment_expires_at"]:
+        conn.close()
+        return jsonify({"success": False, "error": "Enrollment setup window has timed out. Please ask shopkeeper to renew setup.", "recoverable": True}), 410
+
     conn.execute("""
         UPDATE devices 
-        SET last_seen = 'Protection Active (No USB / Code Paired)'
+        SET last_seen = 'Protection Active (No USB / Code Paired)',
+            enrollment_status = 'ACTIVATED'
         WHERE id = ?
     """, (d["id"],))
-
-    conn.execute("""
-        INSERT INTO audit_logs (shop_id, event_type, message, created_at)
-        VALUES (?, 'DEVICE_ACTIVATED', ?, ?)
-    """, (d["shop_id"], f"{d['phone_model']} ({d['customer_name']}) 4-digit code se activate ho gaya.", now_str))
-
     conn.commit()
     conn.close()
+
+    log_audit_event(
+        shop_id=d["shop_id"],
+        event_type="ENROLLMENT_COMPLETED",
+        message=f"{d['phone_model']} ({d['customer_name']}) setup successfully completed and activated.",
+        device_id=d["id"],
+        customer_id=d.get("customer_id"),
+        actor="CUSTOMER_PHONE"
+    )
 
     d["offline_pin"] = calculate_offline_pin(d["id"])
 
@@ -637,19 +703,31 @@ def api_pair():
         return jsonify({"success": False, "error": "Ghalat 4-Digit Setup Code!"}), 404
 
     d = dict(row)
+    enrollment_status = (d.get("enrollment_status") or "ACTIVATED").strip().upper()
+    if enrollment_status == "CANCELLED":
+        conn.close()
+        return jsonify({"success": False, "error": "This device enrollment was cancelled by the shopkeeper."}), 403
+    if enrollment_status == "PENDING" and d.get("enrollment_expires_at") and now_str > d["enrollment_expires_at"]:
+        conn.close()
+        return jsonify({"success": False, "error": "Enrollment setup window has timed out. Please ask shopkeeper to renew setup.", "recoverable": True}), 410
+
     conn.execute("""
         UPDATE devices 
-        SET last_seen = 'Protection Active (No USB / Code Paired)'
+        SET last_seen = 'Protection Active (No USB / Code Paired)',
+            enrollment_status = 'ACTIVATED'
         WHERE id = ?
     """, (d["id"],))
-
-    conn.execute("""
-        INSERT INTO audit_logs (shop_id, event_type, message, created_at)
-        VALUES (?, 'DEVICE_ACTIVATED', ?, ?)
-    """, (d["shop_id"], f"{d['phone_model']} ({d['customer_name']}) 4-digit code se activate ho gaya.", now_str))
-
     conn.commit()
     conn.close()
+
+    log_audit_event(
+        shop_id=d["shop_id"],
+        event_type="ENROLLMENT_COMPLETED",
+        message=f"{d['phone_model']} ({d['customer_name']}) setup successfully completed and activated.",
+        device_id=d["id"],
+        customer_id=d.get("customer_id"),
+        actor="CUSTOMER_PHONE"
+    )
 
     d["offline_pin"] = calculate_offline_pin(d["id"])
 
@@ -802,22 +880,11 @@ def enroll_device():
     if not next_due_date:
         next_due_date = (now_dt.date() + timedelta(days=30)).strftime("%Y-%m-%d")
 
+    customer_consent = data.get("customer_consent", True)
+    expires_at = (now_dt + timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+
     conn = get_db_connection()
     cursor = conn.cursor()
-
-    # Generate a collision-free 4-Digit Setup Code (avoiding reserved "4819")
-    candidate_code = None
-    for _ in range(500):
-        code_try = f"{random.randint(1000, 9999)}"
-        if code_try == "4819":
-            continue
-        exists = cursor.execute("SELECT 1 FROM devices WHERE setup_code = ?", (code_try,)).fetchone()
-        if not exists:
-            candidate_code = code_try
-            break
-    if not candidate_code:
-        candidate_code = f"{int(time.time()) % 9000 + 1000}"
-    setup_code = candidate_code
 
     device_id = f"dev-{int(time.time())}-{imei[-4:]}"
     lan_ip = get_lan_ip()
@@ -828,25 +895,56 @@ def enroll_device():
     """, (shop_id, customer_name, customer_cnic, customer_phone, guarantor_name, guarantor_cnic, now_str))
     customer_id = cursor.lastrowid
 
-    cursor.execute("""
-        INSERT INTO devices (
-            id, shop_id, customer_id, phone_model, imei, setup_code, status, policy_name,
-            total_price, down_payment, remaining_balance, monthly_installment,
-            next_due_date, enrollment_token, qr_payload, last_seen, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, 'UNLOCKED', 'bashlock_unlocked', ?, ?, ?, ?, ?, ?, ?, 'Pending 4-Digit Activation', ?)
-    """, (
-        device_id, shop_id, customer_id, phone_model, imei, setup_code,
-        total_price, down_payment, remaining_balance, monthly_installment,
-        next_due_date, f"tok_{setup_code}", "{}", now_str
-    ))
+    # Collision-safe insertion retry loop for setup_code uniqueness
+    setup_code = None
+    inserted = False
+    for attempt in range(5):
+        setup_code = generate_unique_setup_code(cursor)
+        try:
+            cursor.execute("""
+                INSERT INTO devices (
+                    id, shop_id, customer_id, phone_model, imei, setup_code, status, policy_name,
+                    total_price, down_payment, remaining_balance, monthly_installment,
+                    next_due_date, enrollment_token, qr_payload, last_seen, created_at,
+                    enrollment_status, enrollment_expires_at, customer_consent, consent_timestamp
+                ) VALUES (?, ?, ?, ?, ?, ?, 'UNLOCKED', 'bashlock_unlocked', ?, ?, ?, ?, ?, ?, ?, 'Pending 4-Digit Activation', ?, 'PENDING', ?, 'GRANTED', ?)
+            """, (
+                device_id, shop_id, customer_id, phone_model, imei, setup_code,
+                total_price, down_payment, remaining_balance, monthly_installment,
+                next_due_date, f"tok_{setup_code}", "{}", now_str, expires_at, now_str
+            ))
+            inserted = True
+            break
+        except sqlite3.IntegrityError:
+            continue
 
-    cursor.execute("""
-        INSERT INTO audit_logs (shop_id, event_type, message, created_at)
-        VALUES (?, 'DEVICE_ENROLLED', ?, ?)
-    """, (shop_id, f"Naya phone add hua: {phone_model} - Customer: {customer_name} (Setup Code: {setup_code})", now_str))
+    if not inserted:
+        conn.rollback()
+        conn.close()
+        return jsonify({"success": False, "error": "Could not allocate unique setup code. Please try again."}), 500
 
     conn.commit()
     conn.close()
+
+    log_audit_event(
+        shop_id=shop_id,
+        event_type="ENROLLMENT_CREATED",
+        message=f"Device enrolled: {phone_model} (IMEI: {imei}) for Customer {customer_name}. Setup code {setup_code} generated (expires: {expires_at}). Consent recorded.",
+        device_id=device_id,
+        customer_id=customer_id,
+        actor="SHOPKEEPER",
+        details={
+            "phone_model": phone_model,
+            "imei": imei,
+            "setup_code": setup_code,
+            "total_price": total_price,
+            "down_payment": down_payment,
+            "remaining_balance": remaining_balance,
+            "monthly_installment": monthly_installment,
+            "expires_at": expires_at,
+            "customer_consent": "GRANTED"
+        }
+    )
 
     tunnel_url = get_public_tunnel_url()
     lock_app_url = f"{tunnel_url}/lock-app/{setup_code}"
@@ -921,6 +1019,160 @@ def api_enroll_test_device():
         "monthly_installment": 10000,
         "status": "UNLOCKED",
         "lock_app_url": f"{tunnel_url}/lock-app/{test_code}"
+    })
+
+# ----------------- ENROLLMENT LIFECYCLE: CANCEL, RECOVER & AUDIT ----------------- #
+
+@app.route("/api/enrollment/cancel", methods=["POST"])
+def cancel_enrollment():
+    """Cancels a pending or active enrollment and safely frees up the setup code."""
+    shop_id = get_current_shop_id()
+    data = request.get_json(silent=True) or {}
+    device_id = data.get("device_id")
+    setup_code = data.get("setup_code")
+    reason = data.get("reason", "Cancelled by shopkeeper")
+
+    if not device_id and not setup_code:
+        return jsonify({"success": False, "error": "device_id or setup_code is required"}), 400
+
+    conn = get_db_connection()
+    device = conn.execute("""
+        SELECT d.*, c.full_name as customer_name
+        FROM devices d
+        LEFT JOIN customers c ON d.customer_id = c.id
+        WHERE (d.id = ? OR d.setup_code = ?) AND d.shop_id = ?
+    """, (device_id, setup_code, shop_id)).fetchone()
+
+    if not device:
+        conn.close()
+        return jsonify({"success": False, "error": "Device record not found"}), 404
+
+    now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    old_code = device["setup_code"]
+
+    conn.execute("""
+        UPDATE devices 
+        SET enrollment_status = 'CANCELLED',
+            setup_code = NULL,
+            last_seen = ?
+        WHERE id = ? AND shop_id = ?
+    """, (f"Enrollment cancelled at {now_str} ({reason})", device["id"], shop_id))
+    conn.commit()
+    conn.close()
+
+    log_audit_event(
+        shop_id=shop_id,
+        event_type="ENROLLMENT_CANCELLED",
+        message=f"Enrollment for {device['phone_model']} (Customer: {device['customer_name']}) cancelled. Reason: {reason}. Setup code {old_code} freed.",
+        device_id=device["id"],
+        customer_id=device["customer_id"],
+        actor="SHOPKEEPER",
+        details={"reason": reason, "previous_code": old_code}
+    )
+
+    return jsonify({
+        "success": True,
+        "device_id": device["id"],
+        "status": "CANCELLED",
+        "message": "Enrollment cancelled successfully. Setup code released."
+    })
+
+
+@app.route("/api/enrollment/recover", methods=["POST"])
+def recover_enrollment():
+    """Recovers an expired or cancelled enrollment with a fresh collision-safe setup code."""
+    shop_id = get_current_shop_id()
+    data = request.get_json(silent=True) or {}
+    device_id = data.get("device_id")
+
+    if not device_id:
+        return jsonify({"success": False, "error": "device_id is required"}), 400
+
+    conn = get_db_connection()
+    device = conn.execute("""
+        SELECT d.*, c.full_name as customer_name
+        FROM devices d
+        LEFT JOIN customers c ON d.customer_id = c.id
+        WHERE d.id = ? AND d.shop_id = ?
+    """, (device_id, shop_id)).fetchone()
+
+    if not device:
+        conn.close()
+        return jsonify({"success": False, "error": "Device record not found"}), 404
+
+    cursor = conn.cursor()
+    new_code = generate_unique_setup_code(cursor)
+
+    now_dt = datetime.utcnow()
+    now_str = now_dt.strftime("%Y-%m-%d %H:%M:%S")
+    expires_at = (now_dt + timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+
+    cursor.execute("""
+        UPDATE devices 
+        SET enrollment_status = 'PENDING',
+            setup_code = ?,
+            enrollment_expires_at = ?,
+            last_seen = 'Setup Renewed / Recovered'
+        WHERE id = ? AND shop_id = ?
+    """, (new_code, expires_at, device_id, shop_id))
+    conn.commit()
+    conn.close()
+
+    log_audit_event(
+        shop_id=shop_id,
+        event_type="ENROLLMENT_RECOVERED",
+        message=f"Setup recovered for {device['phone_model']} (Customer: {device['customer_name']}). New setup code: {new_code}. Valid until {expires_at}.",
+        device_id=device_id,
+        customer_id=device["customer_id"],
+        actor="SHOPKEEPER",
+        details={"new_setup_code": new_code, "expires_at": expires_at}
+    )
+
+    tunnel_url = get_public_tunnel_url()
+    return jsonify({
+        "success": True,
+        "device_id": device_id,
+        "setup_code": new_code,
+        "enrollment_status": "PENDING",
+        "expires_at": expires_at,
+        "lock_app_url": f"{tunnel_url}/lock-app/{new_code}",
+        "message": f"Setup renewed! New 4-digit code is {new_code} (valid for 24 hours)."
+    })
+
+
+@app.route("/api/audit-logs", methods=["GET"])
+def get_audit_logs():
+    """Retrieves immutable audit history for the authenticated shop."""
+    shop_id = get_current_shop_id()
+    device_id = request.args.get("device_id")
+    event_type = request.args.get("event_type")
+    try:
+        limit = min(int(request.args.get("limit", 100)), 500)
+    except Exception:
+        limit = 100
+
+    conn = get_db_connection()
+    query = "SELECT * FROM audit_logs WHERE shop_id = ?"
+    params = [shop_id]
+
+    if device_id:
+        query += " AND device_id = ?"
+        params.append(device_id)
+    if event_type:
+        query += " AND event_type = ?"
+        params.append(event_type)
+
+    query += " ORDER BY id DESC LIMIT ?"
+    params.append(limit)
+
+    rows = conn.execute(query, params).fetchall()
+    conn.close()
+
+    logs = [dict(r) for r in rows]
+    return jsonify({
+        "success": True,
+        "count": len(logs),
+        "audit_logs": logs
     })
 
 # ----------------- WIPE ALL DEMO DATA ROUTE (Requirement 1) ----------------- #
@@ -999,6 +1251,17 @@ def toggle_device_lock():
 
     conn.commit()
     conn.close()
+
+    if action in ["RELEASE", "RELEASE_AND_UNINSTALL"]:
+        log_audit_event(
+            shop_id=shop_id,
+            event_type="AUTHORIZED_RELEASE_MANUAL",
+            message=f"Manual authorized release granted for {device['phone_model']} (IMEI: {device['imei']}). Action: {action}. Device unlinked and compliance unlocked.",
+            device_id=device_id,
+            customer_id=device["customer_id"] if "customer_id" in device.keys() else None,
+            actor="SHOPKEEPER",
+            details={"action": action, "phone_model": device["phone_model"], "imei": device["imei"]}
+        )
 
     # Event (b): Automatically send Lock Alert via WhatsApp Baileys when locked
     if action == "LOCK":
@@ -1124,6 +1387,35 @@ def record_payment():
 
     conn.commit()
     conn.close()
+
+    # Audit Logging for Payment & Authorized Release
+    log_audit_event(
+        shop_id=shop_id,
+        event_type="PAYMENT_RECORDED",
+        message=f"Wasooli payment of PKR {amount:,.0f} received via {payment_method} for {device['customer_name']} ({device['phone_model']}). Receipt #{receipt_num}. Baqaya: PKR {new_balance:,.0f}.",
+        device_id=device_id,
+        customer_id=device["customer_id"],
+        actor="SHOPKEEPER",
+        details={
+            "receipt_number": receipt_num,
+            "amount": amount,
+            "payment_method": payment_method,
+            "previous_balance": old_balance,
+            "new_balance": new_balance,
+            "new_due_date": new_due_date
+        }
+    )
+
+    if new_balance <= 0:
+        log_audit_event(
+            shop_id=shop_id,
+            event_type="AUTHORIZED_RELEASE_PAYOFF",
+            message=f"Full installment payoff completed for {device['phone_model']} (Customer: {device['customer_name']}). Authorized release granted. All compliance restrictions removed.",
+            device_id=device_id,
+            customer_id=device["customer_id"],
+            actor="SYSTEM_AUTO",
+            details={"receipt_number": receipt_num, "final_amount": amount, "total_price": device["total_price"]}
+        )
 
     receipt_data = {
         "receipt_number": receipt_num,

@@ -845,6 +845,21 @@
           </div>
         </div>
 
+        <!-- Customer Installment Consent & Privacy Disclosure Notice -->
+        <div class="p-3.5 rounded-2xl bg-slate-900/90 border border-emerald-500/30 space-y-2">
+          <div class="flex items-center gap-2 text-amber-400 font-bold text-xs">
+            <i class="fa-solid fa-file-contract"></i>
+            <span>Customer Terms & Privacy Disclosure</span>
+          </div>
+          <p class="text-[11px] text-slate-300 leading-relaxed">
+            The customer has been informed that this smartphone is financed under installment terms. Periodic compliance check-ins will occur, and overdue payments past due dates may trigger automated device lock until dues are settled.
+          </p>
+          <label class="flex items-start gap-2.5 cursor-pointer text-[11px] text-white font-medium select-none pt-1">
+            <input type="checkbox" id="cust-consent-check" required class="mt-0.5 rounded border-white/20 text-emerald-500 focus:ring-0">
+            <span>Customer has explicitly agreed to installment terms and granted compliance consent.</span>
+          </label>
+        </div>
+
         <button type="submit" id="btn-save-cust" class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs shadow-xl shadow-emerald-500/25 transition flex items-center justify-center gap-2">
           <i class="fa-solid fa-check text-sm"></i>
           <span>Save Gahak & 4-Digit Code Banayein</span>
@@ -1614,6 +1629,50 @@
       }
     }
 
+    async function cancelEnrollment(deviceId, customerName) {
+      if (!confirm(`Kya aap "${customerName}" ka pending setup cancel karna chahte hain?\n\nSetup code release ho jayega aur phone activate nahi ho sakega.`)) {
+        return;
+      }
+      try {
+        const res = await fetch("/api/enrollment/cancel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ device_id: deviceId, reason: "Cancelled by shopkeeper" })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`"${customerName}" ka setup cancel ho gaya!`, true);
+          fetchDashboardData();
+        } else {
+          showToast(data.error || "Cancel nahi ho saka", false);
+        }
+      } catch (e) {
+        showToast("Server connection error", false);
+      }
+    }
+
+    async function recoverEnrollment(deviceId, customerName) {
+      if (!confirm(`Kya aap "${customerName}" ka setup renew / recover karna chahte hain?\n\nNaya 4-digit code generate hoga aur 24 ghante ke liye valid hoga.`)) {
+        return;
+      }
+      try {
+        const res = await fetch("/api/enrollment/recover", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ device_id: deviceId })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`Setup renew ho gaya! Naya Code: ${data.setup_code}`, true);
+          fetchDashboardData();
+        } else {
+          showToast(data.error || "Renew nahi ho saka", false);
+        }
+      } catch (e) {
+        showToast("Server connection error", false);
+      }
+    }
+
     // Update Top Summary KPI Cards Instantly
     function updateKpiCounters(stats) {
       if (!stats) return;
@@ -1847,6 +1906,8 @@
       document.getElementById("phone-imei").value = "";
       document.getElementById("cust-guarantor").value = "";
       document.getElementById("cust-guarantor-cnic").value = "";
+      const consentBox = document.getElementById("cust-consent-check");
+      if (consentBox) consentBox.checked = false;
       calcBalance();
       openModal("enroll-modal");
     }
@@ -1914,7 +1975,8 @@
         imei: document.getElementById("phone-imei").value,
         total_price: document.getElementById("fin-total").value,
         down_payment: document.getElementById("fin-down").value,
-        monthly_installment: document.getElementById("fin-monthly").value
+        monthly_installment: document.getElementById("fin-monthly").value,
+        customer_consent: document.getElementById("cust-consent-check") ? document.getElementById("cust-consent-check").checked : true
       };
 
       try {
@@ -2111,9 +2173,18 @@
           <td class="py-3.5 px-3 text-center">
             ${d.status === 'RELEASED'
               ? `<span class="px-2.5 py-1 rounded-full text-[10px] font-black bg-purple-950 text-purple-300 border border-purple-800/80 inline-flex items-center gap-1.5 shadow-sm"><i class="fa-solid fa-award text-purple-400"></i> RELEASED</span>`
-              : (isLocked
-                ? `<span class="px-2.5 py-1 rounded-full text-[10px] font-black bg-rose-950 text-rose-300 border border-rose-800/80 inline-flex items-center gap-1.5 shadow-sm"><span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping"></span> BAND</span>`
-                : `<span class="px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-950 text-emerald-300 border border-emerald-800/80 inline-flex items-center gap-1.5 shadow-sm"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> ACTIVE</span>`
+              : (d.enrollment_status === 'CANCELLED'
+                ? `<span class="px-2.5 py-1 rounded-full text-[10px] font-black bg-slate-800 text-slate-400 border border-slate-700 inline-flex items-center gap-1.5 shadow-sm"><i class="fa-solid fa-ban text-slate-500"></i> CANCELLED</span>`
+                : (d.enrollment_status === 'EXPIRED'
+                  ? `<span class="px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-950 text-amber-300 border border-amber-800/80 inline-flex items-center gap-1.5 shadow-sm"><i class="fa-solid fa-clock text-amber-400"></i> EXPIRED</span>`
+                  : (d.enrollment_status === 'PENDING'
+                    ? `<span class="px-2.5 py-1 rounded-full text-[10px] font-black bg-yellow-950 text-yellow-300 border border-yellow-800/80 inline-flex items-center gap-1.5 shadow-sm"><i class="fa-solid fa-hourglass-half text-yellow-400"></i> PENDING SETUP</span>`
+                    : (isLocked
+                      ? `<span class="px-2.5 py-1 rounded-full text-[10px] font-black bg-rose-950 text-rose-300 border border-rose-800/80 inline-flex items-center gap-1.5 shadow-sm"><span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping"></span> BAND</span>`
+                      : `<span class="px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-950 text-emerald-300 border border-emerald-800/80 inline-flex items-center gap-1.5 shadow-sm"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> ACTIVE</span>`
+                    )
+                  )
+                )
               )
             }
           </td>
@@ -2171,6 +2242,15 @@
                 ${d.status === 'RELEASED'
                   ? `<span title="NOC Issued" class="w-7 h-7 rounded-lg text-purple-400 flex items-center justify-center"><i class="fa-solid fa-check-double text-xs"></i></span>`
                   : `<button onclick="confirmReleaseDevice('${d.id}', '${escapedName}')" title="NOC Clearance / Phone Release" class="w-7 h-7 rounded-lg text-purple-400 hover:text-white hover:bg-purple-950/80 transition flex items-center justify-center"><i class="fa-solid fa-award text-xs"></i></button>`
+                }
+
+                <!-- Setup Lifecycle: Cancel or Recover -->
+                ${d.enrollment_status === 'PENDING'
+                  ? `<button onclick="cancelEnrollment('${d.id}', '${escapedName}')" title="Cancel Pending Setup" class="w-7 h-7 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition flex items-center justify-center"><i class="fa-solid fa-ban text-xs"></i></button>`
+                  : ((d.enrollment_status === 'EXPIRED' || d.enrollment_status === 'CANCELLED')
+                    ? `<button onclick="recoverEnrollment('${d.id}', '${escapedName}')" title="Renew / Recover Setup" class="w-7 h-7 rounded-lg text-amber-400 hover:text-white hover:bg-amber-950/80 transition flex items-center justify-center"><i class="fa-solid fa-arrow-rotate-right text-xs"></i></button>`
+                    : ''
+                  )
                 }
 
                 <div class="h-3.5 w-px bg-white/10 mx-0.5"></div>

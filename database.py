@@ -97,6 +97,30 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
+    # Ensure enrollment lifecycle columns exist
+    for col, col_type in [
+        ("enrollment_status", "TEXT DEFAULT 'ACTIVATED'"),
+        ("enrollment_expires_at", "TEXT"),
+        ("customer_consent", "TEXT DEFAULT 'GRANTED'"),
+        ("consent_timestamp", "TEXT"),
+    ]:
+        try:
+            cursor.execute(f"ALTER TABLE devices ADD COLUMN {col} {col_type}")
+        except sqlite3.OperationalError:
+            pass
+
+    # Ensure audit_logs detailed columns exist
+    for col, col_type in [
+        ("device_id", "TEXT"),
+        ("customer_id", "INTEGER"),
+        ("actor", "TEXT DEFAULT 'SHOPKEEPER'"),
+        ("details", "TEXT"),
+    ]:
+        try:
+            cursor.execute(f"ALTER TABLE audit_logs ADD COLUMN {col} {col_type}")
+        except sqlite3.OperationalError:
+            pass
+
     # Ensure setup_code has an index to prevent cross-talk and speed up lookups
     try:
         cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_devices_setup_code ON devices(setup_code) WHERE setup_code IS NOT NULL AND setup_code != ''")
@@ -134,6 +158,31 @@ def init_db():
 
     conn.commit()
     conn.close()
+
+def log_audit_event(shop_id: int, event_type: str, message: str, device_id: str = None, customer_id: int = None, actor: str = "SHOPKEEPER", details: dict = None, conn=None):
+    """Inserts a structured, immutable audit log entry."""
+    import json
+    close_when_done = False
+    try:
+        if conn is None:
+            conn = get_db_connection()
+            close_when_done = True
+        now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        details_str = json.dumps(details) if isinstance(details, dict) else (str(details) if details else None)
+        conn.execute("""
+            INSERT INTO audit_logs (shop_id, event_type, message, created_at, device_id, customer_id, actor, details)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (shop_id, event_type, message, now_str, device_id, customer_id, actor, details_str))
+        if close_when_done:
+            conn.commit()
+            conn.close()
+    except Exception as e:
+        print(f"[!] log_audit_event error: {e}")
+        if close_when_done and conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 def wipe_all_demo_data():
     """Wipes all fake customers, devices, payments and audit logs so ledger starts completely clean."""

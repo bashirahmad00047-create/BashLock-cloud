@@ -503,12 +503,16 @@
           </div>
 
           <!-- Customer Installment Consent Notice -->
-          <div class="p-2.5 rounded-xl bg-slate-900/90 border border-white/10 text-[10px] text-slate-400 text-left space-y-1">
+          <div class="p-3 rounded-xl bg-slate-900/90 border border-white/10 text-[10px] text-slate-300 text-left space-y-1.5">
             <div class="flex items-center gap-1.5 text-amber-400 font-bold">
               <i class="fa-solid fa-file-contract"></i>
-              <span>Installment Consent & Compliance Notice</span>
+              <span>Customer Agreement & Privacy Terms</span>
             </div>
-            <p>By pairing, the customer confirms receipt of this smartphone under installment terms. Non-payment may trigger remote device compliance lock until dues are settled.</p>
+            <p class="text-slate-400 leading-tight">By activating, the customer explicitly confirms receipt of this smartphone under financing terms and consents to compliance monitoring. Non-payment past due dates may trigger remote compliance lock.</p>
+            <label class="flex items-start gap-2 cursor-pointer pt-1 text-slate-200 select-none">
+              <input type="checkbox" id="chk-customer-consent" class="mt-0.5 rounded border-white/20 text-emerald-500 focus:ring-0">
+              <span class="font-medium">I have read, understood, and accept installment compliance terms.</span>
+            </label>
           </div>
 
           <!-- ONE BIG GREEN BUTTON -->
@@ -921,6 +925,12 @@
         return;
       }
 
+      const chkConsent = document.getElementById("chk-customer-consent");
+      if (chkConsent && !chkConsent.checked) {
+        showToast("Baraye meharbani installment terms aur consent checkbox mark karein.", false);
+        return;
+      }
+
       const btn = document.getElementById("btn-activate");
       if (btn) {
         btn.disabled = true;
@@ -937,7 +947,7 @@
         const res = await fetch(serverBase + "/api/pair", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code: code, device_info: navigator.userAgent }),
+          body: JSON.stringify({ code: code, customer_consent: true, device_info: navigator.userAgent }),
           signal: controller.signal
         });
         clearTimeout(timeoutId);
@@ -947,7 +957,27 @@
           showToast("Ghalat 4-Digit Code! Dashboard par pehle gahak add karein.", false);
           if (btn) {
             btn.disabled = false;
-            btn.innerHTML = `<i class="fa-solid fa-shield-halved text-sm"></i> <span>Activate Protection (Block Uninstall)</span>`;
+            btn.innerHTML = `<i class="fa-solid fa-shield-halved text-sm"></i> <span>Activate Compliance Protection</span>`;
+          }
+          return;
+        }
+
+        if (res.status === 403) {
+          setConnectionState("CANCELLED");
+          showToast("Yeh enrollment dukaan-daar ki taraf se cancel ho chuki hai.", false);
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `<i class="fa-solid fa-shield-halved text-sm"></i> <span>Activate Compliance Protection</span>`;
+          }
+          return;
+        }
+
+        if (res.status === 410) {
+          setConnectionState("EXPIRED");
+          showToast("Setup code expire ho chuka hai (24h). Dukaan-daar se setup renew karwayein.", false);
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `<i class="fa-solid fa-shield-halved text-sm"></i> <span>Activate Compliance Protection</span>`;
           }
           return;
         }
@@ -958,7 +988,7 @@
           showToast(data.error || "Pairing fail! Server ne reject kar diya.", false);
           if (btn) {
             btn.disabled = false;
-            btn.innerHTML = `<i class="fa-solid fa-shield-halved text-sm"></i> <span>Activate Protection (Block Uninstall)</span>`;
+            btn.innerHTML = `<i class="fa-solid fa-shield-halved text-sm"></i> <span>Activate Compliance Protection</span>`;
           }
           return;
         }
