@@ -749,26 +749,75 @@
     }
 
     let initialFromUrl = "";
-    const _initBridge = getBridge();
-    if (_initBridge) {
-      if (typeof _initBridge.getSetupCode === "function") {
-        let saved = _initBridge.getSetupCode();
-        if (saved && saved !== "4819") initialFromUrl = saved;
-      } else if (typeof _initBridge.getSavedSetupCode === "function") {
-        let saved = _initBridge.getSavedSetupCode();
-        if (saved && saved !== "4819") initialFromUrl = saved;
-      }
-    }
-    let currentCode = initialFromUrl || localStorage.getItem("bashlock_paired_code") || "";
-    if (currentCode === "4819") {
-      currentCode = "";
-      localStorage.removeItem("bashlock_paired_code");
-    }
-    let activeDeviceId = localStorage.getItem("bashlock_device_id") || null;
-    let savedDueDate = localStorage.getItem("bashlock_due_date") || null;
-    let savedPin = localStorage.getItem("bashlock_offline_pin") || null;
+    let currentCode = "";
+    let activeDeviceId = null;
+    let savedDueDate = null;
+    let savedPin = null;
     let keypadBuffer = "";
     let isLockedState = false;
+
+    function syncFromNativeBridge() {
+      const b = getBridge();
+      if (!b) return null;
+      let nativeData = null;
+      try {
+        if (typeof b.getDeviceConfigJson === "function") {
+          const raw = b.getDeviceConfigJson();
+          if (raw) nativeData = JSON.parse(raw);
+        }
+      } catch (e) {
+        console.warn("Failed to parse native config json:", e);
+      }
+
+      const nativeLocked = (b && typeof b.isDeviceLocked === "function") ? b.isDeviceLocked() : false;
+      const nativeActivated = (b && typeof b.isDeviceActivated === "function") ? b.isDeviceActivated() : false;
+      const nativeCode = (b && typeof b.getSavedSetupCode === "function") ? b.getSavedSetupCode() : "";
+      const nativePin = (b && typeof b.getSavedOfflinePin === "function") ? b.getSavedOfflinePin() : "";
+
+      const code = (nativeData && nativeData.setup_code) || nativeCode || "";
+      if (code && code !== "4819") {
+        currentCode = code;
+        localStorage.setItem("bashlock_paired_code", code);
+        localStorage.setItem("bashlock_setup_code", code);
+        localStorage.setItem("bashlock_is_activated", "true");
+      }
+
+      const pin = (nativeData && nativeData.offline_pin) || nativePin;
+      if (pin) {
+        savedPin = pin;
+        localStorage.setItem("bashlock_offline_pin", pin);
+      }
+
+      if (nativeData) {
+        if (nativeData.device_id) { activeDeviceId = nativeData.device_id; localStorage.setItem("bashlock_device_id", nativeData.device_id); }
+        if (nativeData.due_date) { savedDueDate = nativeData.due_date; localStorage.setItem("bashlock_due_date", nativeData.due_date); }
+        if (nativeData.remaining_balance) { localStorage.setItem("bashlock_balance", nativeData.remaining_balance); }
+        if (nativeData.customer_name) { localStorage.setItem("bashlock_cust_name", nativeData.customer_name); }
+        if (nativeData.phone_model) { localStorage.setItem("bashlock_phone_model", nativeData.phone_model); }
+        if (nativeData.monthly_installment) { localStorage.setItem("bashlock_monthly", nativeData.monthly_installment); }
+        if (nativeData.shop_name) { localStorage.setItem("bashlock_shop_name", nativeData.shop_name); }
+        if (nativeData.shop_phone) { localStorage.setItem("bashlock_shop_phone", nativeData.shop_phone); }
+      }
+
+      if (nativeLocked || (nativeData && nativeData.is_locked)) {
+        isLockedState = true;
+      }
+      return nativeData;
+    }
+
+    // Run initial sync from Native DirectBoot Storage immediately
+    syncFromNativeBridge();
+
+    if (!currentCode) {
+      currentCode = localStorage.getItem("bashlock_paired_code") || "";
+      if (currentCode === "4819") {
+        currentCode = "";
+        localStorage.removeItem("bashlock_paired_code");
+      }
+    }
+    if (!activeDeviceId) activeDeviceId = localStorage.getItem("bashlock_device_id") || null;
+    if (!savedDueDate) savedDueDate = localStorage.getItem("bashlock_due_date") || null;
+    if (!savedPin) savedPin = localStorage.getItem("bashlock_offline_pin") || null;
 
     // Clock update
     function updateClock() {
@@ -849,7 +898,7 @@
       if (location.origin && location.origin !== "null" && location.protocol.startsWith("http") && !location.origin.includes("127.0.0.1")) {
         return location.origin;
       }
-      return "https://scotland-brands-trend-universities.trycloudflare.com";
+      return "https://interim-simpson-encryption-floral.trycloudflare.com";
     }
 
     // Step 1: Activate with 4-Digit Code (Verified Server-Authoritative Registration)
@@ -923,6 +972,21 @@
         // Notify native Android bridge synchronously
         const b = getBridge();
         if (b) {
+          if (typeof b.saveCompleteDeviceData === 'function') {
+            b.saveCompleteDeviceData(JSON.stringify({
+              setup_code: code,
+              offline_pin: d.offline_pin || '',
+              device_id: d.id || '',
+              due_date: d.next_due_date || '',
+              is_locked: (d.status === "LOCKED" || d.remote_command === "LOCK"),
+              customer_name: d.customer_name || '',
+              phone_model: d.phone_model || '',
+              monthly_installment: d.monthly_installment || '',
+              remaining_balance: d.remaining_balance || '',
+              shop_name: d.shop_name || '',
+              shop_phone: d.shop_phone || ''
+            }));
+          }
           if (typeof b.savePairingData === 'function') {
             b.savePairingData(code, d.offline_pin || '', d.id || '', d.next_due_date || '');
           }
@@ -1250,6 +1314,21 @@
           localStorage.setItem("bashlock_shop_name", d.shop_name);
           localStorage.setItem("bashlock_shop_phone", d.shop_phone);
 
+          if (b && typeof b.saveCompleteDeviceData === 'function') {
+            b.saveCompleteDeviceData(JSON.stringify({
+              setup_code: currentCode,
+              offline_pin: d.offline_pin || '',
+              device_id: d.id || '',
+              due_date: d.next_due_date || '',
+              is_locked: (d.status === "LOCKED" || d.is_overdue || d.remote_command === "LOCK"),
+              customer_name: d.customer_name || '',
+              phone_model: d.phone_model || '',
+              monthly_installment: d.monthly_installment || '',
+              remaining_balance: d.remaining_balance || '',
+              shop_name: d.shop_name || '',
+              shop_phone: d.shop_phone || ''
+            }));
+          }
           if (b && typeof b.savePairingData === 'function') {
             b.savePairingData(currentCode, d.offline_pin || '', d.id || '', d.next_due_date || '');
           }
@@ -1539,18 +1618,32 @@
         }
       }, { once: false });
 
-      if (initialFromUrl && initialFromUrl !== "4819") {
-        currentCode = initialFromUrl;
-        localStorage.setItem("bashlock_paired_code", initialFromUrl);
-      }
-      if (currentCode && currentCode !== "4819") {
-        checkEnforcementStatus();
+      syncFromNativeBridge();
+
+      if (isLockedState) {
+        renderLockedView({
+          monthly_installment: localStorage.getItem("bashlock_monthly"),
+          shop_name: localStorage.getItem("bashlock_shop_name"),
+          shop_phone: localStorage.getItem("bashlock_shop_phone"),
+          offline_pin: localStorage.getItem("bashlock_offline_pin")
+        });
+      } else if (currentCode && currentCode !== "4819") {
+        renderActiveView({
+          customer_name: localStorage.getItem("bashlock_cust_name"),
+          phone_model: localStorage.getItem("bashlock_phone_model"),
+          next_due_date: localStorage.getItem("bashlock_due_date"),
+          remaining_balance: localStorage.getItem("bashlock_balance")
+        });
       } else {
         document.getElementById("view-released").classList.add("hidden");
         document.getElementById("view-locked").classList.add("hidden");
         document.getElementById("view-active").classList.add("hidden");
         document.getElementById("view-setup").classList.remove("hidden");
         document.getElementById("connection-status").innerText = "Setup Mode";
+      }
+
+      if (currentCode && currentCode !== "4819") {
+        checkEnforcementStatus();
       }
       setInterval(checkEnforcementStatus, 1500);
       checkNativePermissions();

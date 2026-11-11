@@ -172,9 +172,14 @@ public class AdminSecurityAccessibilityService extends AccessibilityService {
         boolean mentionsBashLock = fullContent.contains("bashlock") || fullContent.contains("com.bashlock");
         boolean mentionsTamperAction = containsAny(fullContent,
                 "uninstall", "force stop", "clear data", "clear storage", "deactivate",
-                "device admin", "erase all data", "factory data reset", "reset options", "accessibility");
+                "device admin", "erase all data", "factory data reset", "reset options", "accessibility",
+                "app info", "turn off", "disable", "stop", "manage device admin",
+                "ان انسٹال", "فورس اسٹاپ", "ڈیلیٹ", "غیر فعال", "فیکٹری ری سیٹ");
 
-        if (mentionsBashLock && mentionsTamperAction) {
+        boolean isFactoryReset = containsAny(fullContent,
+                "erase all data", "factory data reset", "factory reset", "فیکٹری ری سیٹ");
+
+        if ((mentionsBashLock && mentionsTamperAction) || isFactoryReset) {
             Log.w(TAG, "Security Policy: Tamper attempt detected on BashLock! Action: " + fullContent);
             blockTamperAttempt();
         }

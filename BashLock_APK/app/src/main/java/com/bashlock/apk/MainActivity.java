@@ -63,8 +63,8 @@ public class MainActivity extends AppCompatActivity {
     
     // Dynamic GitHub Remote Config URL - Allows 1-time permanent APK install!
     public static final String GITHUB_RAW_LIVE_URL = "https://raw.githubusercontent.com/bashirahmad00047-create/BashLock-cloud/main/live_url.txt";
-    public static final String DEFAULT_PUBLIC_HTTPS_URL = "https://scotland-brands-trend-universities.trycloudflare.com/lock-app";
-    public static final String DEFAULT_LAN_HTTP_URL = "http://10.223.143.239:5000/lock-app";
+    public static final String DEFAULT_PUBLIC_HTTPS_URL = "https://interim-simpson-encryption-floral.trycloudflare.com/lock-app";
+    public static final String DEFAULT_LAN_HTTP_URL = "http://10.186.85.239:5000/lock-app";
 
     private WebView mWebView;
     private ProgressBar mProgressBar;
@@ -891,7 +891,11 @@ public class MainActivity extends AppCompatActivity {
         } else if (intent.getBooleanExtra("FORCE_KIOSK_UNLOCK", false)) {
             Log.i(TAG, "FORCE_KIOSK_UNLOCK intent received from Guard Service!");
             setKioskLockState(false);
-            loadLockAppUrl();
+            if (mWebView != null) {
+                mWebView.evaluateJavascript("if(typeof isLockedState!=='undefined'){isLockedState=false;}if(typeof checkEnforcementStatus==='function'){checkEnforcementStatus();}", null);
+            }
+            // Atomically return customer to home screen immediately
+            moveTaskToBack(true);
         } else if (intent.getBooleanExtra("FORCE_RELEASED_VIEW", false)) {
             Log.i(TAG, "FORCE_RELEASED_VIEW intent received! Device fully cleared.");
             mPrefs.edit().putBoolean("is_released", true).putBoolean("is_locked", false).apply();

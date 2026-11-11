@@ -293,13 +293,195 @@ public class WebBridge {
     }
 
     @JavascriptInterface
+    public boolean isDeviceLocked() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+            try {
+                Context directContext = mActivity.createDeviceProtectedStorageContext();
+                return directContext.getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE)
+                        .getBoolean("is_locked", false);
+            } catch (Exception ignored) {}
+        }
+        return mPrefs.getBoolean("is_locked", false);
+    }
+
+    @JavascriptInterface
+    public boolean isDeviceActivated() {
+        String code = getSavedSetupCode();
+        if (code.isEmpty() || "4819".equals(code)) {
+            return false;
+        }
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+            try {
+                Context directContext = mActivity.createDeviceProtectedStorageContext();
+                return directContext.getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE)
+                        .getBoolean("is_activated", false);
+            } catch (Exception ignored) {}
+        }
+        return mPrefs.getBoolean("is_activated", false);
+    }
+
+    @JavascriptInterface
     public String getSavedSetupCode() {
-        return mPrefs.getString("setup_code", "");
+        String code = "";
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+            try {
+                Context directContext = mActivity.createDeviceProtectedStorageContext();
+                code = directContext.getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE)
+                        .getString("setup_code", directContext.getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE).getString("device_code", ""));
+            } catch (Exception ignored) {}
+        }
+        if (code == null || code.isEmpty()) {
+            code = mPrefs.getString("setup_code", mPrefs.getString("device_code", ""));
+        }
+        return code != null ? code.trim() : "";
     }
 
     @JavascriptInterface
     public String getSavedOfflinePin() {
-        return mPrefs.getString("offline_pin", "189853");
+        String pin = "";
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+            try {
+                Context directContext = mActivity.createDeviceProtectedStorageContext();
+                pin = directContext.getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE)
+                        .getString("offline_pin", directContext.getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE).getString("bashlock_offline_pin", ""));
+            } catch (Exception ignored) {}
+        }
+        if (pin == null || pin.isEmpty()) {
+            pin = mPrefs.getString("offline_pin", mPrefs.getString("bashlock_offline_pin", "189853"));
+        }
+        return pin != null ? pin.trim() : "189853";
+    }
+
+    @JavascriptInterface
+    public String getDeviceConfigJson() {
+        org.json.JSONObject obj = new org.json.JSONObject();
+        try {
+            String setupCode = "";
+            String offlinePin = "";
+            String deviceId = "";
+            String dueDate = "";
+            boolean isLocked = false;
+            boolean isActivated = false;
+            boolean isReleased = false;
+            String custName = "";
+            String phoneModel = "";
+            String monthly = "";
+            String balance = "";
+            String shopName = "";
+            String shopPhone = "";
+
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                try {
+                    Context directContext = mActivity.createDeviceProtectedStorageContext();
+                    SharedPreferences dp = directContext.getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE);
+                    setupCode = dp.getString("setup_code", dp.getString("device_code", ""));
+                    offlinePin = dp.getString("offline_pin", dp.getString("bashlock_offline_pin", ""));
+                    deviceId = dp.getString("device_id", "");
+                    dueDate = dp.getString("due_date", "");
+                    isLocked = dp.getBoolean("is_locked", false);
+                    isActivated = dp.getBoolean("is_activated", false);
+                    isReleased = dp.getBoolean("is_released", false);
+                    custName = dp.getString("customer_name", "");
+                    phoneModel = dp.getString("phone_model", "");
+                    monthly = dp.getString("monthly_installment", "");
+                    balance = dp.getString("remaining_balance", "");
+                    shopName = dp.getString("shop_name", "");
+                    shopPhone = dp.getString("shop_phone", "");
+                } catch (Exception ignored) {}
+            }
+
+            if (setupCode == null || setupCode.isEmpty()) {
+                setupCode = mPrefs.getString("setup_code", mPrefs.getString("device_code", ""));
+            }
+            if (offlinePin == null || offlinePin.isEmpty()) {
+                offlinePin = mPrefs.getString("offline_pin", mPrefs.getString("bashlock_offline_pin", "189853"));
+            }
+            if (deviceId == null || deviceId.isEmpty()) deviceId = mPrefs.getString("device_id", "");
+            if (dueDate == null || dueDate.isEmpty()) dueDate = mPrefs.getString("due_date", "");
+            if (!isLocked) isLocked = mPrefs.getBoolean("is_locked", false);
+            if (!isActivated) isActivated = mPrefs.getBoolean("is_activated", false);
+            if (!isReleased) isReleased = mPrefs.getBoolean("is_released", false);
+            if (custName == null || custName.isEmpty()) custName = mPrefs.getString("customer_name", "");
+            if (phoneModel == null || phoneModel.isEmpty()) phoneModel = mPrefs.getString("phone_model", "");
+            if (monthly == null || monthly.isEmpty()) monthly = mPrefs.getString("monthly_installment", "");
+            if (balance == null || balance.isEmpty()) balance = mPrefs.getString("remaining_balance", "");
+            if (shopName == null || shopName.isEmpty()) shopName = mPrefs.getString("shop_name", "");
+            if (shopPhone == null || shopPhone.isEmpty()) shopPhone = mPrefs.getString("shop_phone", "");
+
+            obj.put("setup_code", setupCode != null ? setupCode.trim() : "");
+            obj.put("offline_pin", offlinePin);
+            obj.put("device_id", deviceId);
+            obj.put("due_date", dueDate);
+            obj.put("is_locked", isLocked);
+            obj.put("is_activated", isActivated && setupCode != null && !setupCode.isEmpty() && !"4819".equals(setupCode));
+            obj.put("is_released", isReleased);
+            obj.put("customer_name", custName);
+            obj.put("phone_model", phoneModel);
+            obj.put("monthly_installment", monthly);
+            obj.put("remaining_balance", balance);
+            obj.put("shop_name", shopName);
+            obj.put("shop_phone", shopPhone);
+        } catch (Exception ignored) {}
+        return obj.toString();
+    }
+
+    @JavascriptInterface
+    public void saveCompleteDeviceData(String jsonString) {
+        try {
+            org.json.JSONObject obj = new org.json.JSONObject(jsonString);
+            String code = obj.optString("setup_code", obj.optString("device_code", ""));
+            String pin = obj.optString("offline_pin", obj.optString("bashlock_offline_pin", ""));
+            String devId = obj.optString("device_id", obj.optString("id", ""));
+            String dueDate = obj.optString("due_date", obj.optString("next_due_date", ""));
+            boolean isLocked = obj.optBoolean("is_locked", false);
+            String cust = obj.optString("customer_name", "");
+            String model = obj.optString("phone_model", "");
+            String monthly = obj.optString("monthly_installment", "");
+            String bal = obj.optString("remaining_balance", "");
+            String sName = obj.optString("shop_name", "");
+            String sPhone = obj.optString("shop_phone", "");
+
+            // 1. Standard SharedPreferences
+            SharedPreferences.Editor ed = mPrefs.edit();
+            if (!code.isEmpty()) { ed.putString("setup_code", code).putString("device_code", code); }
+            if (!pin.isEmpty()) { ed.putString("offline_pin", pin).putString("bashlock_offline_pin", pin); }
+            if (!devId.isEmpty()) { ed.putString("device_id", devId); }
+            if (!dueDate.isEmpty()) { ed.putString("due_date", dueDate); }
+            if (!cust.isEmpty()) { ed.putString("customer_name", cust); }
+            if (!model.isEmpty()) { ed.putString("phone_model", model); }
+            if (!monthly.isEmpty()) { ed.putString("monthly_installment", monthly); }
+            if (!bal.isEmpty()) { ed.putString("remaining_balance", bal); }
+            if (!sName.isEmpty()) { ed.putString("shop_name", sName); }
+            if (!sPhone.isEmpty()) { ed.putString("shop_phone", sPhone); }
+            ed.putBoolean("is_locked", isLocked);
+            if (!code.isEmpty() && !"4819".equals(code)) { ed.putBoolean("is_activated", true); }
+            ed.putBoolean("is_released", false);
+            ed.commit();
+
+            // 2. DirectBoot / DeviceProtectedStorageContext
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                try {
+                    Context directContext = mActivity.createDeviceProtectedStorageContext();
+                    SharedPreferences.Editor ded = directContext.getSharedPreferences("BashLock_Config_DirectBoot", Context.MODE_PRIVATE).edit();
+                    if (!code.isEmpty()) { ded.putString("setup_code", code).putString("device_code", code); }
+                    if (!pin.isEmpty()) { ded.putString("offline_pin", pin).putString("bashlock_offline_pin", pin); }
+                    if (!devId.isEmpty()) { ded.putString("device_id", devId); }
+                    if (!dueDate.isEmpty()) { ded.putString("due_date", dueDate); }
+                    if (!cust.isEmpty()) { ded.putString("customer_name", cust); }
+                    if (!model.isEmpty()) { ded.putString("phone_model", model); }
+                    if (!monthly.isEmpty()) { ded.putString("monthly_installment", monthly); }
+                    if (!bal.isEmpty()) { ded.putString("remaining_balance", bal); }
+                    if (!sName.isEmpty()) { ded.putString("shop_name", sName); }
+                    if (!sPhone.isEmpty()) { ded.putString("shop_phone", sPhone); }
+                    ded.putBoolean("is_locked", isLocked);
+                    if (!code.isEmpty() && !"4819".equals(code)) { ded.putBoolean("is_activated", true); }
+                    ded.putBoolean("is_released", false);
+                    ded.commit();
+                } catch (Exception ignored) {}
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "saveCompleteDeviceData error: " + e.getMessage());
+        }
     }
 
     @JavascriptInterface
@@ -434,6 +616,15 @@ public class WebBridge {
                         .putString("device_code", "")
                         .putString("setup_code", "")
                         .putString("pairing_code", "")
+                        .putString("device_id", "")
+                        .putString("bashlock_offline_pin", "")
+                        .putString("offline_pin", "")
+                        .putString("due_date", "")
+                        .putString("monthly_installment", "")
+                        .putString("customer_name", "")
+                        .putString("phone_model", "")
+                        .putString("shop_name", "")
+                        .putString("shop_phone", "")
                         .commit();
             } catch (Exception ignored) {}
         }
